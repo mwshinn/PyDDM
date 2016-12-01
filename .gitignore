@@ -1,0 +1,5 @@
+# Ignore .dat, .pyc, .pdf files. Add others if needed but that's the only one that frequently appears as of now.
+###########
+*.dat
+*.pyc
+*.pdf
