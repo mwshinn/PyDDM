@@ -2,39 +2,25 @@
 Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
-#import brian_no_units           #Note: speeds up the code
-from numpy.fft import rfft,irfft
-import time
 import numpy as np
-from scipy.special import erf
-#from scipy.linalg import circulant
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize, curve_fit
-import cProfile
-import re
+from scipy.optimize import minimize
 import matplotlib.cm as matplotlib_cm
-import math
-#import sys
-#sys.path.append('C:\Users\nhl8\Desktop\CCNSS\Drift_Diffusion_Model')
-import multiprocessing
 import copy
-import cProfile
-import re
-import datetime
 
 ########################################################################################################################
 ### Initialization
 ## Flags to run various parts or not
-Flag_random_traces = 1     # Plot some traces that have somewhat arbitrary trajectories
-Flag_Compare_num_analy_sim = 1      # Compare numerical solution to analytical solutions and/or simulations.
+Flag_random_traces = 1 # Plot some traces that have somewhat arbitrary trajectories
+Flag_Compare_num_analy_sim = 1 # Compare numerical solution to analytical solutions and/or simulations.
 #Flag_coherence_tasks  = 1  # Do various tasks (fixed time, Psychophysical Kernel, Duration Paradigm, Pulse Paradigm). Nah... not a good idea to do this here...
 Flag_Pulse = 0
-Flag_Duration = 1
+Flag_Duration = 0
 Flag_PK = 0
 
 #Load parameters and functions
-execfile('DDM_parameters.py')
-execfile('DDM_functions.py')
+from DDM_parameters import *
+from DDM_functions import *
 
 
 ########################################################################################################################
@@ -42,10 +28,10 @@ execfile('DDM_functions.py')
 models_list = [0,1,2,3,4]                                #List of models to use. See Setting_list
 #models_list = models_list_all                                #List of models to use. See Setting_list
 
-Prob_final_corr  = np.zeros((len(mu_0_list), len(models_list)))                                                         # Array to store the total correct probability for each mu & model.
-Prob_final_err   = np.zeros((len(mu_0_list), len(models_list)))                                                         # Array to store the total erred probability for each mu & model.
-Prob_final_undec = np.zeros((len(mu_0_list), len(models_list)))                                                         # Array to store the total undecided probability for each mu & model.
-Mean_Dec_Time    = np.zeros((len(mu_0_list), len(models_list)))                                                         # Array to store the total correct probability for each mu & model.
+Prob_final_corr  = np.zeros((len(mu_0_list), len(models_list))) # total correct probability for each mu & model.
+Prob_final_err   = np.zeros((len(mu_0_list), len(models_list))) # total erred probability for each mu & model.
+Prob_final_undec = np.zeros((len(mu_0_list), len(models_list))) # total undecided probability for each mu & model.
+Mean_Dec_Time    = np.zeros((len(mu_0_list), len(models_list)))
 
 Prob_final_corr_Analy  = np.zeros((len(mu_0_list), 2))
 Prob_final_err_Analy   = np.zeros((len(mu_0_list), 2))
@@ -61,7 +47,8 @@ Mean_Dec_Time_0    = np.zeros((len(models_list)))
 
 traj_mean_pos_all = np.zeros((len(t_list), len(models_list)))
 
-### Compute the probability distribution functions for the correct and erred choices                                    # NOTE: First set T_dur to be the the duration of the fixed duration task.
+### Compute the probability distribution functions for the correct and erred choices
+# NOTE: First set T_dur to be the the duration of the fixed duration task.
 for i_models in range(len(models_list)):
     index_model_2use = models_list[i_models]
     for i_mu0 in range(len(mu_0_list)):
@@ -88,7 +75,7 @@ for i_models in range(len(models_list)):
         ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
         if index_model_2use ==0 or index_model_2use==1:
             #note the temporary -ve sign for param_B_0...not sure if I still need it in exponential decay case etc...
-            (Prob_list_corr_Analy_temp, Prob_list_err_Analy_temp) = DDM_pdf_analytical([mu_temp, sigma_0, param_mu_x_list[index_model_2use], B, -param_B_t_list[index_model_2use]], index_model_2use, 0)                               # Simple DDM
+            (Prob_list_corr_Analy_temp, Prob_list_err_Analy_temp) = DDM_pdf_analytical([mu_temp, sigma_0, param_mu_x_list[index_model_2use], B, -param_B_t_list[index_model_2use]], index_model_2use, 0) # Simple DDM
             Prob_list_sum_corr_Analy_temp  = np.sum(Prob_list_corr_Analy_temp)
             Prob_list_sum_err_Analy_temp   = np.sum(Prob_list_err_Analy_temp)
             Prob_list_sum_undec_Analy_temp = 1 - Prob_list_sum_corr_Analy_temp - Prob_list_sum_err_Analy_temp
@@ -98,7 +85,7 @@ for i_models in range(len(models_list)):
             Prob_final_corr_Analy[i_mu0, i_models]  = Prob_list_sum_corr_Analy_temp + Prob_final_undec_Analy[i_mu0, i_models]/2.
             Prob_final_err_Analy[i_mu0, i_models]   = Prob_list_sum_err_Analy_temp  + Prob_final_undec_Analy[i_mu0, i_models]/2.
             # Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp+Prob_list_err_Analy_temp) *t_list) / np.sum((Prob_list_corr_Analy_temp+Prob_list_err_Analy_temp))      # Regardless of choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
-            Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp)*t_list) / np.sum((Prob_list_corr_Analy_temp))                                                           # Only consider correct choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
+            Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp)*t_list) / np.sum((Prob_list_corr_Analy_temp)) # Only consider correct choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
 
     ## Compute the default models (based on spiking circuit) for the various models.
     (Prob_list_corr_0_temp, Prob_list_err_0_temp) = DDM_pdf_general([mu_0_list[0], param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use]], index_model_2use, 0)                               # Simple DDM
@@ -119,7 +106,7 @@ for i_models in range(len(models_list)):
     index_model_2use = models_list[i_models]
     ax11.plot(coh_list, Prob_final_corr[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
     if index_model_2use ==0 or index_model_2use==1:
-        ax11.plot(coh_list, Prob_final_corr_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':')      #, label=labels_list[index_model_2use]+"_A" )
+        ax11.plot(coh_list, Prob_final_corr_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
 #fig1.ylim([-1.,1.])
 #ax11.set_xlabel('mu_0 (~coherence)')
 ax11.set_ylabel('Probability')
@@ -132,7 +119,7 @@ for i_models in range(len(models_list)):
     index_model_2use = models_list[i_models]
     ax12.plot(coh_list, Prob_final_err[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
     if index_model_2use ==0 or index_model_2use==1:
-        ax12.plot(coh_list, Prob_final_err_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':')       #, label=labels_list[index_model_2use]+"_A" )
+        ax12.plot(coh_list, Prob_final_err_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
 
 #fig1.ylim([-1.,1.])
 #ax12.set_xlabel('mu_0 (~coherence)')
@@ -147,7 +134,7 @@ for i_models in range(len(models_list)):
     index_model_2use = models_list[i_models]
     ax13.plot(coh_list, Prob_final_undec[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
     if index_model_2use ==0 or index_model_2use==1:
-        ax13.plot(coh_list, Prob_final_undec_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':')     #, label=labels_list[index_model_2use]+"_A" )
+        ax13.plot(coh_list, Prob_final_undec_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
 #fig1.ylim([-1.,1.])
 #ax13.set_xlabel('mu_0 (~coherence)')
 ax13.set_ylabel('Probability')
@@ -180,15 +167,14 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 ########################################################################################################################
 ## Fig 2: compare analytical vs implicit method for simple DDM and Collapsing bound (linear). Others have no analytical forms.
 if Flag_Compare_num_analy_sim:
-    ###models_list_fig2 = [0,1]                                #List of models to use. See Setting_list (DDM and CB_Lin only here)
-    mu_0_F2 = mu_0_list[-3]                                                                                                 # Set a particular mu and play with variour settings...
-    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B, 0.]                   , 0)
-    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, 0.]                   , 0)
-    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t ]          , 1)
-    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, -param_B_t]           , 1)
+    ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
+    mu_0_F2 = mu_0_list[-3] # Set a particular mu and play with variour settings...
+    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B, 0.], 0)
+    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, 0.], 0)
+    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t ], 1)
+    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, -param_B_t], 1)
     (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t, T_dur/4. ], 0, 3)
     (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t, T_dur/4. ], 1, 3)
-    # (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, sigma_0, sigma_0, B,  param_B_t ]          , 1)           # Testing various x&t varying params (mu, sigma etc), and comparing to simulations
 
 
     # Cumulative Sums
@@ -206,31 +192,17 @@ if Flag_Compare_num_analy_sim:
     Prob_list_cumsum_err_4_fig2  = np.cumsum(Prob_list_err_4_fig2)
 
 
-    # # Note that the analtical forms are normalized, so we
-    # Prob_list_corr_1_fig2        = Prob_list_corr_1_fig2       /(Prob_list_cumsum_corr_1_fig2[-1]+Prob_list_cumsum_err_1_fig2[-1])
-    # Prob_list_err_1_fig2         = Prob_list_err_1_fig2        /(Prob_list_cumsum_corr_1_fig2[-1]+Prob_list_cumsum_err_1_fig2[-1])
-    # Prob_list_cumsum_corr_1_fig2 = Prob_list_cumsum_corr_1_fig2/(Prob_list_cumsum_corr_1_fig2[-1]+Prob_list_cumsum_err_1_fig2[-1])
-    # Prob_list_cumsum_err_1_fig2  = Prob_list_cumsum_err_1_fig2 /(Prob_list_cumsum_corr_1_fig2[-1]+Prob_list_cumsum_err_1_fig2[-1])
-    # Prob_list_corr_2_fig2        = Prob_list_corr_2_fig2       /(Prob_list_cumsum_corr_2_fig2[-1]+Prob_list_cumsum_err_2_fig2[-1])
-    # Prob_list_err_2_fig2         = Prob_list_err_2_fig2        /(Prob_list_cumsum_corr_2_fig2[-1]+Prob_list_cumsum_err_2_fig2[-1])
-    # Prob_list_cumsum_corr_2_fig2 = Prob_list_cumsum_corr_2_fig2/(Prob_list_cumsum_corr_2_fig2[-1]+Prob_list_cumsum_err_2_fig2[-1])
-    # Prob_list_cumsum_err_2_fig2  = Prob_list_cumsum_err_2_fig2 /(Prob_list_cumsum_corr_2_fig2[-1]+Prob_list_cumsum_err_2_fig2[-1])
-    # Prob_list_corr_4_fig2        = Prob_list_corr_4_fig2       /(Prob_list_cumsum_corr_4_fig2[-1]+Prob_list_cumsum_err_4_fig2[-1])
-    # Prob_list_err_4_fig2         = Prob_list_err_4_fig2        /(Prob_list_cumsum_corr_4_fig2[-1]+Prob_list_cumsum_err_4_fig2[-1])
-    # Prob_list_cumsum_corr_4_fig2 = Prob_list_cumsum_corr_4_fig2/(Prob_list_cumsum_corr_4_fig2[-1]+Prob_list_cumsum_err_4_fig2[-1])
-    # Prob_list_cumsum_err_4_fig2  = Prob_list_cumsum_err_4_fig2 /(Prob_list_cumsum_corr_4_fig2[-1]+Prob_list_cumsum_err_4_fig2[-1])
-
     # In case the trial model has no analytical solution, use simulation (see DDM_sim_compare_pdf.py) instead.
     [bins_edge_t_correct_sim_temp, pdf_t_correct_sim_temp, bins_edge_t_incorrect_sim_temp, pdf_t_incorrect_sim_temp] = np.load('DDM_sim_t_pdf.npy')
     bins_t_correct_sim_temp = 0.5*(bins_edge_t_correct_sim_temp[1:] + bins_edge_t_correct_sim_temp[:-1])
     bins_t_incorrect_sim_temp = 0.5*(bins_edge_t_incorrect_sim_temp[1:] + bins_edge_t_incorrect_sim_temp[:-1])
     norm_sim_temp = np.sum(pdf_t_correct_sim_temp + pdf_t_incorrect_sim_temp)
-    dt_ratio = 10.                                                                                                          # Ratio in time step, and thus 1/ number of datapoints, between simulation and numerical solutions.
+    dt_ratio = 10. # Ratio in time step, and thus 1/ number of datapoints, between simulation and numerical solutions.
 
 
     ### Plot correct probability, erred probability, indecision probability, and mean decision time.
     fig2 = plt.figure(figsize=(8,10.5))
-    ax21 = fig2.add_subplot(411)                                                                                            # PDF, Correct
+    ax21 = fig2.add_subplot(411) # PDF, Correct
     ax21.plot(t_list, Prob_list_corr_1_fig2, 'r', label='DDM' )
     ax21.plot(t_list, Prob_list_corr_1_Anal_fig2, 'r:', label='DDM_A' )
     ax21.plot(t_list, Prob_list_corr_2_fig2, 'b', label='test' )
@@ -246,7 +218,7 @@ if Flag_Compare_num_analy_sim:
     # ax21.set_xscale('log')
     ax21.legend(loc=1)
 
-    ax22 = fig2.add_subplot(412)                                                                                            # PDF, erred
+    ax22 = fig2.add_subplot(412) # PDF, erred
     ax22.plot(t_list, Prob_list_err_1_fig2, 'r', label='DDM' )
     ax22.plot(t_list, Prob_list_err_1_Anal_fig2, 'r:', label='DDM_A' )
     ax22.plot(t_list, Prob_list_err_2_fig2, 'b', label='test' )
@@ -262,7 +234,7 @@ if Flag_Compare_num_analy_sim:
     # fig1.set_xscale('log')
     ax22.legend(loc=1)
 
-    ax23 = fig2.add_subplot(413)                                                                                            # CDF, Correct
+    ax23 = fig2.add_subplot(413) # CDF, Correct
     ax23.plot(t_list, Prob_list_cumsum_corr_1_fig2, 'r', label='DDM' )
     ax23.plot(t_list, Prob_list_cumsum_corr_1_Anal_fig2, 'r:', label='DDM_A' )
     ax23.plot(t_list, Prob_list_cumsum_corr_2_fig2, 'b', label='test' )
@@ -279,7 +251,7 @@ if Flag_Compare_num_analy_sim:
     # ax23.set_xscale('log')
     ax23.legend(loc=4)
 
-    ax24 = fig2.add_subplot(414)                                                                                            # CDF, Erred
+    ax24 = fig2.add_subplot(414) # CDF, Erred
     ax24.plot(t_list, Prob_list_cumsum_err_1_fig2, 'r', label='DDM' )
     ax24.plot(t_list, Prob_list_cumsum_err_1_Anal_fig2, 'r:', label='DDM_A' )
     ax24.plot(t_list, Prob_list_cumsum_err_2_fig2, 'b', label='test' )
@@ -315,25 +287,8 @@ if Flag_Compare_num_analy_sim:
 
 
 
-
 ########################################################################################################################
 # NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT. Only left here coz
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
-# NOTE: ALL BELOW CAN BE DELETED IF IRREVLEVENT.
 
 ### Psychophysical Kernel/ Duration Paradigm/ Pulse Paradigm...
 # Pulse Paradigm...
@@ -376,8 +331,8 @@ if Flag_Pulse:
 
 
     ## For each model and each t_onset_pulse, fit the psychometric function
-    psychometric_params_list_pulse = np.zeros((3 , len(t_onset_list_pulse), len(models_list)))                                    # Note that params_pm in Psychometric_fit_P has only 2 fit parameters...
-    param_fit_0_pulse = [2. ,1., 0.]                                                                                                     # Temp, initial guess for param_pm for Psychometric_fit_P.
+    psychometric_params_list_pulse = np.zeros((3 , len(t_onset_list_pulse), len(models_list))) # Note that params_pm in Psychometric_fit_P has only 2 fit parameters...
+    param_fit_0_pulse = [2. ,1., 0.] # Temp, initial guess for param_pm for Psychometric_fit_P.
     for i_models in range(len(models_list)):
         index_model_2use = models_list[i_models]
         for i_ton in range(len(t_onset_list_pulse)):
@@ -544,10 +499,10 @@ if Flag_Duration:
     # t_dur_list_duration_2 = np.arange(0.2, 0.5+0.01, 0.05)
     # t_dur_list_duration   = sorted(set(np.concatenate((t_dur_list_duration_1,t_dur_list_duration_2),axis=0)))		#To create an array/ parameter scale of varying densities
 
-    models_list = [0,3,4]                                           # List of models to use. See Setting_list
-    # models_list = models_list_all                                 # List of models to use. See Setting_list
-    coh_skip_threshold = 60.                                                                                            # Threshold value above which data is skipped.
-    n_skip_fit_list = np.zeros(len(models_list))                                                                        # Define the number of skipped data based on coh_skip_threshold later on.
+    models_list = [0,3,4] # List of models to use. See Setting_list
+    # models_list = models_list_all # List of models to use. See Setting_list
+    coh_skip_threshold = 60. # Threshold value above which data is skipped.
+    n_skip_fit_list = np.zeros(len(models_list)).astype(int) # Only integer skips                                                                        # Define the number of skipped data based on coh_skip_threshold later on.
 
 
     Prob_final_corr_duration  = np.zeros((len(t_dur_list_duration), len(mu_0_list), len(models_list)))
@@ -565,8 +520,8 @@ if Flag_Duration:
             mu_2use = mu_0_list[i_mu0]
             for i_tdur in range(len(t_dur_list_duration)):
                 t_dur_temp = t_dur_list_duration[i_tdur]
-                #t_list_temp = np.arange(0., t_dur_temp, dt)                                                             # If cutoff time at the end of stimulus (T_dur)
-                t_list_temp = t_list                                                                                    # If cutoff time is constant/ indep of T_dur
+                #t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
+                t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
                 (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use], t_dur_temp], index_model_2use, 2)                               # Simple DDM
                 Prob_list_sum_corr_duration_temp  = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp   = np.sum(Prob_list_err_duration_temp)
@@ -584,25 +539,25 @@ if Flag_Duration:
                 #     Prob_final_err_duration[i_tdur, i_models]  = Prob_list_sum_err_duration_temp / (Prob_list_sum_corr_duration_temp + Prob_list_sum_err_duration_temp)
 
     ## For each model and each t_dur_duration, fit the psychometric function
-    psychometric_params_list_duration = np.zeros((2 , len(t_dur_list_duration), len(models_list)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
-    param_fit_0_duration = [2.,0.5]                                                                                                     # Temp, initial guess for param_pm for Psychometric_fit_D.
+    psychometric_params_list_duration = np.zeros((2 , len(t_dur_list_duration), len(models_list))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    param_fit_0_duration = [2.,0.5] # Temp, initial guess for param_pm for Psychometric_fit_D.
     for i_models in range(len(models_list)):
         index_model_2use = models_list[i_models]
         for i_tdur in range(len(t_dur_list_duration)):
             t_dur_temp = t_dur_list_duration[i_tdur]
-            res_temp = minimize(Psychometric_fit_D, param_fit_0_duration, args = ([Prob_final_corr_duration[i_tdur,:,i_models]]))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
+            res_temp = minimize(Psychometric_fit_D, param_fit_0_duration, args = ([Prob_final_corr_duration[i_tdur,:,i_models]])) #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
             psychometric_params_list_duration[:,i_tdur,i_models] = res_temp.x
 
-        n_skip_fit_list[i_models] = np.sum( psychometric_params_list_duration[0,:,i_models]*100./mu_0  > coh_skip_threshold)                                         # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
+        n_skip_fit_list[i_models] = int(np.sum( psychometric_params_list_duration[0,:,i_models]*100./mu_0  > coh_skip_threshold)) # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
 
 
     ## Fit Psychometric Threshold with a decaying exponential + Constant
     # Note that we would want to change varaibles_list at the top, to do a scan of OU-parameters
-    param_fit_threshold_duration = [15., 0.2, 0., 100.]                                                                                                     # Temp, initial guess for param_pm for Psychometric_fit_D.
-    threshold_fit_params_list_duration = np.zeros((len(param_fit_threshold_duration), len(models_list)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    param_fit_threshold_duration = [15., 0.2, 0., 100.] # Temp, initial guess for param_pm for Psychometric_fit_D.
+    threshold_fit_params_list_duration = np.zeros((len(param_fit_threshold_duration), len(models_list))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
     for i_models in range(len(models_list)):
         index_model_2use = models_list[i_models]
-        res_temp_threshold = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration[0,:,i_models]*100./mu_0, n_skip_fit_list[i_models]))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
+        res_temp_threshold = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration[0,:,i_models]*100./mu_0, n_skip_fit_list[i_models], t_dur_list_duration)) #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
         threshold_fit_params_list_duration[:,i_models] = res_temp_threshold.x
 
     # print threshold_fit_params_list_duration[0, i_models] + (100.-threshold_fit_params_list_duration[0, i_models])*(np.exp(-((t_dur_list_duration-threshold_fit_params_list_duration[2, i_models])/threshold_fit_params_list_duration[1, i_models])))
@@ -729,8 +684,8 @@ if Flag_Duration:
             mu_2use = mu_0_list[i_mu0]
             for i_tdur in range(len(t_dur_list_duration)):
                 t_dur_temp = t_dur_list_duration[i_tdur]
-                # t_list_temp = np.arange(0., t_dur_temp, dt)                                                             # If cutoff time at the end of stimulus (T_dur)
-                t_list_temp = t_list                                                                                    # If cutoff time is constant/ indep of T_dur
+                # t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
+                t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
                 (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, OU_param_2use, param_mu_t_list[index_model_OUpos], sigma_0, param_sigma_x_list[index_model_OUpos], param_sigma_t_list[index_model_OUpos], B, param_B_t_list[index_model_OUpos], t_dur_temp], index_model_OUpos, 2)                               # Simple DDM
                 Prob_list_sum_corr_duration_temp = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp  = np.sum(Prob_list_err_duration_temp)
@@ -748,8 +703,8 @@ if Flag_Duration:
             mu_2use = mu_0_list[i_mu0]
             for i_tdur in range(len(t_dur_list_duration)):
                 t_dur_temp = t_dur_list_duration[i_tdur]
-                #t_list_temp = np.arange(0., t_dur_temp, dt)                                                             # If cutoff time at the end of stimulus (T_dur)
-                t_list_temp = t_list                                                                                    # If cutoff time is constant/ indep of T_dur
+                #t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
+                t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
                 (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, OU_param_2use, param_mu_t_list[index_model_OUneg], sigma_0, param_sigma_x_list[index_model_OUneg], param_sigma_t_list[index_model_OUneg], B, param_B_t_list[index_model_OUpos], t_dur_temp], index_model_OUneg, 2)                               # Simple DDM
                 Prob_list_sum_corr_duration_temp  = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp  = np.sum(Prob_list_err_duration_temp)
@@ -764,9 +719,9 @@ if Flag_Duration:
 
 
     ## For each model and each t_dur_duration, fit the psychometric function
-    param_fit_0_duration = [2.,0.5]                                                                                                     # Temp, initial guess for param_pm for Psychometric_fit_D.
-    psychometric_params_list_duration_scan_OUpos = np.zeros((2 , len(t_dur_list_duration), len(OU_pos_range)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
-    psychometric_params_list_duration_scan_OUneg = np.zeros((2 , len(t_dur_list_duration), len(OU_neg_range)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    param_fit_0_duration = [2.,0.5] # Temp, initial guess for param_pm for Psychometric_fit_D.
+    psychometric_params_list_duration_scan_OUpos = np.zeros((2 , len(t_dur_list_duration), len(OU_pos_range))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    psychometric_params_list_duration_scan_OUneg = np.zeros((2 , len(t_dur_list_duration), len(OU_neg_range))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
     for i_tdur in range(len(t_dur_list_duration)):
         t_dur_temp = t_dur_list_duration[i_tdur]
         for i_OUpos in range(len(OU_pos_range)):
@@ -779,32 +734,21 @@ if Flag_Duration:
 
     ## Fit Psychometric Threshold with a decaying exponential + Constant
     # Note that we would want to change varaibles_list at the top, to do a scan of OU-parameters
-    param_fit_threshold_duration = [15., 0.2, 0., 100.]                                                                                                     # Temp, initial guess for param_pm for Psychometric_fit_D.
-    n_skip_fit_list_OUpos = np.zeros(len(OU_pos_range))
-    n_skip_fit_list_OUneg = np.zeros(len(OU_neg_range))
-    threshold_fit_params_list_duration_scan_OUpos = np.zeros((len(param_fit_threshold_duration), len(OU_pos_range)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
-    threshold_fit_params_list_duration_scan_OUneg = np.zeros((len(param_fit_threshold_duration), len(OU_neg_range)))                                    # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    param_fit_threshold_duration = [15., 0.2, 0., 100.] # Temp, initial guess for param_pm for Psychometric_fit_D.
+    n_skip_fit_list_OUpos = np.zeros(len(OU_pos_range)).astype(int) # n_skips should only be integers
+    n_skip_fit_list_OUneg = np.zeros(len(OU_neg_range)).astype(int)
+    threshold_fit_params_list_duration_scan_OUpos = np.zeros((len(param_fit_threshold_duration), len(OU_pos_range))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
+    threshold_fit_params_list_duration_scan_OUneg = np.zeros((len(param_fit_threshold_duration), len(OU_neg_range))) # Note that params_pm in Psychometric_fit has only 2 fit parameters...
     for i_OUpos in range(len(OU_pos_range)):
-        n_skip_fit_OUpos = np.sum( psychometric_params_list_duration_scan_OUpos[0,:,i_OUpos]*100./mu_0  > coh_skip_threshold)                                         # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
+        n_skip_fit_OUpos = int(np.sum( psychometric_params_list_duration_scan_OUpos[0,:,i_OUpos]*100./mu_0  > coh_skip_threshold)) # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
         n_skip_fit_list_OUpos[i_OUpos] = n_skip_fit_OUpos
-        res_scan_OUpos = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration_scan_OUpos[0,:,i_OUpos]*100./mu_0, n_skip_fit_OUpos))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
+        res_scan_OUpos = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration_scan_OUpos[0,:,i_OUpos]*100./mu_0, n_skip_fit_OUpos, t_dur_list_duration))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
         threshold_fit_params_list_duration_scan_OUpos[:,i_OUpos] = res_scan_OUpos.x
     for i_OUneg in range(len(OU_neg_range)):
-        n_skip_fit_OUneg = np.sum( psychometric_params_list_duration_scan_OUneg[0,:,i_OUneg]*100./mu_0  > coh_skip_threshold)                                         # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
+        n_skip_fit_OUneg = int(np.sum( psychometric_params_list_duration_scan_OUneg[0,:,i_OUneg]*100./mu_0  > coh_skip_threshold)) # First define which how many terms in the pscyhomeric_params_list to skip/ not include in fit. All data that has threshold >100% is removed.
         n_skip_fit_list_OUneg[i_OUneg] = n_skip_fit_OUneg
-        res_scan_OUneg = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration_scan_OUneg[0,:,i_OUneg]*100./mu_0, n_skip_fit_OUneg))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
+        res_scan_OUneg = minimize(Threshold_D_fit, param_fit_threshold_duration, args = (psychometric_params_list_duration_scan_OUneg[0,:,i_OUneg]*100./mu_0, n_skip_fit_OUneg, t_dur_list_duration))     #Note that mu_0_list is intrinsically defined in the Psychometric_fit function
         threshold_fit_params_list_duration_scan_OUneg[:,i_OUneg] = res_scan_OUneg.x
-
-
-    # print threshold_fit_params_list_duration_scan_OUpos
-    # print threshold_fit_params_list_duration_scan_OUneg
-    print n_skip_fit_list_OUpos
-    print n_skip_fit_list_OUneg
-    # print threshold_fit_params_list_duration[0, i_models] + (100.-threshold_fit_params_list_duration[0, i_models])*(np.exp(-((t_dur_list_duration-threshold_fit_params_list_duration[2, i_models])/threshold_fit_params_list_duration[1, i_models])))
-
-
-
-
 
 
     figD_params = plt.figure(figsize=(8,10.5))
@@ -865,8 +809,8 @@ if Flag_Duration:
 if Flag_PK:
     ## Initialization
     n_rep_PK = 1000          # Number of PK runs
-    models_list = [0,3,4]                                #List of models to use. See Setting_list
-    # models_list = models_list_all                                #List of models to use. See Setting_list
+    models_list = [0,3,4] #List of models to use. See Setting_list
+    # models_list = models_list_all #List of models to use. See Setting_list
     mu_0_PK      = mu_0
     coh_list_PK  = np.array([-25.6, -12.8, -6.4, 6.4, 12.8, 25.6])
     mu_0_list_PK = [mu_0_PK*0.01*coh_temp_PK for coh_temp_PK in coh_list_PK]
@@ -879,15 +823,15 @@ if Flag_PK:
     # Mean_Dec_Time_PK    = np.zeros((n_rep_PK, len(mu_0_list_PK), len(models_list)))
 
     PK_Amp       = np.zeros((int(T_dur/dt_mu_PK), len(mu_0_list_PK), len(models_list)))
-    PK_n_trials  = np.zeros((int(T_dur/dt_mu_PK), len(mu_0_list_PK), len(models_list)))                                 # Number of trials run in that slot of the matrix. Used for normalization when doing averaging.
+    PK_n_trials  = np.zeros((int(T_dur/dt_mu_PK), len(mu_0_list_PK), len(models_list))) # Number of trials run in that slot of the matrix. Used for normalization when doing averaging.
 
 
     ## Run the trials
     ## For each models, find the probability to be correct/erred/undec for various mu and t_onset_pulse
-    t_list_temp = t_list                                                                                    # If cutoff time is constant/ indep of T_dur
+    t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
     for i_models in range(len(models_list)):
         index_model_2use = models_list[i_models]
-        for i_rep_PK in range(n_rep_PK):                                                                                    # For now use the same mu_t for all models and mu, can fix later...
+        for i_rep_PK in range(n_rep_PK): # For now use the same mu_t for all models and mu, can fix later...
             print i_rep_PK
             ind_mu_t_list_PK_temp = np.random.randint(len(mu_0_list_PK), size=int(T_dur/dt_mu_PK))
             mu_t_list_PK_temp = np.zeros((int(T_dur/dt_mu_PK)))
@@ -895,9 +839,9 @@ if Flag_PK:
                 mu_t_list_PK_temp[i_mu_t_PK] = mu_0_list_PK[ind_mu_t_list_PK_temp[i_mu_t_PK]]
             # mu_t_list_PK[:, i_rep_PK, i_models] = mu_t_list_PK_temp        #Record the states
             (Prob_list_corr_PK_temp, Prob_list_err_PK_temp) = DDM_pdf_general([0., param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use], mu_t_list_PK_temp], index_model_2use, 1)                               # Simple DDM
-            Prob_list_sum_corr_PK_temp = np.sum(Prob_list_corr_PK_temp)                                                 # No need cumsum, just sum.
+            Prob_list_sum_corr_PK_temp = np.sum(Prob_list_corr_PK_temp) # No need cumsum, just sum.
             Prob_list_sum_err_PK_temp  = np.sum(Prob_list_err_PK_temp)
-            # Prob_list_sum_undec_PK_temp  = 1. - Prob_list_sum_corr_PK_temp - Prob_list_sum_err_PK_temp                # No need for undecided results, as we only want corr - err, while the undecided trials are spread evenly between the 2.
+            # Prob_list_sum_undec_PK_temp  = 1. - Prob_list_sum_corr_PK_temp - Prob_list_sum_err_PK_temp # No need for undecided results, as we only want corr - err, while the undecided trials are spread evenly between the 2.
             PK_Amp_temp = Prob_list_sum_corr_PK_temp - Prob_list_sum_err_PK_temp
             for i_t_PK in range(int(T_dur/dt_mu_PK)):
                 PK_Amp[i_t_PK, ind_mu_t_list_PK_temp[i_t_PK], i_models] += Prob_list_sum_corr_PK_temp - Prob_list_sum_err_PK_temp
@@ -914,8 +858,8 @@ if Flag_PK:
             #     Prob_final_corr_PK[i_tdur, i_models] = Prob_list_cumsum_corr_PK_temp[-1] / (Prob_list_cumsum_corr_PK_temp[-1] + Prob_list_cumsum_err_PK_temp[-1])
             #     Prob_final_err_PK[i_tdur, i_models]  = Prob_list_cumsum_err_PK_temp[-1] / (Prob_list_cumsum_corr_PK_temp[-1] + Prob_list_cumsum_err_PK_temp[-1])
 
-    PK_Amp_runNorm = PK_Amp/PK_n_trials                                                                                                # Normalize the terms by the number of runs for each t_bin and mu level, for all models.
-    PK_Amp_CohNorm = copy.copy(PK_Amp_runNorm)                                                                                                # PK_Amp_CohNorm is PK_Amp but divded by mu, for each of them.
+    PK_Amp_runNorm = PK_Amp/PK_n_trials # Normalize the terms by the number of runs for each t_bin and mu level, for all models.
+    PK_Amp_CohNorm = copy.copy(PK_Amp_runNorm) # PK_Amp_CohNorm is PK_Amp but divded by mu, for each of them.
     for i_coh_PK in range(len(coh_list_PK)):
         PK_Amp_CohNorm[:,i_coh_PK,:] /= coh_list_PK[i_coh_PK]
     PK_Amp_1D = np.mean(PK_Amp_CohNorm, axis=1)
@@ -986,12 +930,3 @@ if Flag_PK:
 
     np.save("PK_Amp_2D_noNorm_10kruns_7.npy", PK_Amp)   #Resave everytime, just to make sure I don't mess anything up..
     np.save("PK_n_runs_2D_10kruns_7.npy"    , PK_n_trials)   #Resave everytime, just to make sure I don't mess anything up..
-
-
-
-
-
-
-
-
-
