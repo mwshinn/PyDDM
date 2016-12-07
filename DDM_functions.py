@@ -11,54 +11,85 @@ from DDM_parameters import *
 
 
 
+# This describes how a variable is dependent on other variables.
+# Principally, we want to know how mu and sigma depend on x and t.
+# `name` is the type of dependence (e.g. "linear") for methods which
+# implement the algorithms, and any parameters these algorithms could
+# need should be passed as kwargs. To compare to legacy code, the
+# `name` used to be `f_mu_setting` or `f_sigma_setting` and
+# kwargs now encompassed (e.g.) `param_mu_t_temp`.
+class Dependence:
+    def __init__(self, name, **kwargs):
+        self.name = name
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
 
 ########################################################################################################################
 ### Defined functions.
 
 # Function that simulates one trial of the time-varying drift/bound DDM
-#def DDM_pdf_general(mu, f_mu_setting, sigma, f_sigma_setting, B, f_bound_setting, param_mu, param_sigma):
 def DDM_pdf_general(params, setting_index, task_index=0):
     '''
     Now assume f_mu, f_sigma, f_Bound are callable functions
     '''
     ### Initialization
-    mu_0_temp = params[0] # Constant component of drift rate mu.
-    param_mu_x_temp = params[1] # Parameter for x_dependence of mu. Add more if 1 param is not sufficient...
-    param_mu_t_temp = params[2] # Parameter for t_dependence of mu. Add more if 1 param is not sufficient...
-    sigma_0_temp = params[3] # Constant component of noise sigma.
-    param_sigma_x_temp = params[4] # Parameter for t_dependence of sigma. Add more if 1 param is not sufficient...
-    param_sigma_t_temp = params[5] # Parameter for t_dependence of sigma. Add more if 1 param is not sufficient...
-    B_0_temp = params[6] # Constant component of drift rate mu.
-    param_B_t_temp = params[7] # Parameter for t_dependence of B (no x-dep I sps?). Add more if 1 param is not sufficient...
-    ## Simulation Settings
+    mu = mu_base = params[0] # Constant component of drift rate mu.
+    sigma = params[3] # Constant (and currently only) component of noise sigma.
+    bound_base = params[6] # Constant component of the bound.
+
+    # We convert `setting_index`, an indicator of which predefined
+    # settings to use for mu/sigma/bound dependence on x and t, into a
+    # list containing the actual specifications of those.  See
+    # DDM_parameters.py for definitions of these presets.
     settings = setting_list[setting_index] # Define the condition for mu, sigma, and B, for x&t dependences.
+
+    # Control the type of model we use for mu/sigma dependence on x/t.
+    # Here, `x` and `t` are coefficients to x and t, the particular
+    # use of which depends on the model (specified in `name`).
+    mudep = Dependence(name=settings[0], x=params[1], t=params[2])
+    sigmadep = Dependence(name=settings[1], x=params[4], t=params[5])
+    bounddep = Dependence(name=settings[2], t=params[7])
+    
+    ## Simulation Settings
     f_mu_setting = settings[0] # Declare the type of DDM model regarding mu. Need to modify f_mu_matrix and f_mu_flux.
     f_sigma_setting = settings[1] # Declare the type of DDM model regarding sigma. Need to modify f_sigma_matrix and f_sigma_flux.
     f_bound_setting = settings[2] # Declare the type of DDM model regarding boundaries. Specify on f_bound_t.
     f_IC_setting = settings[3] # Declare the type of Initial Condition. Specify on f_initial_condition
+
     ### Initialization: Lists
     t_list_temp = t_list
     pdf_list_curr = f_initial_condition(f_IC_setting, x_list) # Initial condition
     pdf_list_prev = np.zeros((len(x_list)))
     Prob_list_corr = np.zeros(len(t_list_temp)) # Probability flux to correct choice
     Prob_list_err = np.zeros(len(t_list_temp)) # Probability flux to erred choice
-    # traj_mean_pos = np.zeros(len(t_list_temp)) # Mean position of distribution
-    ### Task specific
-    param_task=0 # 0 if no extra active tasks/regimes/paradigms, else modify f_mu1_task.
-    if len(params)>=9: # Probably want to optimize...
-        param_task = params[8]
-    task_temp = task_list[task_index]
-    if task_temp == 'Duration_Paradigm':
-        param_task = [params[8], mu_0_temp]
+
+    # If we are in a task, define task specific parameters as
+    # `param_task`.  If not, `param_task` is undefined.
+    assert len(params) in [8, 9]
+    if len(params) == 9:
+        if task_list[task_index] == 'Duration_Paradigm':
+            param_task = [params[8], mu_base]
+        else:
+            # Note: this will fail if there is a task which does not
+            # require parameters. -MS
+            param_task = params[8]
+
     ##### Looping through time and updating the pdf.
     for i_t in range(len(t_list_temp)-1):
-        pdf_list_prev = copy.copy(pdf_list_curr) # Update Previous state. To be frank pdf_list_prev could be removed for max efficiency. Leave it just in case.
-        mu_1_temp = f_mu1_task(t_list_temp[i_t], task_temp, param_task) # Perturbation to mu due to various tasks specified. Trivial if param_task=0
-        mu_temp = mu_0_temp + mu_1_temp # Actual mu= drift to be used.
+        # Update Previous state. To be frank pdf_list_prev could be
+        # removed for max efficiency. Leave it just in case.
+        pdf_list_prev = copy.copy(pdf_list_curr)
+
+        # If we are in a task, adjust mu according to the task
+        if task_index != 0: 
+            mu = mu_base + f_mu1_task(t_list_temp[i_t], task_list[task_index], param_task) 
+
         if sum(pdf_list_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
             ## Define the boundaries at current time.
-            bound_temp = f_bound_t(B_0_temp, param_B_t_temp, t_list_temp[i_t], f_bound_setting) # Boundary at current time-step. Can generalize to assymetric bounds
-            bound_shift = B_0_temp - bound_temp # pre-define. Assumed bound_temp < B_0_temp.
+            bound = f_bound_t(bound_base, bounddep, t_list_temp[i_t]) # Boundary at current time-step. Can generalize to assymetric bounds
+            assert bound_base >= bound, "Invalid change in bound"
+            bound_shift = bound_base - bound # pre-define. Assumed bound < bound_base.
             # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
             index_temp_inner = int(np.ceil(bound_shift/dx)) # Index for the inner bound (smaller matrix)
             index_temp_outer = int(bound_shift/dx) # Index for the outer bound (larger matrix)
@@ -67,7 +98,7 @@ def DDM_pdf_general(params, setting_index, task_index=0):
 
             ## Define the diffusion matrix for implicit method
             x_list_temp = x_list[index_temp_outer:len(x_list)-index_temp_outer] # List of x-positions still within bounds.
-            matrix_diffusion = np.diag(np.ones(len(x_list_temp))) + f_mu_matrix(mu_temp, param_mu_x_temp, param_mu_t_temp, x_list_temp, t_list_temp[i_t], f_mu_setting) + f_sigma_matrix(sigma_0_temp, param_sigma_x_temp, param_sigma_t_temp, x_list_temp, t_list_temp[i_t], f_sigma_setting) #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.
+            matrix_diffusion = np.diag(np.ones(len(x_list_temp))) + f_mu_matrix(mu, mudep, x_list_temp, t_list_temp[i_t]) + f_sigma_matrix(sigma, sigmadep, x_list_temp, t_list_temp[i_t]) #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.
             ### Compute Probability density functions (pdf)
             pdf_list_temp_outer = np.linalg.solve(matrix_diffusion , pdf_list_prev[index_temp_outer:len(x_list)-index_temp_outer]) # Probability density function for outer matrix. Is np.linalg.solve_banded useful?
             if index_temp_inner == index_temp_outer:
@@ -84,56 +115,46 @@ def DDM_pdf_general(params, setting_index, task_index=0):
             break #break if the remaining densities are too small....
 
         ### Increase current, transient probability of crossing either bounds, as flux
-        Prob_list_corr[i_t+1] += weight_outer*pdf_list_temp_outer[-1]* ( f_mu_flux(len(x_list)-1-index_temp_outer, mu_temp, param_mu_x_temp, param_mu_t_temp, x_list, t_list_temp[i_t], f_mu_setting) + f_sigma_flux(len(x_list)-1-index_temp_outer, sigma_0_temp, param_sigma_x_temp, param_sigma_t_temp, x_list, t_list_temp[i_t], f_sigma_setting)) \
-                              +  weight_inner*pdf_list_temp_inner[-1]* ( f_mu_flux(len(x_list)-1-index_temp_inner, mu_temp, param_mu_x_temp, param_mu_t_temp, x_list, t_list_temp[i_t], f_mu_setting) + f_sigma_flux(len(x_list)-1-index_temp_inner, sigma_0_temp, param_sigma_x_temp, param_sigma_t_temp, x_list, t_list_temp[i_t], f_sigma_setting))
-        Prob_list_err[i_t+1]  += weight_outer*pdf_list_temp_outer[ 0]* ( f_mu_flux(              index_temp_outer, mu_temp, param_mu_x_temp, param_mu_t_temp, x_list, t_list_temp[i_t], f_mu_setting) + f_sigma_flux(              index_temp_outer, sigma_0_temp, param_sigma_x_temp, param_sigma_t_temp, x_list, t_list_temp[i_t], f_sigma_setting)) \
-                              +  weight_inner*pdf_list_temp_inner[ 0]* ( f_mu_flux(              index_temp_inner, mu_temp, param_mu_x_temp, param_mu_t_temp, x_list, t_list_temp[i_t], f_mu_setting) + f_sigma_flux(              index_temp_inner, sigma_0_temp, param_sigma_x_temp, param_sigma_t_temp, x_list, t_list_temp[i_t], f_sigma_setting))
-        if bound_temp < dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
-            Prob_list_corr[i_t+1] *= (1+ (1-bound_temp/dx))
-            Prob_list_err[i_t+1] *= (1+ (1-bound_temp/dx))
- # traj_mean_pos[i_t+1] = np.sum(Prob_list_corr)*1. + np.sum(Prob_list_err[:])*-1. + np.sum(pdf_list[:,i_t+1]*x_list) # To record the mean position.
+        Prob_list_corr[i_t+1] += weight_outer*pdf_list_temp_outer[-1]* ( f_mu_flux(len(x_list)-1-index_temp_outer, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(len(x_list)-1-index_temp_outer, sigma, sigmadep, x_list, t_list_temp[i_t])) \
+                              +  weight_inner*pdf_list_temp_inner[-1]* ( f_mu_flux(len(x_list)-1-index_temp_inner, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(len(x_list)-1-index_temp_inner, sigma, sigmadep, x_list, t_list_temp[i_t]))
+        Prob_list_err[i_t+1]  += weight_outer*pdf_list_temp_outer[ 0]* ( f_mu_flux(              index_temp_outer, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(              index_temp_outer, sigma, sigmadep, x_list, t_list_temp[i_t])) \
+                              +  weight_inner*pdf_list_temp_inner[ 0]* ( f_mu_flux(              index_temp_inner, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(              index_temp_inner, sigma, sigmadep, x_list, t_list_temp[i_t]))
+        if bound < dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
+            Prob_list_corr[i_t+1] *= (1+ (1-bound/dx))
+            Prob_list_err[i_t+1] *= (1+ (1-bound/dx))
 
     return Prob_list_corr, Prob_list_err # Only return pdf for correct and erred choices. Add more ouputs if needed
-    # return Prob_list_corr, Prob_list_err, traj_mean_pos
-    # return pdf_list, Prob_list_corr, Prob_list_err
-
-
-
-
-
-
-
 
 
 ### Matrix terms due to different parameters (mu, sigma, bound)
-def f_mu_matrix(mu_temp, param_mu_x_temp, param_mu_t_temp, x, t, f_mu_setting): # Diffusion Matrix containing drift=mu related terms
+def f_mu_matrix(mu_temp, mudep, x, t): # Diffusion Matrix containing drift=mu related terms
         ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    if f_mu_setting == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag( 0.5*dt/dx *(mu_temp + param_mu_x_temp*x[1:] + param_mu_t_temp*t),1) + np.diag( -0.5*dt/dx *(mu_temp + param_mu_x_temp*x[:-1] + param_mu_t_temp*t),-1)
-    elif f_mu_setting == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag( 0.5*dt/dx *(mu_temp + param_mu_x_temp*np.sin(x[1:]) + param_mu_t_temp*np.cos(t)),1) + np.diag( -0.5*dt/dx *(mu_temp + param_mu_x_temp*np.sin(x[:-1]) + param_mu_t_temp*np.cos(t)),-1)
+    if mudep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
+        return np.diag( 0.5*dt/dx *(mu_temp + mudep.x*x[1:] + mudep.t*t),1) + np.diag( -0.5*dt/dx *(mu_temp + mudep.x*x[:-1] + mudep.t*t),-1)
+    elif mudep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
+        return np.diag( 0.5*dt/dx *(mu_temp + mudep.x*np.sin(x[1:]) + mudep.t*np.cos(t)),1) + np.diag( -0.5*dt/dx *(mu_temp + mudep.x*np.sin(x[:-1]) + mudep.t*np.cos(t)),-1)
     # Add f_mu_setting definitions as needed...
     else:
         print'Wrong/unspecified f_mu_setting for f_mu_matrix function'
 
-def f_sigma_matrix(sigma_temp, param_sigma_x_temp, param_sigma_t_temp, x, t, f_sigma_setting): # Diffusion Matrix containing noise=sigma related terms
+def f_sigma_matrix(sigma_temp, sigmadep, x, t): # Diffusion Matrix containing noise=sigma related terms
         # Refer to f_mu_matrix. Same idea.
-    if f_sigma_setting == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag(((sigma_temp+ param_sigma_x_temp*x + param_sigma_t_temp*t)**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ param_sigma_x_temp*x[1:] + param_sigma_t_temp*t)**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ param_sigma_x_temp*x[:-1] + param_sigma_t_temp*t)**2*dt/dx**2,-1)
-    elif f_sigma_setting == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag(((sigma_temp+ param_sigma_x_temp*np.sin(x) + param_sigma_t_temp*np.cos(t))**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ param_sigma_x_temp*np.sin(x[1:]) + param_sigma_t_temp*np.cos(t))**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ param_sigma_x_temp*np.sin(x[:-1]) + param_sigma_t_temp*np.cos(t))**2*dt/dx**2,-1)
+    if sigmadep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
+        return np.diag(((sigma_temp+ sigmadep.x*x + sigmadep.t*t)**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ sigmadep.x*x[1:] + sigmadep.t*t)**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ sigmadep.x*x[:-1] + sigmadep.t*t)**2*dt/dx**2,-1)
+    elif sigmadep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
+        return np.diag(((sigma_temp+ sigmadep.x*np.sin(x) + sigmadep.t*np.cos(t))**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ sigmadep.x*np.sin(x[1:]) + sigmadep.t*np.cos(t))**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ sigmadep.x*np.sin(x[:-1]) + sigmadep.t*np.cos(t))**2*dt/dx**2,-1)
     # Add f_sigma_setting definitions as needed...
     else:
-        print'Wrong/unspecified f_sigma_setting for f_sigma_matrix function'
+        print'Invalid sigma dependency'
 
 ## Second effect of Collapsing Bounds: Collapsing Center: Positive and Negative states are closer to each other over time.
-def f_bound_t(bound_temp, param_B, t, f_bound_setting):
-    if f_bound_setting == 'constant':
-        return bound_temp
-    elif f_bound_setting == 'collapsing_linear':
-        return max(bound_temp - param_B*t, 0.)
-    elif f_bound_setting == 'collapsing_exponential':
-        return bound_temp*np.exp(-param_B*t)
+def f_bound_t(bound, bounddep, t):
+    if bounddep.name == 'constant':
+        return bound
+    elif bounddep.name == 'collapsing_linear':
+        return max(bound - bounddep.t*t, 0.)
+    elif bounddep.name == 'collapsing_exponential':
+        return bound * np.exp(-bounddep.t*t)
     # Add f_bound_setting definitions as needed...
     else:
         print'Wrong/unspecified f_bound_setting for f_bound_t function'
@@ -154,25 +175,25 @@ def f_bound_t(bound_temp, param_B, t, f_bound_setting):
 
 ### Amount of flux from bound/end points to correct and erred probabilities, due to different parameters (mu, sigma, bound)
 # f_mu_setting = 'constant'
-def f_mu_flux(index_bound, mu_temp, param_mu_x_temp, param_mu_t_temp, x, t, f_mu_setting): # Diffusion Matrix containing drift=mu related terms
+def f_mu_flux(index_bound, mu_temp, mudep, x, t): # Diffusion Matrix containing drift=mu related terms
         ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    if f_mu_setting == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + param_mu_x_temp*x_list[index_bound] + param_mu_t_temp*t)
-    elif f_mu_setting == 'sinx_cost': # If dependence of mu on x & t is at most linear (or constant):
-        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + param_mu_x_temp*np.sin(x_list[index_bound]) + param_mu_t_temp*np.cos(t))
+    if mudep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
+        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + mudep.x*x_list[index_bound] + mudep.t*t)
+    elif mudep.name == 'sinx_cost': # If dependence of mu on x & t is at most linear (or constant):
+        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + mudep.x*np.sin(x_list[index_bound]) + mudep.t*np.cos(t))
     # Add f_mu_setting definitions as needed...
     else:
-        print'Wrong/unspecified f_mu_setting for f_mu_flux function'
+        print'Invalid mu dependency'
 
-def f_sigma_flux(index_bound, sigma_temp, param_sigma_x_temp, param_sigma_t_temp, x, t, f_sigma_setting): # Diffusion Matrix containing noise=sigma related terms
+def f_sigma_flux(index_bound, sigma_temp, sigmadep, x, t): # Diffusion Matrix containing noise=sigma related terms
     ## Similar to f_sigma_flux
-    if f_sigma_setting == 'linear_xt': # If dependence of sigma on x & t is at most linear (or constant):
-        return 0.5*dt/dx**2 * (sigma_temp + param_sigma_x_temp*x_list[index_bound] + param_sigma_t_temp*t)**2
-    elif f_sigma_setting == 'sinx_cost': # If dependence of sigma on x & t is at most linear (or constant):
-        return 0.5*dt/dx**2 * (sigma_temp + param_sigma_x_temp*np.sin(x_list[index_bound]) + param_sigma_t_temp*np.cos(t))**2
+    if sigmadep.name == 'linear_xt': # If dependence of sigma on x & t is at most linear (or constant):
+        return 0.5*dt/dx**2 * (sigma_temp + sigmadep.x*x_list[index_bound] + sigmadep.t*t)**2
+    elif sigmadep.name == 'sinx_cost': # If dependence of sigma on x & t is at most linear (or constant):
+        return 0.5*dt/dx**2 * (sigma_temp + sigmadep.x*np.sin(x_list[index_bound]) + sigmadep.t*np.cos(t))**2
     # Add f_sigma_setting definitions as needed...
     else:
-        print'Wrong/unspecified f_sigma_setting for f_sigma_flux function'
+        print'Invalid sigma dependency'
 
 
 

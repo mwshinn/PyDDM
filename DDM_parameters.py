@@ -54,7 +54,13 @@ t_list = np.arange(0., T_dur, dt) # t-grids
 
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
-setting_list = [['linear_xt', 'linear_xt', 'constant', 'point_source_center'], ['linear_xt', 'linear_xt', 'collapsing_linear', 'point_source_center'], ['linear_xt', 'linear_xt', 'collapsing_exponential', 'point_source_center'], ['linear_xt', 'linear_xt', 'constant', 'point_source_center'], ['linear_xt', 'linear_xt', 'constant', 'point_source_center'], ['linear_xt', 'linear_xt', 'constant', 'point_source_center']] #Define various setting specs for each tasks...
+setting_list = [['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
+                ['linear_xt', 'linear_xt', 'collapsing_linear', 'point_source_center'],
+                ['linear_xt', 'linear_xt', 'collapsing_exponential', 'point_source_center'],
+                ['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
+                ['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
+                ['linear_xt', 'linear_xt', 'constant', 'point_source_center']]
+
 task_list = ['Fixed_Duration', 'PsychoPhysical_Kernel', 'Duration_Paradigm', 'Pulse_Paradigm'] # Define various setting specs for each tasks...
 task_params_list = [[], [], [0.1*mu_0, T_dur/2.], [0.1*mu_0, T_dur/2.]] # Temporary parameters to test the function. Later want to vary through them. See f_mu1_task for details.
 models_list_all = [0,1,2,3,4] # List of models to use. See Setting_list
