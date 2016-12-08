@@ -49,11 +49,11 @@ traj_mean_pos_all = np.zeros((len(t_list), len(models_list)))
 
 ### Compute the probability distribution functions for the correct and erred choices
 # NOTE: First set T_dur to be the the duration of the fixed duration task.
-for i_models in range(len(models_list)):
-    index_model_2use = models_list[i_models]
+for i_models,m in enumerate(models):#for i_models in range(len(models_list)):
+    #index_model_2use = models_list[i_models]
     for i_mu0 in range(len(mu_0_list)):
         mu_temp = mu_0_list[i_mu0]
-        (Prob_list_corr_temp, Prob_list_err_temp) = DDM_pdf_general([mu_temp, param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use]], index_model_2use, 0)                               # Simple DDM
+        (Prob_list_corr_temp, Prob_list_err_temp) = DDM_pdf_general(mu_temp, m.mudep, sigma_0, m.sigmadep, B, m.bounddep)                               # Simple DDM
         Prob_list_sum_corr_temp  = np.sum(Prob_list_corr_temp)
         Prob_list_sum_err_temp  = np.sum(Prob_list_err_temp)
         Prob_list_sum_undec_temp  = 1 - Prob_list_sum_corr_temp - Prob_list_sum_err_temp
@@ -68,14 +68,14 @@ for i_models in range(len(models_list)):
         Mean_Dec_Time[i_mu0, i_models]    = np.sum((Prob_list_corr_temp)*t_list) / np.sum((Prob_list_corr_temp))   # Regardless of choice made. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
 
         ##Normalize to fit to the analytical solution. (Anderson 1960)
-        if index_model_2use ==1 or index_model_2use ==2:
+        if m.name.startswith("CB"):
             Prob_final_corr[i_mu0, i_models] = Prob_list_sum_corr_temp / (Prob_list_sum_corr_temp + Prob_list_sum_err_temp)
             Prob_final_err[i_mu0, i_models]  = Prob_list_sum_err_temp / (Prob_list_sum_corr_temp + Prob_list_sum_err_temp)
 
         ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
-        if index_model_2use ==0 or index_model_2use==1:
+        if m.name == "DDM" or m.name == "CB_Lin":
             #note the temporary -ve sign for param_B_0...not sure if I still need it in exponential decay case etc...
-            (Prob_list_corr_Analy_temp, Prob_list_err_Analy_temp) = DDM_pdf_analytical([mu_temp, sigma_0, param_mu_x_list[index_model_2use], B, -param_B_t_list[index_model_2use]], index_model_2use, 0) # Simple DDM
+            (Prob_list_corr_Analy_temp, Prob_list_err_Analy_temp) = DDM_pdf_analytical([mu_temp, sigma_0, m.mudep.x, B, -m.bounddep.t], m.bounddep.name) # Simple DDM
             Prob_list_sum_corr_Analy_temp  = np.sum(Prob_list_corr_Analy_temp)
             Prob_list_sum_err_Analy_temp   = np.sum(Prob_list_err_Analy_temp)
             Prob_list_sum_undec_Analy_temp = 1 - Prob_list_sum_corr_Analy_temp - Prob_list_sum_err_Analy_temp
@@ -88,7 +88,7 @@ for i_models in range(len(models_list)):
             Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp)*t_list) / np.sum((Prob_list_corr_Analy_temp)) # Only consider correct choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
 
     ## Compute the default models (based on spiking circuit) for the various models.
-    (Prob_list_corr_0_temp, Prob_list_err_0_temp) = DDM_pdf_general([mu_0_list[0], param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use]], index_model_2use, 0)                               # Simple DDM
+    (Prob_list_corr_0_temp, Prob_list_err_0_temp) = DDM_pdf_general(mu_0_list[0], m.mudep, sigma_0, m.sigmadep, B, m.bounddep)                               # Simple DDM
     Prob_list_sum_corr_0_temp  = np.sum(Prob_list_corr_0_temp)
     Prob_list_sum_err_0_temp   = np.sum(Prob_list_err_0_temp)
     Prob_list_sum_undec_0_temp = 1. - Prob_list_sum_corr_0_temp - Prob_list_sum_err_0_temp
@@ -169,12 +169,24 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 if Flag_Compare_num_analy_sim:
     ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
     mu_0_F2 = mu_0_list[-3] # Set a particular mu and play with variour settings...
-    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B, 0.], 0)
-    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, 0.], 0)
-    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t ], 1)
-    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, -param_B_t], 1)
-    (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t, T_dur/4. ], 0, 3)
-    (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = DDM_pdf_general(   [mu_0_F2, 0., 0., sigma_0, 0., 0., B,  param_B_t, T_dur/4. ], 1, 3)
+    _const_mu = Dependence("linear_xt", x=0, t=0)
+    _const_sigma = Dependence("linear_xt", x=0, t=0)
+    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
+                                                                              sigma_0, _const_sigma,
+                                                                              B, Dependence("constant", t=0))
+    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, 0.], "constant")
+    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
+                                                                              sigma_0, _const_sigma,
+                                                                              B, Dependence("collapsing_linear", t=param_B_t))
+    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, -param_B_t], "collapsing_linear")
+    (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
+                                                                              sigma_0, _const_sigma,
+                                                                              B, Dependence("constant", t=param_B_t),
+                                                                              Dependence("Pulse_Paradigm", param=T_dur/4.))
+    (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
+                                                                              sigma_0, _const_sigma,
+                                                                              B, Dependence("collapsing_linear", t=param_B_t),
+                                                                              Dependence("Pulse_Paradigm", param=T_dur/4.))
 
 
     # Cumulative Sums
@@ -305,13 +317,16 @@ if Flag_Pulse:
 
 
     ## For each models, find the probability to be correct/erred/undec for various mu and t_onset_pulse
-    for i_models in range(len(models_list)):
-        index_model_2use = models_list[i_models]
+    for m in models:#for i_models in range(len(models_list)):
+        #index_model_2use = models_list[i_models]
         for i_mu0 in range(len(mu_0_list)):
             mu_2use = mu_0_list[i_mu0]
             for i_ton in range(len(t_onset_list_pulse)):
                 t_onset_temp = t_onset_list_pulse[i_ton]
-                (Prob_list_corr_pulse_temp, Prob_list_err_pulse_temp) = DDM_pdf_general([mu_2use, param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use], t_onset_temp], index_model_2use, 3)                               # Simple DDM
+                (Prob_list_corr_pulse_temp, Prob_list_err_pulse_temp) = DDM_pdf_general(mu_2use, m.mudep,
+                                                                                        sigma_0, m.sigmadep,
+                                                                                        B, m.bounddep,
+                                                                                        Dependency("Pulse_Paradigm", t_onset_temp)) # Simple DDM
                 Prob_list_sum_corr_pulse_temp = np.sum(Prob_list_corr_pulse_temp)
                 Prob_list_sum_err_pulse_temp  = np.sum(Prob_list_err_pulse_temp)
 
@@ -514,15 +529,17 @@ if Flag_Duration:
 
 
     ## For each models, find the probability to be correct/erred/undec for various mu and t_onset_pulse
-    for i_models in range(len(models_list)):
-        index_model_2use = models_list[i_models]
+    for m in models:
         for i_mu0 in range(len(mu_0_list)):
             mu_2use = mu_0_list[i_mu0]
             for i_tdur in range(len(t_dur_list_duration)):
                 t_dur_temp = t_dur_list_duration[i_tdur]
                 #t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
                 t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
-                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use], t_dur_temp], index_model_2use, 2)                               # Simple DDM
+                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general(mu_2use, m.mudep,
+                                                                                              sigma_0, m.sigmadep,
+                                                                                              B, m.bounddep,
+                                                                                              Dependency("Duration_Paradigm", t_dur_temp))
                 Prob_list_sum_corr_duration_temp  = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp   = np.sum(Prob_list_err_duration_temp)
                 Prob_list_sum_undec_duration_temp = 1. - Prob_list_sum_corr_duration_temp - Prob_list_sum_err_duration_temp
@@ -686,7 +703,14 @@ if Flag_Duration:
                 t_dur_temp = t_dur_list_duration[i_tdur]
                 # t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
                 t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
-                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, OU_param_2use, param_mu_t_list[index_model_OUpos], sigma_0, param_sigma_x_list[index_model_OUpos], param_sigma_t_list[index_model_OUpos], B, param_B_t_list[index_model_OUpos], t_dur_temp], index_model_OUpos, 2)                               # Simple DDM
+                _mudep = Dependency("linear_xt", x=OU_param_2use, t=param_mu_t_list[index_model_OUpos])
+                _sigmadep = Dependency("linear_xt", x=param_sigma_x_list[index_model_OUpos], t=param_sigma_t_list[index_model_OUpos])
+                _bounddep = Dependency("constant", t=param_B_t_list[index_model_OUpos])
+                _task = Dependency("Duration_Paradigm", param=t_dur_temp)
+                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general(mu_2use, _mudep,
+                                                                                              sigma_0, _sigmadep,
+                                                                                              B, _bounddep,
+                                                                                              _task)
                 Prob_list_sum_corr_duration_temp = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp  = np.sum(Prob_list_err_duration_temp)
 
@@ -705,7 +729,14 @@ if Flag_Duration:
                 t_dur_temp = t_dur_list_duration[i_tdur]
                 #t_list_temp = np.arange(0., t_dur_temp, dt) # If cutoff time at the end of stimulus (T_dur)
                 t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
-                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general([mu_2use, OU_param_2use, param_mu_t_list[index_model_OUneg], sigma_0, param_sigma_x_list[index_model_OUneg], param_sigma_t_list[index_model_OUneg], B, param_B_t_list[index_model_OUpos], t_dur_temp], index_model_OUneg, 2)                               # Simple DDM
+                _mudep = Dependency("linear_xt", x=OU_param_2use, t=param_mu_t_list[index_model_OUneg])
+                _sigmadep = Dependency("linear_xt", x=param_sigma_x_list[index_model_OUneg], t=param_sigma_t_list[index_model_OUneg])
+                _bounddep = Dependency("constant", t=param_B_t_list[index_model_OUpos]) # FIXME Should this be `index_model_OUneg`?
+                _task = Dependency("Duration_Paradigm", param=t_dur_temp)
+                (Prob_list_corr_duration_temp, Prob_list_err_duration_temp) = DDM_pdf_general(mu_2use, _mudep,
+                                                                                              sigma_0, _sigmadep,
+                                                                                              B, _bounddep,
+                                                                                              _task)
                 Prob_list_sum_corr_duration_temp  = np.sum(Prob_list_corr_duration_temp)
                 Prob_list_sum_err_duration_temp  = np.sum(Prob_list_err_duration_temp)
                 Prob_list_sum_undec_duration_temp  = 1. - Prob_list_sum_corr_duration_temp - Prob_list_sum_err_duration_temp
@@ -829,16 +860,17 @@ if Flag_PK:
     ## Run the trials
     ## For each models, find the probability to be correct/erred/undec for various mu and t_onset_pulse
     t_list_temp = t_list # If cutoff time is constant/ indep of T_dur
-    for i_models in range(len(models_list)):
-        index_model_2use = models_list[i_models]
+    for m in models:
         for i_rep_PK in range(n_rep_PK): # For now use the same mu_t for all models and mu, can fix later...
-            print i_rep_PK
             ind_mu_t_list_PK_temp = np.random.randint(len(mu_0_list_PK), size=int(T_dur/dt_mu_PK))
             mu_t_list_PK_temp = np.zeros((int(T_dur/dt_mu_PK)))
             for i_mu_t_PK in range(len(mu_t_list_PK_temp)):
                 mu_t_list_PK_temp[i_mu_t_PK] = mu_0_list_PK[ind_mu_t_list_PK_temp[i_mu_t_PK]]
             # mu_t_list_PK[:, i_rep_PK, i_models] = mu_t_list_PK_temp        #Record the states
-            (Prob_list_corr_PK_temp, Prob_list_err_PK_temp) = DDM_pdf_general([0., param_mu_x_list[index_model_2use], param_mu_t_list[index_model_2use], sigma_0, param_sigma_x_list[index_model_2use], param_sigma_t_list[index_model_2use], B, param_B_t_list[index_model_2use], mu_t_list_PK_temp], index_model_2use, 1)                               # Simple DDM
+            (Prob_list_corr_PK_temp, Prob_list_err_PK_temp) = DDM_pdf_general(0, m.mudep,
+                                                                              sigma_0, m.sigmadep,
+                                                                              B, m.bounddep,
+                                                                              Dependency("PsychoPhysical_Kernel", param=mu_t_list_PK_temp))
             Prob_list_sum_corr_PK_temp = np.sum(Prob_list_corr_PK_temp) # No need cumsum, just sum.
             Prob_list_sum_err_PK_temp  = np.sum(Prob_list_err_PK_temp)
             # Prob_list_sum_undec_PK_temp  = 1. - Prob_list_sum_corr_PK_temp - Prob_list_sum_err_PK_temp # No need for undecided results, as we only want corr - err, while the undecided trials are spread evenly between the 2.

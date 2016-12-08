@@ -10,69 +10,48 @@ import copy
 from DDM_parameters import *
 
 
-
-# This describes how a variable is dependent on other variables.
-# Principally, we want to know how mu and sigma depend on x and t.
-# `name` is the type of dependence (e.g. "linear") for methods which
-# implement the algorithms, and any parameters these algorithms could
-# need should be passed as kwargs. To compare to legacy code, the
-# `name` used to be `f_mu_setting` or `f_sigma_setting` and
-# kwargs now encompassed (e.g.) `param_mu_t_temp`.
-class Dependence:
-    def __init__(self, name, **kwargs):
-        self.name = name
-        self.add_parameter(**kwargs)
-    def add_parameter(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
 ########################################################################################################################
 ### Defined functions.
 
 # Function that simulates one trial of the time-varying drift/bound DDM
-def DDM_pdf_general(params, setting_index, task_index=0):
+def DDM_pdf_general(mu, mudep, sigma, sigmadep, B, bounddep, task=None, IC=None):
     '''
     Now assume f_mu, f_sigma, f_Bound are callable functions
     '''
     ### Initialization
-    mu = mu_base = params[0] # Constant component of drift rate mu.
-    sigma = params[3] # Constant (and currently only) component of noise sigma.
-    bound_base = params[6] # Constant component of the bound.
+    mu_base = mu # Constant component of drift rate mu.
+    sigma = sigma # Constant (and currently only) component of noise sigma.
+    bound_base = B # Constant component of the bound.
 
     # We convert `setting_index`, an indicator of which predefined
     # settings to use for mu/sigma/bound dependence on x and t, into a
     # list containing the actual specifications of those.  See
     # DDM_parameters.py for definitions of these presets.
-    settings = setting_list[setting_index] # Define the condition for mu, sigma, and B, for x&t dependences.
 
     # Control the type of model we use for mu/sigma dependence on x/t.
     # Here, `x` and `t` are coefficients to x and t, the particular
     # use of which depends on the model (specified in `name`).
-    mudep = Dependence(name=settings[0], x=params[1], t=params[2])
-    sigmadep = Dependence(name=settings[1], x=params[4], t=params[5])
-    bounddep = Dependence(name=settings[2], t=params[7])
-    
-    ## Simulation Settings
-    f_mu_setting = settings[0] # Declare the type of DDM model regarding mu. Need to modify f_mu_matrix and f_mu_flux.
-    f_sigma_setting = settings[1] # Declare the type of DDM model regarding sigma. Need to modify f_sigma_matrix and f_sigma_flux.
-    f_bound_setting = settings[2] # Declare the type of DDM model regarding boundaries. Specify on f_bound_t.
-    f_IC_setting = settings[3] # Declare the type of Initial Condition. Specify on f_initial_condition
+    mudep = mudep
+    sigmadep = sigmadep
+    bounddep = bounddep
 
+    if IC == None:
+        IC = "point_source_center"
+    
     ### Initialization: Lists
-    pdf_curr = f_initial_condition(f_IC_setting, x_list) # Initial condition
+    pdf_curr = f_initial_condition(IC, x_list) # Initial condition
     pdf_prev = np.zeros((len(x_list)))
     Prob_list_corr = np.zeros(len(t_list)) # Probability flux to correct choice
     Prob_list_err = np.zeros(len(t_list)) # Probability flux to erred choice
 
     # If we are in a task, define task specific parameters as
     # `param_task`.  If not, `param_task` is undefined.
-    assert len(params) in [8, 9]
-    task = Dependence(task_list[task_index])
-    if len(params) == 9:
-        task.add_parameter(param=params[8])
-        if task_list[task_index] == 'Duration_Paradigm':
-            task.add_parameter(mu_base=mu_base)
+    if task == None:
+        task = Dependence("Fixed_Duration")
+    # if len(params) == 9:
+    #     task.add_parameter(param=params[8])
+    #     if task_list[task_index] == 'Duration_Paradigm':
+    #         task.add_parameter(mu_base=mu_base)
             
 
     ##### Looping through time and updating the pdf.
@@ -278,7 +257,7 @@ def MSE_model_fit_RT(params, y_2_fit_setting_index, y_fit2): # Fit the probabili
 ## Functions for Analytical Solutions.
 ### Analytical form of DDM. Can only solve for simple DDM or linearly collapsing bound... From Anderson1960
 # Note that the solutions are automatically normalized.
-def DDM_pdf_analytical(params, setting_index, task_index=0):
+def DDM_pdf_analytical(params, bound_type):
     '''
     Now assume f_mu, f_sigma, f_Bound are callable functions
     See DDM_pdf_general for nomenclature
@@ -288,17 +267,12 @@ def DDM_pdf_analytical(params, setting_index, task_index=0):
     sigma = params[1]
     B_temp = params[3]
     param_B = params[4]
-    settings = setting_list[setting_index]
     ## Settings
-    f_mu_setting = settings[0]
-    f_sigma_setting = settings[1]
-    f_bound_setting = settings[2]
-    ## Task Specifics
-    task_temp = task_list[task_index]
+    f_bound_setting = bound_type
     #Quick fix to allow us to use params[2] as tau in the case for collapsing bound... Would not work if say we also need parameters in mu.
-    if settings  == ['linear_xt', 'linear_xt', 'constant', 'point_source_center']:                                      # Simple DDM
+    if f_bound_setting == "constant": # Simple DDM
         DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B_temp, t_list)
-    elif settings  == ['linear_xt', 'linear_xt', 'collapsing_linear', 'point_source_center']:                           # Linearly Collapsing Bound
+    elif f_bound_setting == "collapsing_linear": # Linearly Collapsing Bound
         DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B_temp, t_list, param_B)
     ## Remove some abnormalities such as NaN due to trivial reasons.
     DDM_anal_corr[DDM_anal_corr==np.NaN]=0.

@@ -50,7 +50,57 @@ center_matrix_ind = (len(x_list)-1)/2 # index of the center of the matrix. Shoul
 t_list = np.arange(0., T_dur, dt) # t-grids
 
 
+# This describes how a variable is dependent on other variables.
+# Principally, we want to know how mu and sigma depend on x and t.
+# `name` is the type of dependence (e.g. "linear") for methods which
+# implement the algorithms, and any parameters these algorithms could
+# need should be passed as kwargs. To compare to legacy code, the
+# `name` used to be `f_mu_setting` or `f_sigma_setting` and
+# kwargs now encompassed (e.g.) `param_mu_t_temp`.
+class Dependence:
+    def __init__(self, name, **kwargs):
+        self.name = name
+        self.add_parameter(**kwargs)
+    def add_parameter(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
 ##Pre-defined list of models that can be used, and the corresponding default parameters
+class Model:
+    def __init__(self, mudep, sigmadep, bounddep, name=""):
+        self.name = name
+        self.mudep = mudep
+        self.sigmadep = sigmadep
+        self.bounddep = bounddep
+
+s1 = Model(name="DDM",
+           mudep=Dependence("linear_xt", x=0, t=0),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("constant", t=0))
+s2 = Model(name="CB_Lin",
+           mudep=Dependence("linear_xt", x=0, t=0),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("collapsing_linear", t=param_B_t))
+s3 = Model(name="CB_Expo",
+           mudep=Dependence("linear_xt", x=0, t=0),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("collapsing_exponential", t=param_B_t))
+s4 = Model(name="OU+",
+           mudep=Dependence("linear_xt", x=param_mu_x_OUpos, t=0),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("constant", t=0))
+s5 = Model(name="OU-",
+           mudep=Dependence("linear_xt", x=param_mu_x_OUneg, t=0),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("constant", t=0))
+s6 = Model(name="DDM_t",
+           mudep=Dependence("linear_xt", x=0, t=param_mu_t),
+           sigmadep=Dependence("linear_xt", x=0, t=0),
+           bounddep=Dependence("constant", t=param_mu_t))
+
+models = [s1, s2, s3, s4, s5]#, s6]
+
 setting_list = [['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
                 ['linear_xt', 'linear_xt', 'collapsing_linear', 'point_source_center'],
                 ['linear_xt', 'linear_xt', 'collapsing_exponential', 'point_source_center'],
