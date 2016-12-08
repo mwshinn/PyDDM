@@ -21,6 +21,8 @@ from DDM_parameters import *
 class Dependence:
     def __init__(self, name, **kwargs):
         self.name = name
+        self.add_parameter(**kwargs)
+    def add_parameter(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -67,13 +69,12 @@ def DDM_pdf_general(params, setting_index, task_index=0):
     # If we are in a task, define task specific parameters as
     # `param_task`.  If not, `param_task` is undefined.
     assert len(params) in [8, 9]
+    task = Dependence(task_list[task_index])
     if len(params) == 9:
+        task.add_parameter(param=params[8])
         if task_list[task_index] == 'Duration_Paradigm':
-            param_task = [params[8], mu_base]
-        else:
-            # Note: this will fail if there is a task which does not
-            # require parameters. -MS
-            param_task = params[8]
+            task.add_parameter(mu_base=mu_base)
+            
 
     ##### Looping through time and updating the pdf.
     for i_t in range(len(t_list_temp)-1):
@@ -83,13 +84,14 @@ def DDM_pdf_general(params, setting_index, task_index=0):
 
         # If we are in a task, adjust mu according to the task
         if task_index != 0: 
-            mu = mu_base + f_mu1_task(t_list_temp[i_t], task_list[task_index], param_task) 
+            mu = mu_base + f_mu1_task(t_list_temp[i_t], task) 
 
         if sum(pdf_list_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
             ## Define the boundaries at current time.
             bound = f_bound_t(bound_base, bounddep, t_list_temp[i_t]) # Boundary at current time-step. Can generalize to assymetric bounds
-            assert bound_base >= bound, "Invalid change in bound"
-            bound_shift = bound_base - bound # pre-define. Assumed bound < bound_base.
+
+            assert bound_base >= bound, "Invalid change in bound" # Need to assume bound < bound_base for next step
+            bound_shift = bound_base - bound
             # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
             index_temp_inner = int(np.ceil(bound_shift/dx)) # Index for the inner bound (smaller matrix)
             index_temp_outer = int(bound_shift/dx) # Index for the outer bound (larger matrix)
@@ -98,7 +100,13 @@ def DDM_pdf_general(params, setting_index, task_index=0):
 
             ## Define the diffusion matrix for implicit method
             x_list_temp = x_list[index_temp_outer:len(x_list)-index_temp_outer] # List of x-positions still within bounds.
-            matrix_diffusion = np.diag(np.ones(len(x_list_temp))) + f_mu_matrix(mu, mudep, x_list_temp, t_list_temp[i_t]) + f_sigma_matrix(sigma, sigmadep, x_list_temp, t_list_temp[i_t]) #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.
+            
+            # Diffusion Matrix for Implicit Method. Here defined as
+            # Outer Matrix, and inder matrix is either trivial or an
+            # extracted submatrix.
+            matrix_diffusion = np.eye(len(x_list_temp)) + \
+                               f_mu_matrix(mu, mudep, x_list_temp, t_list_temp[i_t]) + \
+                               f_sigma_matrix(sigma, sigmadep, x_list_temp, t_list_temp[i_t])
             ### Compute Probability density functions (pdf)
             pdf_list_temp_outer = np.linalg.solve(matrix_diffusion , pdf_list_prev[index_temp_outer:len(x_list)-index_temp_outer]) # Probability density function for outer matrix. Is np.linalg.solve_banded useful?
             if index_temp_inner == index_temp_outer:
@@ -377,25 +385,25 @@ def analytic_ddm(mu, sigma, b, teval, b_slope=0):
 
 
 ## Various tasks that causes change in signals and what not, in addition to the space and time varying f_mu, f_sigma, and f_bound.
-def f_mu1_task(t, task_setting, param_task=T_dur/2.): # Define the change in drift at each time due to active perturbations, in different tasks
-    if task_setting == 'Fixed_Duration':                                                                                # No task
+def f_mu1_task(t, task): # Define the change in drift at each time due to active perturbations, in different tasks
+    if task.name == 'Fixed_Duration':                                                                                # No task
         return 0.
-    elif task_setting == 'PsychoPhysical_Kernel': #Note that I assumed in the DDM_general fcn for the PK case, that the input of mu_0 to be 0. Else have to counter-act the term...
-        return param_task[int(t/dt_mu_PK)] ## Fix/Implement later
+    elif task.name == 'PsychoPhysical_Kernel': #Note that I assumed in the DDM_general fcn for the PK case, that the input of mu_0 to be 0. Else have to counter-act the term...
+        return task.param[int(t/dt_mu_PK)] ## Fix/Implement later
     ## For Duration/Pulse paradigms, param_task[0]= magnitude of pulse. param_task[1]= T_Dur_Duration/t_Mid_Pulse respectively
-    elif task_setting == 'Duration_Paradigm': # Vary Stimulus Duration
-        T_Dur_Duration = param_task[0] # Duration of pulse. Variable in Duration Paradigm
+    elif task.name == 'Duration_Paradigm': # Vary Stimulus Duration
+        T_Dur_Duration = task.param # Duration of pulse. Variable in Duration Paradigm
         ## if stimulus starts at 0s:
         if t< T_Dur_Duration:
             return 0
         else:
-            return -param_task[1] #Remove pulse if T> T_Dur_duration
+            return -task.mu_base #Remove pulse if T> T_Dur_duration
         ## if stimulus starts at T_dur/2 =1s, use this instead and put it above:
         # t_Mid_Duration = T_dur/2. # (Central) Onset time of pulse/duration. Arbitrary but set to constant as middle of fixed duration task.
         # if abs(t-t_Mid_Duration)< (T_Dur_Duration/2):
-    elif task_setting == 'Pulse_Paradigm': # Add brief Pulse to stimulus, with varying onset time.
+    elif task.name == 'Pulse_Paradigm': # Add brief Pulse to stimulus, with varying onset time.
         T_Dur_Pulse = 0.1 # Duration of pulse. 0.1s in the spiking circuit case.
-        t_Pulse_onset = param_task # (Central) Onset time of pulse/duration. Variable in Pulse Paradigm
+        t_Pulse_onset = task.param # (Central) Onset time of pulse/duration. Variable in Pulse Paradigm
         if (t>t_Pulse_onset) and  (t<(t_Pulse_onset+T_Dur_Pulse)):
             return mu_0*0.15 # 0.15 based on spiking circuit simulations.
         else:
@@ -405,7 +413,7 @@ def f_mu1_task(t, task_setting, param_task=T_dur/2.): # Define the change in dri
         # if abs(t-t_Mid_Pulse)< (T_Dur_Pulse/2):
     # Add task_setting definitions as needed...
     else:
-        print'Wrong/unspecified f_mu1_task task_setting'
+        print'Invalid task'
 
 
 

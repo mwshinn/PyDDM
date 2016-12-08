@@ -44,9 +44,6 @@ param_sigma_t = 0.5 # Parameter for t_dependence of sigma. Add more if 1 param i
 B = 1. # Boundary. Assumed to be 1
 param_B_t = 1. # Parameter for t_dependence of B (no x-dep I sps?). Add more if 1 param is not sufficient...
 
-## dt just at the edge of stability criteria
-# dt = dx**2 / sigma_0**2
-
 # Declare arrays for usage and storage.
 x_list = np.arange(-B, B+0.1*dx, dx) # List of x-grids (Staggered-mesh)
 center_matrix_ind = (len(x_list)-1)/2 # index of the center of the matrix. Should be integer by design of x_list
