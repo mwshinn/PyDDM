@@ -60,11 +60,10 @@ def DDM_pdf_general(params, setting_index, task_index=0):
     f_IC_setting = settings[3] # Declare the type of Initial Condition. Specify on f_initial_condition
 
     ### Initialization: Lists
-    t_list_temp = t_list
-    pdf_list_curr = f_initial_condition(f_IC_setting, x_list) # Initial condition
-    pdf_list_prev = np.zeros((len(x_list)))
-    Prob_list_corr = np.zeros(len(t_list_temp)) # Probability flux to correct choice
-    Prob_list_err = np.zeros(len(t_list_temp)) # Probability flux to erred choice
+    pdf_curr = f_initial_condition(f_IC_setting, x_list) # Initial condition
+    pdf_prev = np.zeros((len(x_list)))
+    Prob_list_corr = np.zeros(len(t_list)) # Probability flux to correct choice
+    Prob_list_err = np.zeros(len(t_list)) # Probability flux to erred choice
 
     # If we are in a task, define task specific parameters as
     # `param_task`.  If not, `param_task` is undefined.
@@ -77,56 +76,72 @@ def DDM_pdf_general(params, setting_index, task_index=0):
             
 
     ##### Looping through time and updating the pdf.
-    for i_t in range(len(t_list_temp)-1):
-        # Update Previous state. To be frank pdf_list_prev could be
+    for i_t, t in enumerate(t_list[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
+        # Update Previous state. To be frank pdf_prev could be
         # removed for max efficiency. Leave it just in case.
-        pdf_list_prev = copy.copy(pdf_list_curr)
+        pdf_prev = copy.copy(pdf_curr)
 
         # If we are in a task, adjust mu according to the task
-        if task_index != 0: 
-            mu = mu_base + f_mu1_task(t_list_temp[i_t], task) 
+        mu = mu_base + f_mu1_task(t, task)
 
-        if sum(pdf_list_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
+        if sum(pdf_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
             ## Define the boundaries at current time.
-            bound = f_bound_t(bound_base, bounddep, t_list_temp[i_t]) # Boundary at current time-step. Can generalize to assymetric bounds
+            bound = f_bound_t(bound_base, bounddep, t) # Boundary at current time-step. Can generalize to assymetric bounds
 
-            assert bound_base >= bound, "Invalid change in bound" # Need to assume bound < bound_base for next step
+            ## Now figure out which x positions are still within the
+            # (collapsing) bound.
+            assert bound_base >= bound, "Invalid change in bound" # Ensure the bound didn't expand
             bound_shift = bound_base - bound
             # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
-            index_temp_inner = int(np.ceil(bound_shift/dx)) # Index for the inner bound (smaller matrix)
-            index_temp_outer = int(bound_shift/dx) # Index for the outer bound (larger matrix)
-            weight_inner = (bound_shift - index_temp_outer*dx)/dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
+            x_index_inner = int(np.ceil(bound_shift/dx)) # Index for the inner bound (smaller matrix)
+            x_index_outer = int(bound_shift/dx) # Index for the outer bound (larger matrix)
+            weight_inner = (bound_shift - x_index_outer*dx)/dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
             weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
-
-            ## Define the diffusion matrix for implicit method
-            x_list_temp = x_list[index_temp_outer:len(x_list)-index_temp_outer] # List of x-positions still within bounds.
+            x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
             
+            ## Define the diffusion matrix for implicit method
             # Diffusion Matrix for Implicit Method. Here defined as
             # Outer Matrix, and inder matrix is either trivial or an
             # extracted submatrix.
-            matrix_diffusion = np.eye(len(x_list_temp)) + \
-                               f_mu_matrix(mu, mudep, x_list_temp, t_list_temp[i_t]) + \
-                               f_sigma_matrix(sigma, sigmadep, x_list_temp, t_list_temp[i_t])
+            diffusion_matrix = np.eye(len(x_list_inbounds)) + \
+                               f_mu_matrix(mu, mudep, x_list_inbounds, t) + \
+                               f_sigma_matrix(sigma, sigmadep, x_list_inbounds, t)
+            
             ### Compute Probability density functions (pdf)
-            pdf_list_temp_outer = np.linalg.solve(matrix_diffusion , pdf_list_prev[index_temp_outer:len(x_list)-index_temp_outer]) # Probability density function for outer matrix. Is np.linalg.solve_banded useful?
-            if index_temp_inner == index_temp_outer:
-                pdf_list_temp_inner = copy.copy(pdf_list_temp_outer) # When bound is exactly at a grid, use the most efficient method.
+            # PDF for outer matrix
+            pdf_outer = np.linalg.solve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+            # PDF for inner matrix (with optimization)
+            if x_index_inner == x_index_outer: # Optimization: When bound is exactly at a grid, use the most efficient method.
+                pdf_inner = copy.copy(pdf_outer)
             else:
-                pdf_list_temp_inner = np.linalg.solve(matrix_diffusion[1:-1, 1:-1], pdf_list_prev[index_temp_inner:len(x_list)-index_temp_inner]) # Probability density function for inner matrix. Is np.linalg.solve_banded useful?
-            Prob_list_err[i_t+1] += weight_outer*np.sum(pdf_list_prev[:index_temp_outer])               + weight_inner*np.sum(pdf_list_prev[:index_temp_inner]) # Pdfs out of bound is consideered decisions made.
-            Prob_list_corr[i_t+1] += weight_outer*np.sum(pdf_list_prev[len(x_list)-index_temp_outer:]) + weight_inner*np.sum(pdf_list_prev[len(x_list)-index_temp_inner:]) # Pdfs out of bound is consideered decisions made.
-            pdf_list_curr = np.zeros((len(x_list))) # Reconstruct current proability density function, adding outer and inner contribution to it.
-            pdf_list_curr[index_temp_outer:len(x_list)-index_temp_outer] += weight_outer*pdf_list_temp_outer
-            pdf_list_curr[index_temp_inner:len(x_list)-index_temp_inner] += weight_inner*pdf_list_temp_inner
+                pdf_inner = np.linalg.solve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+
+            # Pdfs out of bound is consideered decisions made.
+            Prob_list_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
+                                    + weight_inner * np.sum(pdf_prev[:x_index_inner])
+            Prob_list_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
+                                     + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
+            pdf_curr = np.zeros((len(x_list))) # Reconstruct current proability density function, adding outer and inner contribution to it.
+            pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer
+            pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
 
         else:
             break #break if the remaining densities are too small....
 
-        ### Increase current, transient probability of crossing either bounds, as flux
-        Prob_list_corr[i_t+1] += weight_outer*pdf_list_temp_outer[-1]* ( f_mu_flux(len(x_list)-1-index_temp_outer, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(len(x_list)-1-index_temp_outer, sigma, sigmadep, x_list, t_list_temp[i_t])) \
-                              +  weight_inner*pdf_list_temp_inner[-1]* ( f_mu_flux(len(x_list)-1-index_temp_inner, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(len(x_list)-1-index_temp_inner, sigma, sigmadep, x_list, t_list_temp[i_t]))
-        Prob_list_err[i_t+1]  += weight_outer*pdf_list_temp_outer[ 0]* ( f_mu_flux(              index_temp_outer, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(              index_temp_outer, sigma, sigmadep, x_list, t_list_temp[i_t])) \
-                              +  weight_inner*pdf_list_temp_inner[ 0]* ( f_mu_flux(              index_temp_inner, mu, mudep, x_list, t_list_temp[i_t]) + f_sigma_flux(              index_temp_inner, sigma, sigmadep, x_list, t_list_temp[i_t]))
+        ### Increase current, transient probability of crossing either
+        ### bounds, as flux.  Corr is a correct answer, err is an
+        ### incorrect answer
+        _inner_bound_corr = len(x_list)-1-x_index_inner
+        _outer_bound_corr = len(x_list)-1-x_index_outer
+        Prob_list_corr[i_t+1] += weight_outer * pdf_outer[-1] * ( f_mu_flux(_outer_bound_corr, mu, mudep, x_list, t) +
+                                                                  f_sigma_flux(_outer_bound_corr, sigma, sigmadep, x_list, t)) \
+                              +  weight_inner * pdf_inner[-1] * ( f_mu_flux(_inner_bound_corr, mu, mudep, x_list, t) +
+                                                                  f_sigma_flux(_inner_bound_corr, sigma, sigmadep, x_list, t))
+        Prob_list_err[i_t+1]  += weight_outer * pdf_outer[0] * ( f_mu_flux(x_index_outer, mu, mudep, x_list, t) +
+                                                                 f_sigma_flux(x_index_outer, sigma, sigmadep, x_list, t)) \
+                              +  weight_inner * pdf_inner[0] * ( f_mu_flux(x_index_inner, mu, mudep, x_list, t) +
+                                                                 f_sigma_flux(x_index_inner, sigma, sigmadep, x_list, t ))
+
         if bound < dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
             Prob_list_corr[i_t+1] *= (1+ (1-bound/dx))
             Prob_list_err[i_t+1] *= (1+ (1-bound/dx))
@@ -209,15 +224,15 @@ def f_sigma_flux(index_bound, sigma_temp, sigmadep, x, t): # Diffusion Matrix co
 
 def f_initial_condition(f_IC_setting, x): # Returns the pdf distribution at time 0 of the simulation
         ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    pdf_list_IC = np.zeros((len(x)))
+    pdf_IC = np.zeros((len(x)))
     if f_IC_setting == 'point_source_center':
-        pdf_list_IC[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
+        pdf_IC[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
     elif f_IC_setting == 'uniform': # Weird dependence for testing. Remove at will.
-        pdf_list_IC = 1/(len(x))*np.ones((len(x)))
+        pdf_IC = 1/(len(x))*np.ones((len(x)))
     # Add f_mu_setting definitions as needed...
     else:
         print'Wrong/unspecified f_mu_setting for f_mu_matrix function'
-    return pdf_list_IC
+    return pdf_IC
 
 
 
