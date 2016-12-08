@@ -131,16 +131,18 @@ def DDM_pdf_general(params, setting_index, task_index=0):
         ### Increase current, transient probability of crossing either
         ### bounds, as flux.  Corr is a correct answer, err is an
         ### incorrect answer
-        _inner_bound_corr = len(x_list)-1-x_index_inner
-        _outer_bound_corr = len(x_list)-1-x_index_outer
-        Prob_list_corr[i_t+1] += weight_outer * pdf_outer[-1] * ( f_mu_flux(_outer_bound_corr, mu, mudep, x_list, t) +
-                                                                  f_sigma_flux(_outer_bound_corr, sigma, sigmadep, x_list, t)) \
-                              +  weight_inner * pdf_inner[-1] * ( f_mu_flux(_inner_bound_corr, mu, mudep, x_list, t) +
-                                                                  f_sigma_flux(_inner_bound_corr, sigma, sigmadep, x_list, t))
-        Prob_list_err[i_t+1]  += weight_outer * pdf_outer[0] * ( f_mu_flux(x_index_outer, mu, mudep, x_list, t) +
-                                                                 f_sigma_flux(x_index_outer, sigma, sigmadep, x_list, t)) \
-                              +  weight_inner * pdf_inner[0] * ( f_mu_flux(x_index_inner, mu, mudep, x_list, t) +
-                                                                 f_sigma_flux(x_index_inner, sigma, sigmadep, x_list, t ))
+        _inner_bound_corr = x_list[len(x_list)-1-x_index_inner]
+        _outer_bound_corr = x_list[len(x_list)-1-x_index_outer]
+        _inner_bound_err = x_list[x_index_inner]
+        _outer_bound_err = x_list[x_index_outer]
+        Prob_list_corr[i_t+1] += weight_outer * pdf_outer[-1] * ( f_mu_flux(_outer_bound_corr, mu, mudep, t) +
+                                                                  f_sigma_flux(_outer_bound_corr, sigma, sigmadep, t)) \
+                              +  weight_inner * pdf_inner[-1] * ( f_mu_flux(_inner_bound_corr, mu, mudep, t) +
+                                                                  f_sigma_flux(_inner_bound_corr, sigma, sigmadep, t))
+        Prob_list_err[i_t+1]  += weight_outer * pdf_outer[0] * ( f_mu_flux(_outer_bound_err, mu, mudep, t) +
+                                                                 f_sigma_flux(_outer_bound_err, sigma, sigmadep, t)) \
+                              +  weight_inner * pdf_inner[0] * ( f_mu_flux(_inner_bound_err, mu, mudep, t) +
+                                                                 f_sigma_flux(_inner_bound_err, sigma, sigmadep, t ))
 
         if bound < dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
             Prob_list_corr[i_t+1] *= (1+ (1-bound/dx))
@@ -150,22 +152,32 @@ def DDM_pdf_general(params, setting_index, task_index=0):
 
 
 ### Matrix terms due to different parameters (mu, sigma, bound)
-def f_mu_matrix(mu_temp, mudep, x, t): # Diffusion Matrix containing drift=mu related terms
-        ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
+# Diffusion Matrix containing drift=mu related terms.  Reminder: The
+# general definition is (mu*p)_(x_{n+1},t_{m+1}) -
+# (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same
+# x,t with p(x,t) (probability distribution function). Hence we use
+# x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
+def f_mu_matrix(mu_temp, mudep, x, t):
     if mudep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag( 0.5*dt/dx *(mu_temp + mudep.x*x[1:] + mudep.t*t),1) + np.diag( -0.5*dt/dx *(mu_temp + mudep.x*x[:-1] + mudep.t*t),-1)
+        return np.diag( 0.5*dt/dx * (mu_temp + mudep.x*x[1:]  + mudep.t*t), 1) \
+             + np.diag(-0.5*dt/dx * (mu_temp + mudep.x*x[:-1] + mudep.t*t),-1)
     elif mudep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag( 0.5*dt/dx *(mu_temp + mudep.x*np.sin(x[1:]) + mudep.t*np.cos(t)),1) + np.diag( -0.5*dt/dx *(mu_temp + mudep.x*np.sin(x[:-1]) + mudep.t*np.cos(t)),-1)
+        return np.diag( 0.5*dt/dx * (mu_temp + mudep.x*np.sin(x[1:])  + mudep.t*np.cos(t)), 1) \
+             + np.diag(-0.5*dt/dx * (mu_temp + mudep.x*np.sin(x[:-1]) + mudep.t*np.cos(t)),-1)
     # Add f_mu_setting definitions as needed...
     else:
-        print'Wrong/unspecified f_mu_setting for f_mu_matrix function'
+        print 'Incorrect mu dependency'
 
-def f_sigma_matrix(sigma_temp, sigmadep, x, t): # Diffusion Matrix containing noise=sigma related terms
-        # Refer to f_mu_matrix. Same idea.
+# Diffusion Matrix containing noise=sigma related terms
+def f_sigma_matrix(sigma_temp, sigmadep, x, t):
     if sigmadep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag(((sigma_temp+ sigmadep.x*x + sigmadep.t*t)**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ sigmadep.x*x[1:] + sigmadep.t*t)**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ sigmadep.x*x[:-1] + sigmadep.t*t)**2*dt/dx**2,-1)
+        return np.diag(1.0*(sigma_temp + sigmadep.x*x      + sigmadep.t*t)**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(sigma_temp + sigmadep.x*x[1:]  + sigmadep.t*t)**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(sigma_temp + sigmadep.x*x[:-1] + sigmadep.t*t)**2 * dt/dx**2,-1)
     elif sigmadep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag(((sigma_temp+ sigmadep.x*np.sin(x) + sigmadep.t*np.cos(t))**2*dt/dx**2))   -   np.diag(0.5*(sigma_temp+ sigmadep.x*np.sin(x[1:]) + sigmadep.t*np.cos(t))**2*dt/dx**2,1)   -   np.diag(0.5*(sigma_temp+ sigmadep.x*np.sin(x[:-1]) + sigmadep.t*np.cos(t))**2*dt/dx**2,-1)
+        return np.diag(1.0*(sigma_temp + sigmadep.x*np.sin(x)      + sigmadep.t*np.cos(t))**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(sigma_temp + sigmadep.x*np.sin(x[1:])  + sigmadep.t*np.cos(t))**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(sigma_temp + sigmadep.x*np.sin(x[:-1]) + sigmadep.t*np.cos(t))**2 * dt/dx**2,-1)
     # Add f_sigma_setting definitions as needed...
     else:
         print'Invalid sigma dependency'
@@ -181,50 +193,34 @@ def f_bound_t(bound, bounddep, t):
     # Add f_bound_setting definitions as needed...
     else:
         print'Wrong/unspecified f_bound_setting for f_bound_t function'
-    ###And so on...
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Amount of flux from bound/end points to correct and erred probabilities, due to different parameters (mu, sigma, bound)
-# f_mu_setting = 'constant'
-def f_mu_flux(index_bound, mu_temp, mudep, x, t): # Diffusion Matrix containing drift=mu related terms
-        ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
+### Amount of flux from bound/end points to correct and erred response probabilities, due to different parameters (mu, sigma, bound)
+## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
+## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same
+## x,t with p(x,t) (probability distribution function). Hence we use
+## x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
+def f_mu_flux(x_bound, mu, mudep, t): # Diffusion Matrix containing drift=mu related terms
     if mudep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + mudep.x*x_list[index_bound] + mudep.t*t)
-    elif mudep.name == 'sinx_cost': # If dependence of mu on x & t is at most linear (or constant):
-        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu_temp + mudep.x*np.sin(x_list[index_bound]) + mudep.t*np.cos(t))
+        return 0.5*dt/dx * np.sign(x_bound) * (mu + mudep.x*x_bound + mudep.t*t)
+    elif mudep.name == 'sinx_cost':
+        return 0.5*dt/dx * np.sign(x_list[index_bound]) * (mu + mudep.x*np.sin(x_bound) + mudep.t*np.cos(t))
     # Add f_mu_setting definitions as needed...
     else:
         print'Invalid mu dependency'
 
-def f_sigma_flux(index_bound, sigma_temp, sigmadep, x, t): # Diffusion Matrix containing noise=sigma related terms
+def f_sigma_flux(x_bound, sigma, sigmadep, t): # Diffusion Matrix containing noise=sigma related terms
     ## Similar to f_sigma_flux
     if sigmadep.name == 'linear_xt': # If dependence of sigma on x & t is at most linear (or constant):
-        return 0.5*dt/dx**2 * (sigma_temp + sigmadep.x*x_list[index_bound] + sigmadep.t*t)**2
+        return 0.5*dt/dx**2 * (sigma + sigmadep.x*x_bound + sigmadep.t*t)**2
     elif sigmadep.name == 'sinx_cost': # If dependence of sigma on x & t is at most linear (or constant):
-        return 0.5*dt/dx**2 * (sigma_temp + sigmadep.x*np.sin(x_list[index_bound]) + sigmadep.t*np.cos(t))**2
+        return 0.5*dt/dx**2 * (sigma + sigmadep.x*np.sin(x_bound) + sigmadep.t*np.cos(t))**2
     # Add f_sigma_setting definitions as needed...
     else:
         print'Invalid sigma dependency'
 
-
-
-
-
 def f_initial_condition(f_IC_setting, x): # Returns the pdf distribution at time 0 of the simulation
         ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) - (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same x,t with p(x,t) (probability distribution function). Hence we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    pdf_IC = np.zeros((len(x)))
+    pdf_IC = np.zeros(len(x))
     if f_IC_setting == 'point_source_center':
         pdf_IC[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
     elif f_IC_setting == 'uniform': # Weird dependence for testing. Remove at will.
