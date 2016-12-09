@@ -38,13 +38,6 @@ Prob_final_err_Analy   = np.zeros((len(mu_0_list), 2))
 Prob_final_undec_Analy = np.zeros((len(mu_0_list), 2))
 Mean_Dec_Time_Analy    = np.zeros((len(mu_0_list), 2))
 
-
-## Define an array to hold the data of simulations over all models, using the original parameters (mu_0)
-Prob_final_corr_0  = np.zeros((len(models_list)))
-Prob_final_err_0   = np.zeros((len(models_list)))
-Prob_final_undec_0 = np.zeros((len(models_list)))
-Mean_Dec_Time_0    = np.zeros((len(models_list)))
-
 traj_mean_pos_all = np.zeros((len(t_list), len(models_list)))
 
 ### Compute the probability distribution functions for the correct and erred choices
@@ -52,51 +45,58 @@ traj_mean_pos_all = np.zeros((len(t_list), len(models_list)))
 for i_models,m in enumerate(models):#for i_models in range(len(models_list)):
     #index_model_2use = models_list[i_models]
     for i_mu0 in range(len(mu_0_list)):
-        mu_temp = mu_0_list[i_mu0]
-        (Prob_list_corr_temp, Prob_list_err_temp) = DDM_pdf_general(mu_temp, m.mudep, sigma_0, m.sigmadep, B, m.bounddep)                               # Simple DDM
-        Prob_list_sum_corr_temp  = np.sum(Prob_list_corr_temp)
-        Prob_list_sum_err_temp  = np.sum(Prob_list_err_temp)
-        Prob_list_sum_undec_temp  = 1 - Prob_list_sum_corr_temp - Prob_list_sum_err_temp
-
+        mu = mu_0_list[i_mu0]
+        # This gives a joint pdf of decision time, with time on one
+        # axis and decision on the other.  It is split into three
+        # components based on decision.  It returns the correct
+        # decision over time and error over time, and no decision is
+        # implied by forcing the full jpdf to sum to 1.  (Because no
+        # decision does not have a time varying component.)
+        (pdf_corr, pdf_err) = DDM_pdf_general(mu, m.mudep, sigma_0, m.sigmadep, B, m.bounddep)
+        prob_corr  = np.sum(pdf_corr)
+        prob_err  = np.sum(pdf_err)
+        prob_undec  = 1 - prob_corr - prob_err
 
         #Outputs...
-        # Forced Choices: The monkey will always make a decision: Split the undecided probability half-half for corr/err choices.
-        Prob_final_undec[i_mu0, i_models] = Prob_list_sum_undec_temp
-        Prob_final_corr[i_mu0, i_models]  = Prob_list_sum_corr_temp + Prob_final_undec[i_mu0, i_models]/2.
-        Prob_final_err[i_mu0, i_models]   = Prob_list_sum_err_temp  + Prob_final_undec[i_mu0, i_models]/2.
-        # Mean_Dec_Time[i_mu0, i_models]    = np.sum((Prob_list_corr_temp+Prob_list_err_temp) *t_list) / np.sum((Prob_list_corr_temp+Prob_list_err_temp))   # Regardless of choice made. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
-        Mean_Dec_Time[i_mu0, i_models]    = np.sum((Prob_list_corr_temp)*t_list) / np.sum((Prob_list_corr_temp))   # Regardless of choice made. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
+
+        # Forced Choices: The monkey will always make a decision:
+        # Split the undecided probability half-half for corr/err
+        # choices.
+        Prob_final_corr[i_mu0, i_models] = prob_corr + prob_undec/2.
+        Prob_final_err[i_mu0, i_models] = prob_err + prob_undec/2.
+        Prob_final_undec[i_mu0, i_models] = prob_undec
+
+        # Regardless of choice made. Note that Mean_Dec_Time does not
+        # includes choices supposedly undecided and made at the last
+        # moment. (TODO Why is this regardless of choice? -MS)
+        Mean_Dec_Time[i_mu0, i_models] = np.sum(pdf_corr*t_list) / np.sum(pdf_corr)
 
         ##Normalize to fit to the analytical solution. (Anderson 1960)
         if m.name.startswith("CB"):
-            Prob_final_corr[i_mu0, i_models] = Prob_list_sum_corr_temp / (Prob_list_sum_corr_temp + Prob_list_sum_err_temp)
-            Prob_final_err[i_mu0, i_models]  = Prob_list_sum_err_temp / (Prob_list_sum_corr_temp + Prob_list_sum_err_temp)
+            Prob_final_corr[i_mu0, i_models] = prob_corr / (prob_corr + prob_err)
+            Prob_final_err[i_mu0, i_models]  = prob_err / (prob_corr + prob_err)
 
         ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
         if m.name == "DDM" or m.name == "CB_Lin":
             #note the temporary -ve sign for param_B_0...not sure if I still need it in exponential decay case etc...
-            (Prob_list_corr_Analy_temp, Prob_list_err_Analy_temp) = DDM_pdf_analytical([mu_temp, sigma_0, m.mudep.x, B, -m.bounddep.t], m.bounddep.name) # Simple DDM
-            Prob_list_sum_corr_Analy_temp  = np.sum(Prob_list_corr_Analy_temp)
-            Prob_list_sum_err_Analy_temp   = np.sum(Prob_list_err_Analy_temp)
-            Prob_list_sum_undec_Analy_temp = 1 - Prob_list_sum_corr_Analy_temp - Prob_list_sum_err_Analy_temp
-            #Outputs...
-            # Forced Choices: The monkey will always make a decision: Split the undecided probability half-half for corr/err choices. Actually don't think the analytical solution has undecided trials...
-            Prob_final_undec_Analy[i_mu0, i_models] = Prob_list_sum_undec_Analy_temp
-            Prob_final_corr_Analy[i_mu0, i_models]  = Prob_list_sum_corr_Analy_temp + Prob_final_undec_Analy[i_mu0, i_models]/2.
-            Prob_final_err_Analy[i_mu0, i_models]   = Prob_list_sum_err_Analy_temp  + Prob_final_undec_Analy[i_mu0, i_models]/2.
-            # Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp+Prob_list_err_Analy_temp) *t_list) / np.sum((Prob_list_corr_Analy_temp+Prob_list_err_Analy_temp))      # Regardless of choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
-            Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((Prob_list_corr_Analy_temp)*t_list) / np.sum((Prob_list_corr_Analy_temp)) # Only consider correct choices. Note that Mean_Dec_Time does not includes choices supposedly undecided and made at the last moment.
+            (pdf_corr_analy, pdf_err_analy) = DDM_pdf_analytical([mu, sigma_0, m.mudep.x, B, -m.bounddep.t], m.bounddep.name) # Simple DDM
+            prob_corr_analy  = np.sum(pdf_corr_analy)
+            prob_err_analy   = np.sum(pdf_err_analy)
+            prob_undec_analy = 1 - prob_corr_analy - prob_err_analy
 
-    ## Compute the default models (based on spiking circuit) for the various models.
-    (Prob_list_corr_0_temp, Prob_list_err_0_temp) = DDM_pdf_general(mu_0_list[0], m.mudep, sigma_0, m.sigmadep, B, m.bounddep)                               # Simple DDM
-    Prob_list_sum_corr_0_temp  = np.sum(Prob_list_corr_0_temp)
-    Prob_list_sum_err_0_temp   = np.sum(Prob_list_err_0_temp)
-    Prob_list_sum_undec_0_temp = 1. - Prob_list_sum_corr_0_temp - Prob_list_sum_err_0_temp
-    #Outputs...
-    Prob_final_corr_0[i_models]  = Prob_list_sum_corr_0_temp
-    Prob_final_err_0[i_models]   = Prob_list_sum_err_0_temp
-    Prob_final_undec_0[i_models] = Prob_list_sum_undec_0_temp
-    Mean_Dec_Time_0[i_models]    = np.sum((Prob_list_corr_0_temp+Prob_list_err_0_temp) *t_list) / np.sum((Prob_list_corr_0_temp+Prob_list_err_0_temp))
+            #Outputs...
+
+            # Forced Choices: The monkey will always make a decision:
+            # Split the undecided probability half-half for corr/err
+            # choices.
+            Prob_final_corr_Analy[i_mu0, i_models]  = prob_corr_analy + prob_undec_analy/2.
+            Prob_final_err_Analy[i_mu0, i_models]   = prob_err_analy  + prob_undec_analy/2.
+            Prob_final_undec_Analy[i_mu0, i_models] = prob_undec_analy
+
+            # Only consider correct choices. Note that Mean_Dec_Time
+            # does not includes choices supposedly undecided and made
+            # at the last moment.
+            Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((pdf_corr_analy)*t_list) / np.sum((pdf_corr_analy))
 
 
 ### Plot correct probability, erred probability, indecision probability, and mean decision time.
