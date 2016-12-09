@@ -57,17 +57,22 @@ t_list = np.arange(0., T_dur, dt) # t-grids
 # need should be passed as kwargs. To compare to legacy code, the
 # `name` used to be `f_mu_setting` or `f_sigma_setting` and
 # kwargs now encompassed (e.g.) `param_mu_t_temp`.
-class Dependence:
+class Dependence(object):
     def __init__(self, name, **kwargs):
         self.name = name
         self.add_parameter(**kwargs)
     def add_parameter(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+    # Allow tests for equality
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        return False
 
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
-class Model:
+class Model(object):
     def __init__(self, mudep, sigmadep, bounddep, name=""):
         self.name = name
         self.mudep = mudep

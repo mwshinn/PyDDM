@@ -136,27 +136,27 @@ def DDM_pdf_general(mu, mudep, sigma, sigmadep, B, bounddep, task=None, IC=None)
 # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the same
 # x,t with p(x,t) (probability distribution function). Hence we use
 # x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-def f_mu_matrix(mu_temp, mudep, x, t):
+def f_mu_matrix(mu, mudep, x, t):
     if mudep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag( 0.5*dt/dx * (mu_temp + mudep.x*x[1:]  + mudep.t*t), 1) \
-             + np.diag(-0.5*dt/dx * (mu_temp + mudep.x*x[:-1] + mudep.t*t),-1)
+        return np.diag( 0.5*dt/dx * (mu + mudep.x*x[1:]  + mudep.t*t), 1) \
+             + np.diag(-0.5*dt/dx * (mu + mudep.x*x[:-1] + mudep.t*t),-1)
     elif mudep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag( 0.5*dt/dx * (mu_temp + mudep.x*np.sin(x[1:])  + mudep.t*np.cos(t)), 1) \
-             + np.diag(-0.5*dt/dx * (mu_temp + mudep.x*np.sin(x[:-1]) + mudep.t*np.cos(t)),-1)
+        return np.diag( 0.5*dt/dx * (mu + mudep.x*np.sin(x[1:])  + mudep.t*np.cos(t)), 1) \
+             + np.diag(-0.5*dt/dx * (mu + mudep.x*np.sin(x[:-1]) + mudep.t*np.cos(t)),-1)
     # Add f_mu_setting definitions as needed...
     else:
         print 'Incorrect mu dependency'
 
 # Diffusion Matrix containing noise=sigma related terms
-def f_sigma_matrix(sigma_temp, sigmadep, x, t):
+def f_sigma_matrix(sigma, sigmadep, x, t):
     if sigmadep.name == 'linear_xt': # If dependence of mu on x & t is at most linear (or constant):
-        return np.diag(1.0*(sigma_temp + sigmadep.x*x      + sigmadep.t*t)**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(sigma_temp + sigmadep.x*x[1:]  + sigmadep.t*t)**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(sigma_temp + sigmadep.x*x[:-1] + sigmadep.t*t)**2 * dt/dx**2,-1)
+        return np.diag(1.0*(sigma + sigmadep.x*x      + sigmadep.t*t)**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(sigma + sigmadep.x*x[1:]  + sigmadep.t*t)**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(sigma + sigmadep.x*x[:-1] + sigmadep.t*t)**2 * dt/dx**2,-1)
     elif sigmadep.name == 'sinx_cost': # Weird dependence for testing. Remove at will.
-        return np.diag(1.0*(sigma_temp + sigmadep.x*np.sin(x)      + sigmadep.t*np.cos(t))**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(sigma_temp + sigmadep.x*np.sin(x[1:])  + sigmadep.t*np.cos(t))**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(sigma_temp + sigmadep.x*np.sin(x[:-1]) + sigmadep.t*np.cos(t))**2 * dt/dx**2,-1)
+        return np.diag(1.0*(sigma + sigmadep.x*np.sin(x)      + sigmadep.t*np.cos(t))**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(sigma + sigmadep.x*np.sin(x[1:])  + sigmadep.t*np.cos(t))**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(sigma + sigmadep.x*np.sin(x[:-1]) + sigmadep.t*np.cos(t))**2 * dt/dx**2,-1)
     # Add f_sigma_setting definitions as needed...
     else:
         print'Invalid sigma dependency'
@@ -257,28 +257,35 @@ def MSE_model_fit_RT(params, y_2_fit_setting_index, y_fit2): # Fit the probabili
 ## Functions for Analytical Solutions.
 ### Analytical form of DDM. Can only solve for simple DDM or linearly collapsing bound... From Anderson1960
 # Note that the solutions are automatically normalized.
-def DDM_pdf_analytical(params, bound_type):
+def DDM_pdf_analytical(mu, mudep=None, sigma=None, sigmadep=None, B=None, bounddep=None, task=None, IC=None):
     '''
     Now assume f_mu, f_sigma, f_Bound are callable functions
     See DDM_pdf_general for nomenclature
     '''
+
+    assert mu != None and sigma != None and B != None, "Please specify mu, sigma, and B"
     ### Initialization
-    mu = params[0]
-    sigma = params[1]
-    B_temp = params[3]
-    param_B = params[4]
-    ## Settings
-    f_bound_setting = bound_type
-    #Quick fix to allow us to use params[2] as tau in the case for collapsing bound... Would not work if say we also need parameters in mu.
-    if f_bound_setting == "constant": # Simple DDM
-        DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B_temp, t_list)
-    elif f_bound_setting == "collapsing_linear": # Linearly Collapsing Bound
-        DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B_temp, t_list, param_B)
+    if mudep != None:
+        assert mudep == Dependence("linear_xt", x=0, t=0), "mu dependence not implemented"
+    if sigmadep != None:
+        assert sigmadep == Dependence("linear_xt", x=0, t=0), "sigma dependence not implemented"
+    if bounddep != None:
+        assert bounddep.name in ["constant", "collapsing_linear"], "bounddep dependence not implemented"
+    if task != None:
+        assert task.name == "Fixed_Duration"
+    if IC != None:
+        assert IC == "point_source_center"
+    
+    if bounddep.name == "constant": # Simple DDM
+        DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B, t_list)
+    elif bounddep.name == "collapsing_linear": # Linearly Collapsing Bound
+        DDM_anal_corr, DDM_anal_err = analytic_ddm(mu, sigma, B, t_list, -bounddep.t) # TODO why must this be negative? -MS
+
     ## Remove some abnormalities such as NaN due to trivial reasons.
-    DDM_anal_corr[DDM_anal_corr==np.NaN]=0.
-    DDM_anal_corr[0]=0.
-    DDM_anal_err[DDM_anal_err==np.NaN]=0.
-    DDM_anal_err[0]=0.
+    DDM_anal_corr[DDM_anal_corr==np.NaN] = 0.
+    DDM_anal_corr[0] = 0.
+    DDM_anal_err[DDM_anal_err==np.NaN] = 0.
+    DDM_anal_err[0] = 0.
     return DDM_anal_corr*dt, DDM_anal_err*dt
 
 

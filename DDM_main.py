@@ -38,20 +38,17 @@ Prob_final_err_Analy   = np.zeros((len(mu_0_list), 2))
 Prob_final_undec_Analy = np.zeros((len(mu_0_list), 2))
 Mean_Dec_Time_Analy    = np.zeros((len(mu_0_list), 2))
 
-traj_mean_pos_all = np.zeros((len(t_list), len(models_list)))
-
 ### Compute the probability distribution functions for the correct and erred choices
 # NOTE: First set T_dur to be the the duration of the fixed duration task.
-for i_models,m in enumerate(models):#for i_models in range(len(models_list)):
-    #index_model_2use = models_list[i_models]
+for i_models,m in enumerate(models):
     for i_mu0 in range(len(mu_0_list)):
         mu = mu_0_list[i_mu0]
         # This gives a joint pdf of decision time, with time on one
         # axis and decision on the other.  It is split into three
         # components based on decision.  It returns the correct
         # decision over time and error over time, and no decision is
-        # implied by forcing the full jpdf to sum to 1.  (Because no
-        # decision does not have a time varying component.)
+        # implied by forcing the full jpdf to sum to 1.  (Because "no
+        # decision" does not have a time varying component.)
         (pdf_corr, pdf_err) = DDM_pdf_general(mu, m.mudep, sigma_0, m.sigmadep, B, m.bounddep)
         prob_corr  = np.sum(pdf_corr)
         prob_err  = np.sum(pdf_err)
@@ -78,8 +75,7 @@ for i_models,m in enumerate(models):#for i_models in range(len(models_list)):
 
         ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
         if m.name == "DDM" or m.name == "CB_Lin":
-            #note the temporary -ve sign for param_B_0...not sure if I still need it in exponential decay case etc...
-            (pdf_corr_analy, pdf_err_analy) = DDM_pdf_analytical([mu, sigma_0, m.mudep.x, B, -m.bounddep.t], m.bounddep.name) # Simple DDM
+            (pdf_corr_analy, pdf_err_analy) = DDM_pdf_analytical(mu, m.mudep, sigma_0, m.sigmadep, B, m.bounddep)
             prob_corr_analy  = np.sum(pdf_corr_analy)
             prob_err_analy   = np.sum(pdf_err_analy)
             prob_undec_analy = 1 - prob_corr_analy - prob_err_analy
@@ -174,11 +170,15 @@ if Flag_Compare_num_analy_sim:
     (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
                                                                               sigma_0, _const_sigma,
                                                                               B, Dependence("constant", t=0))
-    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, 0.], "constant")
+    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical(mu_0_F2, _const_mu,
+                                                                                 sigma_0, _const_sigma,
+                                                                                 B, Dependence("constant", t=0))
     (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
                                                                               sigma_0, _const_sigma,
                                                                               B, Dependence("collapsing_linear", t=param_B_t))
-    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical([mu_0_F2        , sigma_0, 0.    , B, -param_B_t], "collapsing_linear")
+    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical(mu_0_F2, _const_mu,
+                                                                                 sigma_0, _const_sigma,
+                                                                                 B, Dependence("collapsing_linear", t=param_B_t))
     (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = DDM_pdf_general(mu_0_F2, _const_mu,
                                                                               sigma_0, _const_sigma,
                                                                               B, Dependence("constant", t=param_B_t),
