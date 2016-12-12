@@ -128,18 +128,26 @@ def DDM_pdf_general(model):
 # Parameters: [mu, mu_x_dependence, mu_t_dependence
 #              sigma, sigma_x_dependence, sigma_t_dependence
 #              B, bound_t_dependence]
-# Model types should be a list of four strings defining which model should be fit, e.g. ['linear_xt', 'linear_xt', 'constant', 'point_source_center']
+# Model types should be a list of five classes/forms defining the model: mu, sigma, bounds, task, IC
 # TODO: if this is slow, I should separate the logic and the interface in DDM_pdf_general
 def MLE_model_fit_over_coh(params, model_types): # Fit the final/total probability for correct, erred, and undecided choices.
-    probs_all = np.zeros(3,len(coherence_list)) # [ [prob correct, prob error, prob undecided], ... ]
-    mu = 0
-    sigma = 0
-    B = 0
+    coherence_list = np.array([0.0,3.2,6.4,12.8,25.6,51.2])
+    probs_all = np.zeros((3,len(coherence_list))) # [ [prob correct, prob error, prob undecided], ... ]
+    mu = params.pop(0)
+    sigma = params.pop(0)
+    B = params.pop(0)
+    # This is a somewhat hacky way to create a new model based on a
+    # list of parameters.
+    mts = []
+    for mt in model_types:
+        dep_params = dict(zip(mt.required_parameters, params))
+        params = params[len(mt.required_parameters):]
+        mts.append(mt(**dep_params))
     m = Model(name="to_fit", mu=mu, sigma=sigma, B=B,
-              mudep=Dependency(model_types[0], x=0, t=0),
-              sigmadep=Dependency(model_types[1], x=0, t=0),
-              bounddep=Dependency(model_types[2], t=0))
-    for i_coh in range(coherence_list):
+              mudep=mts[0], sigmadep=mts[1],
+              bounddep=mts[2], task=mts[3], IC=mts[4])
+    
+    for i_coh in range(len(coherence_list)):
         (pdf_corr, pdf_err) = DDM_pdf_general(m)
         prob_corr  = np.sum(pdf_corr)
         prob_err   = np.sum(pdf_err)

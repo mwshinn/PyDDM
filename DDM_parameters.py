@@ -59,10 +59,18 @@ t_list = np.arange(0., T_dur, dt) # t-grids
 # `name` used to be `f_mu_setting` or `f_sigma_setting` and
 # kwargs now encompassed (e.g.) `param_mu_t_temp`.
 class Dependence(object):
-    def __init__(self, name, **kwargs):
-        self.name = name
-        self.add_parameter(**kwargs)
-        self.all_parameters = sorted(kwargs.keys())
+    def __init__(self, **kwargs):
+        assert hasattr(self, "name"), "Dependence classes need a name"
+        assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
+        if hasattr(self, "default_parameters"):
+            args = self.default_parameters
+            args.update(kwargs)
+        else:
+            args = kwargs
+        passed_args = sorted(args.keys())
+        expected_args = sorted(self.required_parameters)
+        assert passed_args == expected_args, "Provided %s arguments, expected %s" % (str(passed_args), str(expected_args))
+        self.add_parameter(**args)
     def add_parameter(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -77,8 +85,8 @@ class InitialCondition(Dependence):
         raise NotImplementedError
 
 class ICPointSourceCenter(InitialCondition):
-    def __init__(self):
-        super(self.__class__, self).__init__("point_source_center")
+    name = "point_source_center"
+    required_parameters = []
     ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
     ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
     ## same x,t with p(x,t) (probability distribution function). Hence
@@ -90,8 +98,8 @@ class ICPointSourceCenter(InitialCondition):
 
 # Dependence for testing.
 class ICUniform(InitialCondition):
-    def __init__(self):
-        super(self.__class__, self).__init__(name="uniform")
+    name = "uniform"
+    required_parameters = []
     def get_IC(self, x):
         pdf = np.zeros(len(x))
         pdf = 1/(len(x))*np.ones((len(x)))
@@ -104,8 +112,8 @@ class Mu(Dependence):
         raise NotImplementedError
 
 class MuLinear(Mu):
-    def __init__(self, x, t):
-        super(self.__class__, self).__init__(name="linear_xt", x=x, t=t)
+    name = "linear_xt"
+    required_parameters = ["x", "t"]
     def get_matrix(self, mu, x, t):
         return np.diag( 0.5*dt/dx * (mu + self.x*x[1:]  + self.t*t), 1) \
              + np.diag(-0.5*dt/dx * (mu + self.x*x[:-1] + self.t*t),-1)
@@ -120,8 +128,8 @@ class MuLinear(Mu):
         return 0.5*dt/dx * np.sign(x_bound) * (mu + self.x*x_bound + self.t*t)
 
 class MuSinCos(Mu):
-    def __init__(self, x, t):
-        super(self.__class__, self).__init__(name="sinx_cost", x=x, t=t)
+    name = "sinx_cost"
+    required_parameters = ["x", "t"]
     def get_matrix(self, mu, x, t):
         return np.diag( 0.5*dt/dx * (mu + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
              + np.diag(-0.5*dt/dx * (mu + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
@@ -135,8 +143,8 @@ class Sigma(Dependence):
         raise NotImplementedError
 
 class SigmaLinear(Sigma):
-    def __init__(self, x, t):
-        super(self.__class__, self).__init__(name="linear_xt", x=x, t=t)
+    name = "linear_xt"
+    required_parameters = ["x", "t"]
     def get_matrix(self, sigma, x, t):
         return np.diag(1.0*(sigma + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
              - np.diag(0.5*(sigma + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
@@ -145,8 +153,8 @@ class SigmaLinear(Sigma):
         return 0.5*dt/dx**2 * (sigma + self.x*x_bound + self.t*t)**2
 
 class SigmaSinCos(Sigma):
-    def __init__(self, x, t):
-        super(self.__class__, self).__init__(name="sinx_cost", x=x, t=t)
+    name = "sinx_cost"
+    required_parameters = ["x", "t"]
     def get_matrix(self, sigma, x, t):
         return np.diag(1.0*(sigma + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
              - np.diag(0.5*(sigma + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
@@ -161,20 +169,20 @@ class Bound(Dependence):
         raise NotImplementedError
 
 class BoundConstant(Bound):
-    def __init__(self):
-        super(self.__class__, self).__init__(name="constant")
+    name = "constant"
+    required_parameters = []
     def get_bound(self, bound, t):
         return bound
 
 class BoundCollapsingLinear(Bound):
-    def __init__(self, t):
-        super(self.__class__, self).__init__(name="collapsing_linear", t=t)
+    name = "collapsing_linear"
+    required_parameters = ["t"]
     def get_bound(self, bound, t):
         return max(bound - self.t*t, 0.)
 
 class BoundCollapsingExponential(Bound):
-    def __init__(self, tau):
-        super(self.__class__, self).__init__(name="collapsing_exponential", tau=tau)
+    name = "collapsing_exponential"
+    required_parameters = ["tau"]
     def get_bound(self, bound, t):
         return bound * np.exp(-self.tau*t)
     
@@ -183,20 +191,20 @@ class Task(Dependence):
         raise NotImplementedError
 
 class TaskFixedDuration(Task):
-    def __init__(self):
-        super(self.__class__, self).__init__(name="Fixed_Duration")
+    name = "Fixed_Duration"
+    required_parameters = []
     def adjust_mu(self, mu, t):
         return mu
 
 class TaskPsychoPhysicalKernel(Task):
-    def __init__(self, kernel):
-        super(self.__class__, self).__init__(name="PsychoPhysical_Kernel", kernel=kernel)
+    name = "PsychoPhysical_Kernel"
+    required_parameters = ["kernel"]
     def adjust_mu(self, mu, t):
         return mu + self.kernel[int(t/dt_mu_PK)] ## Fix/Implement later
 
 class TaskDurationParadigm(Task):
-    def __init__(self, duration):
-        super(self.__class__, self).__init__(name="Duration_Paradigm", duration=duration)
+    name = "Duration_Paradigm"
+    required_parameters = ["duration"]
     def adjust_mu(self, mu, t):
         if t < self.duration:
             return mu
@@ -204,15 +212,16 @@ class TaskDurationParadigm(Task):
             return 0
 
 class TaskPulseParadigm(Task):
-    def __init__(self, onset, duration=.1):
-        super(self.__class__, self).__init__(name="Pulse_Paradigm", onset=onset, duration=duration)
+    name = "Pulse_Paradigm"
+    required_parameters = ["onset", "duration", "adjustment"]
+    default_parameters = {"duration" : .1, "adjustment" : 1.15}
     def adjust_mu(self, mu, t):
         if (t > self.onset) and (t < (self.onset + self.duration)):
-            return mu * 1.15 # 0.15 based on spiking circuit simulations.
+            return mu * self.adjustment
         else:
             return mu
 
-    
+
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
     def __init__(self, mu, mudep, sigma, sigmadep, B, bounddep, task=TaskFixedDuration(), IC=ICPointSourceCenter(), name=""):
@@ -230,7 +239,7 @@ class Model(object):
         for k in sorted(self.parameters.keys()):
             params.append(self.parameters[k])
         for d in [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]:
-            for p in d.all_parameters:
+            for p in d.required_parameters:
                 params.append(getattr(d, p))
         return params
     # Accepts a list of parameters in the same order as
@@ -239,9 +248,11 @@ class Model(object):
         assert len(params) == len(self.get_model_parameters()), "Invalid params"
         i = 0
         for d in [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]:
-            for p in d.all_parameters:
+            for p in d.required_parameters:
                 setattr(d, p, params[i])
                 i += 1
+    def get_model_type(self):
+        return list(map(type, [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]))
 
 s1 = Model(name="DDM", mu=mu_0, sigma=sigma_0, B=B,
            mudep=MuLinear(x=0, t=0),
