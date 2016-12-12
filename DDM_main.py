@@ -2,6 +2,7 @@
 Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
+from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
@@ -206,7 +207,7 @@ if Flag_Compare_num_analy_sim:
 
 
     # In case the trial model has no analytical solution, use simulation (see DDM_sim_compare_pdf.py) instead.
-    [bins_edge_t_correct_sim_temp, pdf_t_correct_sim_temp, bins_edge_t_incorrect_sim_temp, pdf_t_incorrect_sim_temp] = np.load('DDM_sim_t_pdf.npy')
+    [bins_edge_t_correct_sim_temp, pdf_t_correct_sim_temp, bins_edge_t_incorrect_sim_temp, pdf_t_incorrect_sim_temp] = np.load('DDM_sim_t_pdf.npy', fix_imports=True, encoding="bytes")
     bins_t_correct_sim_temp = 0.5*(bins_edge_t_correct_sim_temp[1:] + bins_edge_t_correct_sim_temp[:-1])
     bins_t_incorrect_sim_temp = 0.5*(bins_edge_t_incorrect_sim_temp[1:] + bins_edge_t_incorrect_sim_temp[:-1])
     norm_sim_temp = np.sum(pdf_t_correct_sim_temp + pdf_t_incorrect_sim_temp)

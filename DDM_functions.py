@@ -3,6 +3,7 @@ Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
 
+from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
 from scipy.optimize import minimize
 import copy
@@ -237,7 +238,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     suminc   = 0
     checkerr = 0
 
-    for n in xrange(nMax):
+    for n in range(nMax):
         # increment
         inc = np.exp(tmp*n*((n+1)*a1-n*a2))*((2*n+1)*a1-2*n*a2)-\
               np.exp(tmp*(n+1)*(n*a1-(n+1)*a2))*((2*n+1)*a1-2*(n+1)*a2)

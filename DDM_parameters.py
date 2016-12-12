@@ -2,6 +2,7 @@
 Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
+from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
 
 ########################################################################################################################
