@@ -130,8 +130,7 @@ def DDM_pdf_general(model):
 #              B, bound_t_dependence]
 # Model types should be a list of five classes/forms defining the model: mu, sigma, bounds, task, IC
 # TODO: if this is slow, I should separate the logic and the interface in DDM_pdf_general
-def MLE_model_fit_over_coh(params, model_types): # Fit the final/total probability for correct, erred, and undecided choices.
-    coherence_list = np.array([0.0,3.2,6.4,12.8,25.6,51.2])
+def MLE_model_fit_over_coh(params, model_types, y_goal, coherence_list): # Fit the final/total probability for correct, erred, and undecided choices.
     probs_all = np.zeros((3,len(coherence_list))) # [ [prob correct, prob error, prob undecided], ... ]
     mu = params.pop(0)
     sigma = params.pop(0)
@@ -147,13 +146,14 @@ def MLE_model_fit_over_coh(params, model_types): # Fit the final/total probabili
               mudep=mts[0], sigmadep=mts[1],
               bounddep=mts[2], task=mts[3], IC=mts[4])
     
-    for i_coh in range(len(coherence_list)):
+    for i_coh,coh in enumerate(coherence_list):
+        m.parameters['mu'] = coh
         (pdf_corr, pdf_err) = DDM_pdf_general(m)
         prob_corr  = np.sum(pdf_corr)
         prob_err   = np.sum(pdf_err)
         prob_undec = 1. - prob_corr - prob_err
         probs_all[:,i_coh]   = [prob_corr, prob_err, prob_undec] # Total probability for correct, erred and undecided choices.
-    to_min = -np.log(np.sum((y_fit2*probs_all)**0.5 /dt**1)) # Bhattacharyya distance
+    to_min = -np.log(np.sum((y_goal*probs_all)**0.5 /dt**1)) # Bhattacharyya distance
     return to_min
 # Other minimizers
     # to_min = sum(np.log(Prob_list_cumsum_corr_temp) *y_fit2) # MLE
@@ -161,9 +161,24 @@ def MLE_model_fit_over_coh(params, model_types): # Fit the final/total probabili
     # epi_log = 0.000001
     # to_min = np.sum((y_fit2) * (np.log(y_fit2+epi_log) - np.log(Prob_list_corr_temp+epi_log)) /dt**0) # KL divergence
 
-def MSE_model_fit_RT(params, y_2_fit_setting_index, y_fit2): # Fit the probability density functions of both correct and erred choices. TO BE VERIFIED.
-    (pdf_corr, pdf_err) = DDM_pdf_general(params, y_2_fit_setting_index, 0)
-    to_min = -np.log(np.sum((y_fit2*np.column_stack(pdf_corr, pdf_err))**0.5)) # Bhattacharyya distance
+def MSE_model_fit_RT(params, model_types, y_goal): # Fit the probability density functions of both correct and erred choices. TO BE VERIFIED.
+    mu = params.pop(0)
+    sigma = params.pop(0)
+    B = params.pop(0)
+    # This is a somewhat hacky way to create a new model based on a
+    # list of parameters.
+    mts = []
+    for mt in model_types:
+        dep_params = dict(zip(mt.required_parameters, params))
+        params = params[len(mt.required_parameters):]
+        mts.append(mt(**dep_params))
+    assert params == []
+    m = Model(name="to_fit", mu=mu, sigma=sigma, B=B,
+              mudep=mts[0], sigmadep=mts[1],
+              bounddep=mts[2], task=mts[3], IC=mts[4])
+    
+    (pdf_corr, pdf_err) = DDM_pdf_general(m)
+    to_min = -np.log(np.sum((y_goal*numpy.asarray([pdf_corr, pdf_err]))**0.5)) # Bhattacharyya distance
     return to_min
 #    to_min = sum(np.log(Prob_list_cumsum_corr_temp) *y_fit2)                                                           # MLE
 #    to_min = -np.sum((Prob_list_corr_temp) *y_fit2)

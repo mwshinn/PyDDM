@@ -225,12 +225,19 @@ class TaskPulseParadigm(Task):
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
     def __init__(self, mu, mudep, sigma, sigmadep, B, bounddep, task=TaskFixedDuration(), IC=ICPointSourceCenter(), name=""):
+        assert type(name) == str
         self.name = name
+        assert isinstance(mudep, Mu)
         self.mudep = mudep
+        assert isinstance(sigmadep, Sigma)
         self.sigmadep = sigmadep
+        assert isinstance(bounddep, Bound)
         self.bounddep = bounddep
+        assert isinstance(task, Task)
         self.task = task
+        assert isinstance(IC, InitialCondition)
         self.IC = IC
+        assert np.isreal(mu) and np.isreal(sigma) and np.isreal(B)
         self.parameters = {"mu" : mu, "sigma" : sigma, "B" : B}
     # Get an ordered list of all model parameters.  Guaranteed to be
     # in the same order as set_model_parameters().
