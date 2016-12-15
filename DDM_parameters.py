@@ -15,8 +15,8 @@ T_dur = 2. # [s] Duration of simulation
 dt = .05#0.005 # [s] Time-step.
 B_max = 1. # Maximum boundary. Assumed to be 1
 
-x_list = np.arange(-B_max, B_max+0.1*dx, dx) # List of x-grids (Staggered-mesh)
-t_list = np.arange(0., T_dur, dt) # t-grids
+#x_list = np.arange(-B_max, B_max+0.1*dx, dx) # List of x-grids (Staggered-mesh)
+#t_list = np.arange(0., T_dur, dt) # t-grids
 
 
 ########################################################################################################################

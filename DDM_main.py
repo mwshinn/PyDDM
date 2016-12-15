@@ -23,6 +23,7 @@ from DDM_parameters import *
 from DDM_functions import *
 from DDM_model import *
 from DDM_defaults import *
+from DDM_plot import *
 
 
 
@@ -229,113 +230,75 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 ## Fig 2: compare analytical vs implicit method for simple DDM and Collapsing bound (linear). Others have no analytical forms.
 if Flag_Compare_num_analy_sim:
     ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
-    mu_0_F2 = mu_0_list[-3] # Set a particular mu and play with variour settings...
-    _const_mu = MuConstant(mu=mu_0_F2)
-    _const_sigma = SigmaConstant(sigma=sigma_0)
-    model1 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+    _const_mu = MuConstant(mu=.8)
+    _const_mu2 = MuConstant(mu=2)
+    _const_sigma = SigmaConstant(sigma=1)
+    model1 = Model(name="Model 1", dx=.008, dt=.005,
+                   mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundConstant(B=B))
-    model2 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+    model2 = Model(name="Model 2",
+                   mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundCollapsingLinear(B=B, t=param_B_t))
-    model3 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+    model3 = Model(name="Model 3",
+                   mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundConstant(B=B),
-                   task=TaskPulseParadigm(onset=T_dur/4.))
-    model4 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+                   task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
+    model4 = Model(name="Model 4",
+                   mudep=_const_mu2, sigmadep=_const_sigma,
                    bounddep=BoundCollapsingLinear(B=B, t=param_B_t),
-                   task=TaskPulseParadigm(onset=T_dur/4.))
-    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = model1.solve_numerical()
-    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = model1.solve_analytical()
-    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = model2.solve_numerical()
-    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = model2.solve_analytical()
-    (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = model3.solve()
-    (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = model4.solve()
+                   task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
+    model2.solve_numerical()
+    s1n = Solution(*model1.solve_numerical(), model1)
+    s1a = Solution(*model1.solve_analytical(), model1)
+    s2n = Solution(*model2.solve_numerical(), model2)
+    s2a = Solution(*model2.solve_analytical(), model2)
+    s3 = Solution(*model3.solve(), model3)
+    s4 = Solution(*model4.solve(), model4)
 
-
-    # Cumulative Sums
-    Prob_list_cumsum_corr_1_fig2  = np.cumsum(Prob_list_corr_1_fig2)
-    Prob_list_cumsum_err_1_fig2  = np.cumsum(Prob_list_err_1_fig2)
-    Prob_list_cumsum_corr_1_Anal_fig2  = np.cumsum(Prob_list_corr_1_Anal_fig2)
-    Prob_list_cumsum_err_1_Anal_fig2  = np.cumsum(Prob_list_err_1_Anal_fig2)
-    Prob_list_cumsum_corr_2_fig2  = np.cumsum(Prob_list_corr_2_fig2)
-    Prob_list_cumsum_err_2_fig2  = np.cumsum(Prob_list_err_2_fig2)
-    Prob_list_cumsum_corr_2_Anal_fig2  = np.cumsum(Prob_list_corr_2_Anal_fig2)
-    Prob_list_cumsum_err_2_Anal_fig2  = np.cumsum(Prob_list_err_2_Anal_fig2)
-    Prob_list_cumsum_corr_3_fig2  = np.cumsum(Prob_list_corr_3_fig2)
-    Prob_list_cumsum_err_3_fig2  = np.cumsum(Prob_list_err_3_fig2)
-    Prob_list_cumsum_corr_4_fig2  = np.cumsum(Prob_list_corr_4_fig2)
-    Prob_list_cumsum_err_4_fig2  = np.cumsum(Prob_list_err_4_fig2)
-
-
-    # In case the trial model has no analytical solution, use simulation (see DDM_sim_compare_pdf.py) instead.
-    [bins_edge_t_correct_sim_temp, pdf_t_correct_sim_temp, bins_edge_t_incorrect_sim_temp, pdf_t_incorrect_sim_temp] = np.load('DDM_sim_t_pdf.npy', fix_imports=True, encoding="bytes")
-    bins_t_correct_sim_temp = 0.5*(bins_edge_t_correct_sim_temp[1:] + bins_edge_t_correct_sim_temp[:-1])
-    bins_t_incorrect_sim_temp = 0.5*(bins_edge_t_incorrect_sim_temp[1:] + bins_edge_t_incorrect_sim_temp[:-1])
-    norm_sim_temp = np.sum(pdf_t_correct_sim_temp + pdf_t_incorrect_sim_temp)
-    dt_ratio = 10. # Ratio in time step, and thus 1/ number of datapoints, between simulation and numerical solutions.
 
 
     ### Plot correct probability, erred probability, indecision probability, and mean decision time.
     fig2 = plt.figure(figsize=(8,10.5))
     ax21 = fig2.add_subplot(411) # PDF, Correct
-    ax21.plot(t_list, Prob_list_corr_1_fig2, 'r', label='DDM' )
-    ax21.plot(t_list, Prob_list_corr_1_Anal_fig2, 'r:', label='DDM_A' )
-    ax21.plot(t_list, Prob_list_corr_2_fig2, 'b', label='test' )
-    ax21.plot(t_list, Prob_list_corr_2_fig2, 'b', label='CB_Lin' )
-    ax21.plot(t_list, Prob_list_corr_2_Anal_fig2, 'b:', label='CB_Lin_A' )
-    ax21.plot(t_list, Prob_list_corr_3_fig2, 'r--', label='DDM_P' )
-    ax21.plot(t_list, Prob_list_corr_4_fig2, 'b--', label='CB_Lin_P' )
-    ## ax21.plot(bins_t_correct_sim_temp, pdf_t_correct_sim_temp/dt_ratio, 'k-.', label='sim' )
-    #fig1.ylim([-1.,1.])
-    ax21.set_xlabel('time (s)')
-    ax21.set_ylabel('PDF (normalized)')
+    plot_solution_pdf(s1n, ax21)
+    plot_solution_pdf(s1a, ax21)
+    plot_solution_pdf(s2n, ax21)
+    plot_solution_pdf(s2a, ax21)
+    plot_solution_pdf(s3, ax21)
+    plot_solution_pdf(s4, ax21)
     ax21.set_title('Correct PDF, Analytical vs Numerical')
     # ax21.set_xscale('log')
     ax21.legend(loc=1)
 
     ax22 = fig2.add_subplot(412) # PDF, erred
-    ax22.plot(t_list, Prob_list_err_1_fig2, 'r', label='DDM' )
-    ax22.plot(t_list, Prob_list_err_1_Anal_fig2, 'r:', label='DDM_A' )
-    ax22.plot(t_list, Prob_list_err_2_fig2, 'b', label='test' )
-    ax22.plot(t_list, Prob_list_err_2_fig2, 'b', label='CB_Lin' )
-    ax22.plot(t_list, Prob_list_err_2_Anal_fig2, 'b:', label='CB_Lin_A' )
-    ax22.plot(t_list, Prob_list_err_3_fig2, 'r--', label='DDM_P' )
-    ax22.plot(t_list, Prob_list_err_4_fig2, 'b--', label='CB_Lin_P' )
-    ## ax22.plot(bins_t_incorrect_sim_temp, pdf_t_incorrect_sim_temp/dt_ratio, 'k-.', label='sim' )
-    #fig1.set_ylim([-1.,1.])
-    ax22.set_xlabel('time (s)')
-    ax22.set_ylabel('PDF (normalized)')
+    plot_solution_pdf(s1n, ax22, correct=False)
+    plot_solution_pdf(s1a, ax22, correct=False)
+    plot_solution_pdf(s2n, ax22, correct=False)
+    plot_solution_pdf(s2a, ax22, correct=False)
+    plot_solution_pdf(s3, ax22, correct=False)
+    plot_solution_pdf(s4, ax22, correct=False)
     ax22.set_title('Erred PDF, Analytical vs Numerical')
     # fig1.set_xscale('log')
     ax22.legend(loc=1)
 
     ax23 = fig2.add_subplot(413) # CDF, Correct
-    ax23.plot(t_list, Prob_list_cumsum_corr_1_fig2, 'r', label='DDM' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_1_Anal_fig2, 'r:', label='DDM_A' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_2_fig2, 'b', label='test' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_2_fig2, 'b', label='CB_Lin' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_2_Anal_fig2, 'b:', label='CB_Lin_A' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_3_fig2, 'r--', label='DDM_P' )
-    ax23.plot(t_list, Prob_list_cumsum_corr_4_fig2, 'b--', label='CB_Lin_P' )
-    ## ax23.plot(bins_t_correct_sim_temp, np.cumsum(pdf_t_correct_sim_temp), 'k-.', label='sim' )
-
-    #fig1.ylim([-1.,1.])
-    ax23.set_xlabel('time (s)')
-    ax23.set_ylabel('CDF (normalized)')
+    plot_solution_cdf(s1n, ax23)
+    plot_solution_cdf(s1a, ax23)
+    plot_solution_cdf(s2n, ax23)
+    plot_solution_cdf(s2a, ax23)
+    plot_solution_cdf(s3, ax23)
+    plot_solution_cdf(s4, ax23)
     ax23.set_title('Correct CDF, Analytical vs Numerical')
     # ax23.set_xscale('log')
     ax23.legend(loc=4)
 
     ax24 = fig2.add_subplot(414) # CDF, Erred
-    ax24.plot(t_list, Prob_list_cumsum_err_1_fig2, 'r', label='DDM' )
-    ax24.plot(t_list, Prob_list_cumsum_err_1_Anal_fig2, 'r:', label='DDM_A' )
-    ax24.plot(t_list, Prob_list_cumsum_err_2_fig2, 'b', label='test' )
-    ax24.plot(t_list, Prob_list_cumsum_err_2_fig2, 'b', label='CB_Lin' )
-    ax24.plot(t_list, Prob_list_cumsum_err_2_Anal_fig2, 'b:', label='CB_Lin_A' )
-    ax24.plot(t_list, Prob_list_cumsum_err_3_fig2, 'r--', label='DDM_P' )
-    ax24.plot(t_list, Prob_list_cumsum_err_4_fig2, 'b--', label='CB_Lin_P' )
-    ## ax24.plot(bins_t_incorrect_sim_temp, np.cumsum(pdf_t_incorrect_sim_temp), 'k-.', label='sim' )
-    #fig1.set_ylim([-1.,1.])
-    ax24.set_xlabel('time (s)')
-    ax24.set_ylabel('CDF (normalized)')
+    plot_solution_cdf(s1n, ax24, correct=False)
+    plot_solution_cdf(s1a, ax24, correct=False)
+    plot_solution_cdf(s2n, ax24, correct=False)
+    plot_solution_cdf(s2a, ax24, correct=False)
+    plot_solution_cdf(s3, ax24, correct=False)
+    plot_solution_cdf(s4, ax24, correct=False)
     ax24.set_title('Erred CDF, Analytical vs Numerical')
     # fig1.set_xscale('log')
     ax24.legend(loc=4)

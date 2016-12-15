@@ -1,3 +1,4 @@
+import numpy as np
 import copy
 from DDM_parameters import *
 from DDM_analytic import analytic_ddm, analytic_ddm_linbound
@@ -109,10 +110,10 @@ class MuLinear(Mu):
 class MuSinCos(Mu):
     name = "sinx_cost"
     required_parameters = ["mu", "x", "t"]
-    def get_matrix(self, x, t, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
         return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
              + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
-    def get_flux(x_bound, t, adj=0, **kwargs):
+    def get_flux(x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
 class Sigma(Dependence):
@@ -269,7 +270,7 @@ class Model(object):
         return self._sigmadep.sigma_base()
     def x_domain(self):
         B = self.bound_base()
-        return np.arange(-B, B+0.1*dx, dx) # +.1*dx is to ensure that the largest number in the array is B
+        return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
         return np.arange(0., self.T_dur, self.dt)
     def mu_task_adj(self, t):
@@ -330,7 +331,7 @@ class Model(object):
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
-        return anal_pdf_corr*dt, anal_pdf_err*dt
+        return anal_pdf_corr*self.dt, anal_pdf_err*self.dt
 
     # Function that simulates one trial of the time-varying drift/bound DDM
     def solve_numerical(self):
@@ -344,7 +345,7 @@ class Model(object):
         # equal 1.  So these are componets of the joint pdf.
         pdf_corr = np.zeros(len(self.t_domain())) # Probability flux to correct choice.  Not a proper pdf (doesn't sum to 1)
         pdf_err = np.zeros(len(self.t_domain())) # Probability flux to erred choice. Not a proper pdf (doesn't sum to 1)
-
+        x_list = self.x_domain()
 
         ##### Looping through time and updating the pdf.
         for i_t, t in enumerate(self.t_domain()[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
@@ -364,7 +365,8 @@ class Model(object):
                 bound_shift = self.bound_base() - bound
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
-                x_index_outer = int(bound_shift/self.dx) # Index for the outer bound (larger matrix)
+                x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
+                print(x_index_inner, x_index_outer, bound_shift, bound_shift/self.dx)
                 weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
                 weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
                 x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
@@ -403,6 +405,7 @@ class Model(object):
             _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
             _inner_B_err = x_list[x_index_inner]
             _outer_B_err = x_list[x_index_outer]
+            if len(pdf_inner) == 0: pdf_inner = np.array([0]) # Fix error when bounds collapse to 0
             pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t) \
                             +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t)
             pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t) \
@@ -416,3 +419,41 @@ class Model(object):
 
 
 
+class Solution(object):
+    def __init__(self, pdf_corr, pdf_err, model):
+        self.model = copy.copy(model) # TODO this could cause a memory leak if I forget it is there...
+        self._pdf_corr = pdf_corr
+        self._pdf_err = pdf_err
+
+    def pdf_corr(self):
+        return self._pdf_corr
+
+    def pdf_err(self):
+        return self._pdf_err
+
+    def cdf_corr(self):
+        return np.cumsum(self._pdf_corr)
+
+    def cdf_err(self):
+        return np.cumsum(self._pdf_err)
+
+    def prob_correct(self):
+        return np.sum(self._pdf_corr)
+
+    def prob_error(self):
+        return np.sum(self._pdf_err)
+
+    def prob_undecided(self):
+        return 1 - self.prob_correct() - self.prob_error()
+
+    def prob_correct_forced(self):
+        return self.prob_correct() + prob_undecided()/2.
+
+    def prob_error_forced(self):
+        return self.prob_error() + prob_undecided()/2.
+
+    # Only consider correct choices. Note that Mean_Dec_Time does not
+    # includes choices supposedly undecided and made at the last
+    # moment.
+    def mean_decision_time(self):
+        return np.sum((self.pdf_correct)*self._model.t_domain()) / self.prob_correct()
