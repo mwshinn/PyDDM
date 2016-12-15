@@ -29,85 +29,14 @@ from DDM_plot import *
 
 ####################### LEGACY PARAMETERS #######################
 #mu= Drift Rate
-mu_0 = 0.*0.5 # Constant component of drift rate mu.
-#mu_0_list = np.logspace(-2,1, 20) # List of mu_0, to be looped through for tasks.
 mu_0_list = [-10, -5, -2, -1, -0.5, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10] # List of mu_0, to be looped through for tasks.
-param_mu_x = 1.*0.5 # Parameter for x_dependence of mu. Add more if 1 param is not sufficient...
-param_mu_t = 0.*0.3 # Parameter for t_dependence of mu. Add more if 1 param is not sufficient...
-sigma_0 = 1.*0.5 # Constant component of sigma=noise.
-param_sigma_x = 0. # Parameter for x_dependence of sigma. Add more if 1 param is not sufficient...
-param_sigma_t = 0. # Parameter for t_dependence of sigma. Add more if 1 param is not sufficient...
-# B = Bound
-B = 1. # Boundary. Assumed to be 1
-param_B_t = 0.5 # Parameter for t_dependence of B (no x-dep I sps?). Add more if 1 param is not sufficient...
-
-
-# Parameters consistent with spiking circuit data.                                                                      # Arranged in params in ddm_pdf_genreal as [mu_0,param_mu_x,param_mu_t, sigma_0,param_sigma_x,param_sigma_t, B_0, param_B_t], all param_a_b are assumed to only have 1... add more if needed.
-# Mu = Drift rate
-mu_0 = 1.*13.97531121 # Constant component of drift rate mu.
-coh_list = np.array([0.0,3.2,6.4,12.8,25.6,51.2]) # [%] For Duration Paradigm and in general
-# coh_list = np.array([-51.2, -25.6, -12.8, -6.4, -3.2, 0.0, 3.2, 6.4, 12.8, 25.6, 51.2]) # [%] For Pulse Paradigm
-mu_0_list = [mu_0*0.01*coh_temp for coh_temp in coh_list] # List of mu_0, to be looped through for tasks.
-param_mu_x_OUpos = 6.99053975 # Note that this value largely depends on the model used...
-param_mu_x_OUneg = -7.73123206 # Note that this value largely depends on the model used.... NOTE that this is the regime where control is optimal over OU+-, and OU+- are significantly different.
-param_mu_t = 0. # Parameter for t_dependence of mu. Add more if 1 param is not sufficient...
-# Sigma = Noise
-sigma_0 = 1.*1.29705615 # Constant component of noise sigma.
-param_sigma_x = 0.5 # Parameter for x_dependence of sigma. Add more if 1 param is not sufficient...
-param_sigma_t = 0.5 # Parameter for t_dependence of sigma. Add more if 1 param is not sufficient...
-# B = Bound
-B = 1. # Boundary. Assumed to be 1
-param_B_t = 1. # Parameter for t_dependence of B (no x-dep I sps?). Add more if 1 param is not sufficient...
-
-# Declare arrays for usage and storage.
-x_list = np.arange(-B, B+0.1*dx, dx) # List of x-grids (Staggered-mesh)
-center_matrix_ind = (len(x_list)-1)/2 # index of the center of the matrix. Should be integer by design of x_list
-t_list = np.arange(0., T_dur, dt) # t-grids
-
-setting_list = [['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
-                ['linear_xt', 'linear_xt', 'collapsing_linear', 'point_source_center'],
-                ['linear_xt', 'linear_xt', 'collapsing_exponential', 'point_source_center'],
-                ['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
-                ['linear_xt', 'linear_xt', 'constant', 'point_source_center'],
-                ['linear_xt', 'linear_xt', 'constant', 'point_source_center']]
-
-task_list = ['Fixed_Duration', 'PsychoPhysical_Kernel', 'Duration_Paradigm', 'Pulse_Paradigm'] # Define various setting specs for each tasks...
-task_params_list = [[], [], [0.1*mu_0, T_dur/2.], [0.1*mu_0, T_dur/2.]] # Temporary parameters to test the function. Later want to vary through them. See f_mu1_task for details.
-models_list_all = [0,1,2,3,4] # List of models to use. See Setting_list
-#param_mu_0_list = [0., 0., 0., 1.*param_mu_0, -1.5*param_mu_0, param_mu_t] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-param_mu_x_list = [0., 0., 0., param_mu_x_OUpos, param_mu_x_OUneg, 0.] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-param_mu_t_list = [0., 0., 0., 0., 0., param_mu_t] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-param_sigma_x_list = [0., 0., 0., 0., 0., 0.] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-param_sigma_t_list = [0., 0., 0., 0., 0., 0.] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-param_B_t_list = [0., param_B_t, param_B_t, 0., 0., param_mu_t] # List of param_mu_0 input in DDM_pdf_general. Can do the same for sigma_0 etc if needed.
-labels_list = ['DDM', 'CB_Lin', 'CB_Expo', 'OU+', 'OU-', 'DDM_t'] # Labels for figures
-#color_list  = ['g', 'r', 'orange', 'b', 'c', 'k']                                                                      # Colors for figures
-color_list = ['r', 'm', 'orange', 'g', 'b', 'k'] #Colors for figures. TEMP: Want r/g/b for DDM/OU+/OU-
-
-
-
-
-
-########################################################################################################################
-## Vary coherence and do each tasks (fixed-time, psychophysical kernel, Duration Paradigm, Pulse Paradigm)
-models_list = [0,1,2,3,4]                                #List of models to use. See Setting_list
-#models_list = models_list_all                                #List of models to use. See Setting_list
-
-Prob_final_corr  = np.zeros((len(mu_0_list), len(models_list))) # total correct probability for each mu & model.
-Prob_final_err   = np.zeros((len(mu_0_list), len(models_list))) # total erred probability for each mu & model.
-Prob_final_undec = np.zeros((len(mu_0_list), len(models_list))) # total undecided probability for each mu & model.
-Mean_Dec_Time    = np.zeros((len(mu_0_list), len(models_list)))
-
-Prob_final_corr_Analy  = np.zeros((len(mu_0_list), 2))
-Prob_final_err_Analy   = np.zeros((len(mu_0_list), 2))
-Prob_final_undec_Analy = np.zeros((len(mu_0_list), 2))
-Mean_Dec_Time_Analy    = np.zeros((len(mu_0_list), 2))
 
 ### Compute the probability distribution functions for the correct and erred choices
 # NOTE: First set T_dur to be the the duration of the fixed duration task.
-for i_models,m in enumerate(models):
-    for i_mu0 in range(len(mu_0_list)):
-        mu = mu_0_list[i_mu0]
+solutions = []
+for m in models:
+    musolutions = []
+    for mu in mu_0_list:
         # This gives a joint pdf of decision time, with time on one
         # axis and decision on the other.  It is split into three
         # components based on decision.  It returns the correct
@@ -115,115 +44,57 @@ for i_models,m in enumerate(models):
         # implied by forcing the full jpdf to sum to 1.  (Because "no
         # decision" does not have a time varying component.)
         m.set_mu(mu)
-        (pdf_corr, pdf_err) = m.solve_numerical()
-        prob_corr  = np.sum(pdf_corr)
-        prob_err  = np.sum(pdf_err)
-        prob_undec  = 1 - prob_corr - prob_err
+        sol = m.solve_numerical()
+        musolutions.append(sol)
+    solutions.append(musolutions)
 
-        #Outputs...
-
-        # Forced Choices: The monkey will always make a decision:
-        # Split the undecided probability half-half for corr/err
-        # choices.
-        Prob_final_corr[i_mu0, i_models] = prob_corr + prob_undec/2.
-        Prob_final_err[i_mu0, i_models] = prob_err + prob_undec/2.
-        Prob_final_undec[i_mu0, i_models] = prob_undec
-
-        # Regardless of choice made. Note that Mean_Dec_Time does not
-        # includes choices supposedly undecided and made at the last
-        # moment. (TODO Why is this regardless of choice? -MS)
-        Mean_Dec_Time[i_mu0, i_models] = np.sum(pdf_corr*t_list) / np.sum(pdf_corr)
-
-        ##Normalize to fit to the analytical solution. (Anderson 1960)
-        if m.name.startswith("CB"):
-            Prob_final_corr[i_mu0, i_models] = prob_corr / (prob_corr + prob_err)
-            Prob_final_err[i_mu0, i_models]  = prob_err / (prob_corr + prob_err)
-
-        ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
-        if m.name == "DDM" or m.name == "CB_Lin":
-            (pdf_corr_analy, pdf_err_analy) = m.solve_analytical()
-            prob_corr_analy  = np.sum(pdf_corr_analy)
-            prob_err_analy   = np.sum(pdf_err_analy)
-            prob_undec_analy = 1 - prob_corr_analy - prob_err_analy
-
-            #Outputs...
-
-            # Forced Choices: The monkey will always make a decision:
-            # Split the undecided probability half-half for corr/err
-            # choices.
-            Prob_final_corr_Analy[i_mu0, i_models]  = prob_corr_analy + prob_undec_analy/2.
-            Prob_final_err_Analy[i_mu0, i_models]   = prob_err_analy  + prob_undec_analy/2.
-            Prob_final_undec_Analy[i_mu0, i_models] = prob_undec_analy
-
-            # Only consider correct choices. Note that Mean_Dec_Time
-            # does not includes choices supposedly undecided and made
-            # at the last moment.
-            Mean_Dec_Time_Analy[i_mu0, i_models]    = np.sum((pdf_corr_analy)*t_list) / np.sum((pdf_corr_analy))
+for m in models:
+    musolutions = []
+    if not m.has_analytical_solution(): continue
+    for mu in mu_0_list:
+        m.set_mu(mu)
+        sol_analy = m.solve_analytical()
+        musolutions.append(sol_analy)
+    solutions.append(musolutions)
 
 
 ### Plot correct probability, erred probability, indecision probability, and mean decision time.
 fig1 = plt.figure(figsize=(8,10.5))
 ax11 = fig1.add_subplot(411)
-for i_models in range(len(models_list)):
-    index_model_2use = models_list[i_models]
-    ax11.plot(coh_list, Prob_final_corr[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
-    if index_model_2use ==0 or index_model_2use==1:
-        ax11.plot(coh_list, Prob_final_corr_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
-#fig1.ylim([-1.,1.])
-#ax11.set_xlabel('mu_0 (~coherence)')
+for ss in solutions:
+    ax11.plot([s.model.mu_base() for s in ss], [s.prob_correct() for s in ss], label=ss[0].model.name)
 ax11.set_ylabel('Probability')
 ax11.set_title('Correct Probability')
 # ax11.set_xscale('log')
 ax11.legend(loc=4)
 
 ax12 = fig1.add_subplot(412)
-for i_models in range(len(models_list)):
-    index_model_2use = models_list[i_models]
-    ax12.plot(coh_list, Prob_final_err[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
-    if index_model_2use ==0 or index_model_2use==1:
-        ax12.plot(coh_list, Prob_final_err_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
-
-#fig1.ylim([-1.,1.])
-#ax12.set_xlabel('mu_0 (~coherence)')
+for ss in solutions:
+    ax12.plot([s.model.mu_base() for s in ss], [s.prob_error() for s in ss], label=ss[0].model.name)
 ax12.set_ylabel('Probability')
-ax12.set_title('Erred Probability')
+ax12.set_title('Error Probability')
 # ax12.set_xscale('log')
 ax12.legend(loc=1)
 
 
 ax13 = fig1.add_subplot(413)
-for i_models in range(len(models_list)):
-    index_model_2use = models_list[i_models]
-    ax13.plot(coh_list, Prob_final_undec[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
-    if index_model_2use ==0 or index_model_2use==1:
-        ax13.plot(coh_list, Prob_final_undec_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':') #, label=labels_list[index_model_2use]+"_A" )
-#fig1.ylim([-1.,1.])
-#ax13.set_xlabel('mu_0 (~coherence)')
+for ss in solutions:
+    ax13.plot([s.model.mu_base() for s in ss], [s.prob_undecided() for s in ss], label=ss[0].model.name)
 ax13.set_ylabel('Probability')
 ax13.set_title('Undecision Probability')
 # ax13.set_xscale('log')
 ax13.legend(loc=1)
 
 ax14 = fig1.add_subplot(414)
-for i_models in range(len(models_list)):
-    index_model_2use = models_list[i_models]
-    ax14.plot(coh_list, Mean_Dec_Time[:,i_models], color=color_list[index_model_2use], label=labels_list[index_model_2use] )
-    if index_model_2use ==0 or index_model_2use==1:
-        ax14.plot(coh_list, Mean_Dec_Time_Analy[:,i_models], color=color_list[index_model_2use], linestyle=':')        #, label=labels_list[index_model_2use]+"_A" )
-#fig1.ylim([-1.,1.])
-ax14.set_xlabel('Coherence (%)')
+for ss in solutions:
+    ax14.plot([s.model.mu_base() for s in ss], [s.mean_decision_time() for s in ss], label=ss[0].model.name)
+ax14.set_xlabel('Drift rate $\mu$')
 ax14.set_ylabel('Time (s)')
 ax14.set_title('Mean Decision Time')
 # ax14.set_xscale('log')
 ax14.legend(loc=3)
 
 fig1.savefig('Fixed_Task_Performance.pdf')
-np.save( "fig3_c_x.npy", coh_list)   #Resave everytime, just to make sure I don't mess anything up..
-np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure I don't mess anything up..
-# mean time & indecision probabilitiies as SI?
-
-
-
 
 
 ########################################################################################################################
@@ -231,89 +102,59 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 if Flag_Compare_num_analy_sim:
     ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
     _const_mu = MuConstant(mu=.8)
-    _const_mu2 = MuConstant(mu=2)
+    _linear_mu = MuLinear(mu=.8, x=.3, t=.1)
     _const_sigma = SigmaConstant(sigma=1)
     model1 = Model(name="Model 1", dx=.008, dt=.005,
                    mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundConstant(B=B))
-    model2 = Model(name="Model 2",
+    model2 = Model(name="Model 2", dx=.008, dt=.005,
                    mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(B=B, t=param_B_t))
+                   bounddep=BoundCollapsingLinear(B=B, t=1))
     model3 = Model(name="Model 3",
                    mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundConstant(B=B),
                    task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
     model4 = Model(name="Model 4",
-                   mudep=_const_mu2, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(B=B, t=param_B_t),
+                   mudep=_linear_mu, sigmadep=_const_sigma,
+                   bounddep=BoundCollapsingLinear(B=B, t=1),
                    task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
     model2.solve_numerical()
-    s1n = Solution(*model1.solve_numerical(), model1)
-    s1a = Solution(*model1.solve_analytical(), model1)
-    s2n = Solution(*model2.solve_numerical(), model2)
-    s2a = Solution(*model2.solve_analytical(), model2)
-    s3 = Solution(*model3.solve(), model3)
-    s4 = Solution(*model4.solve(), model4)
-
+    s1n = model1.solve_numerical()
+    s1a = model1.solve_analytical()
+    s2n = model2.solve_numerical()
+    s2a = model2.solve_analytical()
+    s3 = model3.solve()
+    s4 = model4.solve()
+    solutions = [s1n, s1a, s2n, s2a, s3, s4]
 
 
     ### Plot correct probability, erred probability, indecision probability, and mean decision time.
     fig2 = plt.figure(figsize=(8,10.5))
     ax21 = fig2.add_subplot(411) # PDF, Correct
-    plot_solution_pdf(s1n, ax21)
-    plot_solution_pdf(s1a, ax21)
-    plot_solution_pdf(s2n, ax21)
-    plot_solution_pdf(s2a, ax21)
-    plot_solution_pdf(s3, ax21)
-    plot_solution_pdf(s4, ax21)
+    for s in solutions:
+        plot_solution_pdf(s, ax21)
     ax21.set_title('Correct PDF, Analytical vs Numerical')
-    # ax21.set_xscale('log')
     ax21.legend(loc=1)
 
     ax22 = fig2.add_subplot(412) # PDF, erred
-    plot_solution_pdf(s1n, ax22, correct=False)
-    plot_solution_pdf(s1a, ax22, correct=False)
-    plot_solution_pdf(s2n, ax22, correct=False)
-    plot_solution_pdf(s2a, ax22, correct=False)
-    plot_solution_pdf(s3, ax22, correct=False)
-    plot_solution_pdf(s4, ax22, correct=False)
+    for s in solutions:
+        plot_solution_pdf(s, ax22, correct=False)
     ax22.set_title('Erred PDF, Analytical vs Numerical')
-    # fig1.set_xscale('log')
     ax22.legend(loc=1)
 
     ax23 = fig2.add_subplot(413) # CDF, Correct
-    plot_solution_cdf(s1n, ax23)
-    plot_solution_cdf(s1a, ax23)
-    plot_solution_cdf(s2n, ax23)
-    plot_solution_cdf(s2a, ax23)
-    plot_solution_cdf(s3, ax23)
-    plot_solution_cdf(s4, ax23)
+    for s in solutions:
+        plot_solution_cdf(s, ax23)
     ax23.set_title('Correct CDF, Analytical vs Numerical')
-    # ax23.set_xscale('log')
     ax23.legend(loc=4)
 
     ax24 = fig2.add_subplot(414) # CDF, Erred
-    plot_solution_cdf(s1n, ax24, correct=False)
-    plot_solution_cdf(s1a, ax24, correct=False)
-    plot_solution_cdf(s2n, ax24, correct=False)
-    plot_solution_cdf(s2a, ax24, correct=False)
-    plot_solution_cdf(s3, ax24, correct=False)
-    plot_solution_cdf(s4, ax24, correct=False)
+    for s in solutions:
+        plot_solution_cdf(s, ax24, correct=False)
     ax24.set_title('Erred CDF, Analytical vs Numerical')
-    # fig1.set_xscale('log')
     ax24.legend(loc=4)
 
     fig2.savefig('Numerical_vs_Analytical_DDM_CBLin.pdf')
-
-
-
-
-
-
-
-
-
-
 
 
 

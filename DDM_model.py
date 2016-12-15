@@ -290,11 +290,15 @@ class Model(object):
     def set_mu(self, mu):
         self._mudep.mu = mu
 
-    def solve(self):
+
+    def has_analytical_solution(self):
         mt = self.get_model_type()
-        if mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
-           (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
-            mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter:
+        return mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
+            (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
+            mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter
+        
+    def solve(self):
+        if self.has_analytical_solution():
             return self.solve_analytical()
         else:
             return self.solve_numerical()
@@ -310,11 +314,7 @@ class Model(object):
         '''
 
         ### Initialization
-        assert type(self._mudep) == MuConstant, "mu dependence not implemented"
-        assert type(self._sigmadep) == SigmaConstant, "sigma dependence not implemented"
-        assert type(self._bounddep) in [BoundConstant, BoundCollapsingLinear], "bounddep dependence not implemented"
-        assert type(self._task) == TaskFixedDuration, "No analytic solution for that task"
-        assert type(self._IC) == ICPointSourceCenter, "No analytic solution for those initial conditions"
+        assert self.has_analytical_solution(), "Cannot solve for this model analytically"
 
         if type(self._bounddep) == BoundConstant: # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
@@ -331,7 +331,7 @@ class Model(object):
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
-        return anal_pdf_corr*self.dt, anal_pdf_err*self.dt
+        return Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self)
 
     # Function that simulates one trial of the time-varying drift/bound DDM
     def solve_numerical(self):
@@ -366,7 +366,6 @@ class Model(object):
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
                 x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
-                print(x_index_inner, x_index_outer, bound_shift, bound_shift/self.dx)
                 weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
                 weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
                 x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
@@ -415,21 +414,21 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        return pdf_corr, pdf_err # Only return jpdf components for correct and erred choices. Add more ouputs if needed
+        return Solution(pdf_corr, pdf_err, self) # Only return jpdf components for correct and erred choices. Add more ouputs if needed
 
 
 
 class Solution(object):
     def __init__(self, pdf_corr, pdf_err, model):
-        self.model = copy.copy(model) # TODO this could cause a memory leak if I forget it is there...
+        self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
         self._pdf_corr = pdf_corr
         self._pdf_err = pdf_err
 
     def pdf_corr(self):
-        return self._pdf_corr
+        return self._pdf_corr/self.model.dt
 
     def pdf_err(self):
-        return self._pdf_err
+        return self._pdf_err/self.model.dt
 
     def cdf_corr(self):
         return np.cumsum(self._pdf_corr)
@@ -456,4 +455,4 @@ class Solution(object):
     # includes choices supposedly undecided and made at the last
     # moment.
     def mean_decision_time(self):
-        return np.sum((self.pdf_correct)*self._model.t_domain()) / self.prob_correct()
+        return np.sum((self._pdf_corr)*self.model.t_domain()) / self.prob_correct()
