@@ -114,7 +114,7 @@ for i_models,m in enumerate(models):
         # decision over time and error over time, and no decision is
         # implied by forcing the full jpdf to sum to 1.  (Because "no
         # decision" does not have a time varying component.)
-        m.parameters['mu'] = mu
+        m.set_mu(mu)
         (pdf_corr, pdf_err) = DDM_pdf_general(m)
         prob_corr  = np.sum(pdf_corr)
         prob_err  = np.sum(pdf_err)
@@ -231,21 +231,17 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 if Flag_Compare_num_analy_sim:
     ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
     mu_0_F2 = mu_0_list[-3] # Set a particular mu and play with variour settings...
-    _const_mu = MuLinear(x=0, t=0)
-    _const_sigma = SigmaLinear(x=0, t=0)
-    model1 = Model(mu=mu_0_F2, sigma=sigma_0, B=B,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundConstant())
-    model2 = Model(mu=mu_0_F2, sigma=sigma_0, B=B,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(t=param_B_t))
-    model3 = Model(mu=mu_0_F2, sigma=sigma_0, B=B,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundConstant(),
+    _const_mu = MuLinear(mu=mu_0_F2, x=0, t=0)
+    _const_sigma = SigmaLinear(sigma=sigma_0, x=0, t=0)
+    model1 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+                   bounddep=BoundConstant(B=B))
+    model2 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+                   bounddep=BoundCollapsingLinear(B=B, t=param_B_t))
+    model3 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+                   bounddep=BoundConstant(B=B),
                    task=TaskPulseParadigm(onset=T_dur/4.))
-    model4 = Model(mu=mu_0_F2, sigma=sigma_0, B=B,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(t=param_B_t),
+    model4 = Model(mudep=_const_mu, sigmadep=_const_sigma,
+                   bounddep=BoundCollapsingLinear(B=B, t=param_B_t),
                    task=TaskPulseParadigm(onset=T_dur/4.))
     (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(model1)
     (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical(model1)

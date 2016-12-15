@@ -19,46 +19,33 @@ def DDM_pdf_general(model):
     '''
     Now assume f_mu, f_sigma, f_Bound are callable functions
     '''
-    ### Initialization
-    mu_base = model.parameters['mu'] # Constant component of drift rate mu.
-    sigma = model.parameters['sigma'] # Constant (and currently only) component of noise sigma.
-    bound_base = model.parameters['B'] # Constant component of the bound.
-
-    # Control the type of model we use for mu/sigma dependence on x/t.
-    # Here, `x` and `t` are coefficients to x and t, the particular
-    # use of which depends on the model (specified in `name`).
-    mudep = model.mudep
-    sigmadep = model.sigmadep
-    bounddep = model.bounddep
-    task = model.task
-    IC = model.IC
+    dx = model.dx
     
     ### Initialization: Lists
-    pdf_curr = IC.get_IC(x_list) # Initial condition
-    pdf_prev = np.zeros((len(x_list)))
+    pdf_curr = model.IC() # Initial condition
+    pdf_prev = np.zeros((len(pdf_curr)))
     # If pdf_corr + pdf_err + undecided probability are summed, they
     # equal 1.  So these are componets of the joint pdf.
-    pdf_corr = np.zeros(len(t_list)) # Probability flux to correct choice.  Not a proper pdf (doesn't sum to 1)
-    pdf_err = np.zeros(len(t_list)) # Probability flux to erred choice. Not a proper pdf (doesn't sum to 1)
+    pdf_corr = np.zeros(len(model.t_domain())) # Probability flux to correct choice.  Not a proper pdf (doesn't sum to 1)
+    pdf_err = np.zeros(len(model.t_domain())) # Probability flux to erred choice. Not a proper pdf (doesn't sum to 1)
 
 
     ##### Looping through time and updating the pdf.
-    for i_t, t in enumerate(t_list[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
+    for i_t, t in enumerate(model.t_domain()[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
         # Update Previous state. To be frank pdf_prev could be
         # removed for max efficiency. Leave it just in case.
         pdf_prev = copy.copy(pdf_curr)
 
         # If we are in a task, adjust mu according to the task
-        mu = task.adjust_mu(mu_base, t)
 
         if sum(pdf_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
             ## Define the boundaries at current time.
-            bound = bounddep.get_bound(bound_base, t) # Boundary at current time-step. Can generalize to assymetric bounds
+            bound = model.bound(t) # Boundary at current time-step. Can generalize to assymetric bounds
 
             ## Now figure out which x positions are still within the
             # (collapsing) bound.
-            assert bound_base >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-            bound_shift = bound_base - bound
+            assert model.bound_base() >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+            bound_shift = model.bound_base() - bound
             # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
             x_index_inner = int(np.ceil(bound_shift/dx)) # Index for the inner bound (smaller matrix)
             x_index_outer = int(bound_shift/dx) # Index for the outer bound (larger matrix)
@@ -70,9 +57,7 @@ def DDM_pdf_general(model):
             # Diffusion Matrix for Implicit Method. Here defined as
             # Outer Matrix, and inder matrix is either trivial or an
             # extracted submatrix.
-            diffusion_matrix = np.eye(len(x_list_inbounds)) + \
-                               mudep.get_matrix(mu, x_list_inbounds, t) + \
-                               sigmadep.get_matrix(sigma, x_list_inbounds, t)
+            diffusion_matrix = model.diffusion_matrix(x_list_inbounds, t)
             
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
@@ -102,14 +87,10 @@ def DDM_pdf_general(model):
         _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
         _inner_B_err = x_list[x_index_inner]
         _outer_B_err = x_list[x_index_outer]
-        pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * ( mudep.get_flux(_outer_B_corr, mu, t) +
-                                                            sigmadep.get_flux(_outer_B_corr, sigma, t)) \
-                        +  weight_inner * pdf_inner[-1] * ( mudep.get_flux(_inner_B_corr, mu, t) +
-                                                            sigmadep.get_flux(_inner_B_corr, sigma, t))
-        pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * ( mudep.get_flux(_outer_B_err, mu, t) +
-                                                           sigmadep.get_flux(_outer_B_err, sigma, t)) \
-                        +  weight_inner * pdf_inner[0] * ( mudep.get_flux(_inner_B_err, mu, t) +
-                                                           sigmadep.get_flux(_inner_B_err, sigma, t ))
+        pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * model.flux(_outer_B_corr, t) \
+                        +  weight_inner * pdf_inner[-1] * model.flux(_inner_B_corr, t)
+        pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * model.flux(_outer_B_err, t) \
+                        +  weight_inner * pdf_inner[0] * model.flux(_inner_B_err, t)
 
         if bound < dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
             pdf_corr[i_t+1] *= (1+ (1-bound/dx))
@@ -207,21 +188,21 @@ def DDM_pdf_analytical(model):
     '''
 
     ### Initialization
-    assert model.mudep == MuLinear(x=0, t=0), "mu dependence not implemented"
-    assert model.sigmadep == SigmaLinear(x=0, t=0), "sigma dependence not implemented"
-    assert type(model.bounddep) in [BoundConstant, BoundCollapsingLinear], "bounddep dependence not implemented"
-    assert model.task.name == "Fixed_Duration", "No analytic solution for that task"
-    assert type(model.IC) == ICPointSourceCenter, "No analytic solution for those initial conditions"
+    # assert model.mudep == MuLinear(x=0, t=0), "mu dependence not implemented"
+    # assert model.sigmadep == SigmaLinear(x=0, t=0), "sigma dependence not implemented"
+    # assert type(model.bounddep) in [BoundConstant, BoundCollapsingLinear], "bounddep dependence not implemented"
+    # assert model.task.name == "Fixed_Duration", "No analytic solution for that task"
+    # assert type(model.IC) == ICPointSourceCenter, "No analytic solution for those initial conditions"
     
-    if type(model.bounddep) == BoundConstant: # Simple DDM
-        anal_pdf_corr, anal_pdf_err = analytic_ddm(model.parameters['mu'],
-                                                   model.parameters['sigma'],
-                                                   model.parameters['B'], t_list)
-    elif type(model.bounddep) == BoundCollapsingLinear: # Linearly Collapsing Bound
-        anal_pdf_corr, anal_pdf_err = analytic_ddm(model.parameters['mu'],
-                                                   model.parameters['sigma'],
-                                                   model.parameters['B'],
-                                                   t_list, -model.bounddep.t) # TODO why must this be negative? -MS
+    if type(model._bounddep) == BoundConstant: # Simple DDM
+        anal_pdf_corr, anal_pdf_err = analytic_ddm(model.mu_base(),
+                                                   model.sigma_base(),
+                                                   model.bound_base(), model.t_domain())
+    elif type(model._bounddep) == BoundCollapsingLinear: # Linearly Collapsing Bound
+        anal_pdf_corr, anal_pdf_err = analytic_ddm(model.mu_base(),
+                                                   model.sigma_base(),
+                                                   model.bound_base(),
+                                                   model.t_domain(), -model._bounddep.t) # TODO why must this be negative? -MS
 
     ## Remove some abnormalities such as NaN due to trivial reasons.
     anal_pdf_corr[anal_pdf_corr==np.NaN] = 0.

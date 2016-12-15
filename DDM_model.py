@@ -37,6 +37,7 @@ class Dependence(object):
         raise LookupError
 
 class InitialCondition(Dependence):
+    depname = "IC"
     def get_IC(self, x):
         raise NotImplementedError
 
@@ -62,17 +63,21 @@ class ICUniform(InitialCondition):
         return pdf
 
 class Mu(Dependence):
-    def get_matrix(self, mu, x, t):
+    depname = "Mu"
+    def get_matrix(self, x, t, adj=0, **kwargs):
         raise NotImplementedError
-    def get_flux(self, x_bound, mu, t):
+    def get_flux(self, x_bound, t, adj=0, **kwargs):
         raise NotImplementedError
+    def mu_base(self):
+        assert "mu" in self.required_parameters, "Mu must be a required parameter"
+        return self.mu
 
 class MuLinear(Mu):
     name = "linear_xt"
-    required_parameters = ["x", "t"]
-    def get_matrix(self, mu, x, t):
-        return np.diag( 0.5*dt/dx * (mu + self.x*x[1:]  + self.t*t), 1) \
-             + np.diag(-0.5*dt/dx * (mu + self.x*x[:-1] + self.t*t),-1)
+    required_parameters = ["mu", "x", "t"]
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+        return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
+             + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
     ### Amount of flux from bound/end points to correct and erred
     ### response probabilities, due to different parameters (mu,
     ### sigma, bound)
@@ -80,69 +85,78 @@ class MuLinear(Mu):
     ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
     ## same x,t with p(x,t) (probability distribution function). Hence
     ## we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    def get_flux(self, x_bound, mu, t):
-        return 0.5*dt/dx * np.sign(x_bound) * (mu + self.x*x_bound + self.t*t)
+    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
 
 class MuSinCos(Mu):
     name = "sinx_cost"
-    required_parameters = ["x", "t"]
-    def get_matrix(self, mu, x, t):
-        return np.diag( 0.5*dt/dx * (mu + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
-             + np.diag(-0.5*dt/dx * (mu + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
-    def get_flux(x_bound, x, t):
-        return 0.5*dt/dx * np.sign(x_bound) * (mu + self.x*np.sin(x_bound) + self.t*np.cos(t))
+    required_parameters = ["mu", "x", "t"]
+    def get_matrix(self, x, t, **kwargs):
+        return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
+             + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
+    def get_flux(x_bound, t):
+        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
 class Sigma(Dependence):
-    def get_matrix(self, sigma, x, t):
+    depname = "Sigma"
+    def get_matrix(self, x, t, adj=0, **kwargs):
         raise NotImplementedError
-    def get_flux(self, x_bound, sigma, t):
+    def get_flux(self, x_bound, t, adj=0, **kwargs):
         raise NotImplementedError
+    def sigma_base(self):
+        assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
+        return self.sigma
 
 class SigmaLinear(Sigma):
     name = "linear_xt"
-    required_parameters = ["x", "t"]
-    def get_matrix(self, sigma, x, t):
-        return np.diag(1.0*(sigma + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(sigma + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(sigma + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, sigma, t):
-        return 0.5*dt/dx**2 * (sigma + self.x*x_bound + self.t*t)**2
+    required_parameters = ["sigma", "x", "t"]
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+        return np.diag(1.0*(self.sigma + adj + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(self.sigma + adj + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(self.sigma + adj + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
+    def get_flux(self, x_bound, t, dx, dt, **kwargs):
+        return 0.5*dt/dx**2 * (self.sigma + self.x*x_bound + self.t*t)**2
 
 class SigmaSinCos(Sigma):
     name = "sinx_cost"
-    required_parameters = ["x", "t"]
-    def get_matrix(self, sigma, x, t):
-        return np.diag(1.0*(sigma + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(sigma + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(sigma + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, sigma, t):
-        return 0.5*dt/dx**2 * (sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
+    required_parameters = ["sigma", "x", "t"]
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+        return np.diag(1.0*(self.sigma + adj + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
+             - np.diag(0.5*(self.sigma + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(self.sigma + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
+    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+        return 0.5*dt/dx**2 * (self.sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
 
 class Bound(Dependence):
+    depname = "Bound"
     ## Second effect of Collapsing Bounds: Collapsing Center: Positive
     ## and Negative states are closer to each other over time.
-    def get_bound(self, bound, t):
+    def get_bound(self, t, **kwargs):
         raise NotImplementedError
+    def B_base(self):
+        assert "B" in self.required_parameters, "B must be a required parameter"
+        return self.B
 
 class BoundConstant(Bound):
     name = "constant"
-    required_parameters = []
-    def get_bound(self, bound, t):
-        return bound
+    required_parameters = ["B"]
+    def get_bound(self, t, adj=0, **kwargs):
+        return self.B
 
 class BoundCollapsingLinear(Bound):
     name = "collapsing_linear"
-    required_parameters = ["t"]
-    def get_bound(self, bound, t):
-        return max(bound - self.t*t, 0.)
+    required_parameters = ["B", "t"]
+    def get_bound(self, t, adj=0, **kwargs):
+        return max(self.B + adj - self.t*t, 0.)
 
 class BoundCollapsingExponential(Bound):
     name = "collapsing_exponential"
-    required_parameters = ["tau"]
-    def get_bound(self, bound, t):
-        return bound * np.exp(-self.tau*t)
+    required_parameters = ["B", "tau"]
+    def get_bound(self, t, adj=0, **kwargs):
+        return (self.B + adj) * np.exp(-self.tau*t)
     
 class Task(Dependence):
+    depname = "Task"
     def adjust_mu(self, mu, t):
         raise NotImplementedError
 
@@ -150,58 +164,59 @@ class TaskFixedDuration(Task):
     name = "Fixed_Duration"
     required_parameters = []
     def adjust_mu(self, mu, t):
-        return mu
+        return 0
 
 class TaskPsychoPhysicalKernel(Task):
     name = "PsychoPhysical_Kernel"
     required_parameters = ["kernel"]
     def adjust_mu(self, mu, t):
-        return mu + self.kernel[int(t/dt_mu_PK)] ## Fix/Implement later
+        return self.kernel[int(t/dt_mu_PK)] ## Fix/Implement later
 
 class TaskDurationParadigm(Task):
     name = "Duration_Paradigm"
     required_parameters = ["duration"]
     def adjust_mu(self, mu, t):
         if t < self.duration:
-            return mu
-        else:
             return 0
+        else:
+            return -mu
 
 class TaskPulseParadigm(Task):
     name = "Pulse_Paradigm"
     required_parameters = ["onset", "duration", "adjustment"]
-    default_parameters = {"duration" : .1, "adjustment" : 1.15}
+    default_parameters = {"duration" : .1, "adjustment" : .15}
     def adjust_mu(self, mu, t):
         if (t > self.onset) and (t < (self.onset + self.duration)):
             return mu * self.adjustment
         else:
-            return mu
+            return 0
 
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
-    def __init__(self, mu, mudep, sigma, sigmadep, B, bounddep, task=TaskFixedDuration(), IC=ICPointSourceCenter(), name=""):
+    def __init__(self, mudep, sigmadep, bounddep, task=TaskFixedDuration(),
+                 IC=ICPointSourceCenter(), name="",
+                 dx=dx, dt=dt, T_dur=T_dur):
         assert name.__str__() == name # TODO crappy way to test type(name) == str for Python2 and Python3
         self.name = name
         assert isinstance(mudep, Mu)
-        self.mudep = mudep
+        self._mudep = mudep
         assert isinstance(sigmadep, Sigma)
-        self.sigmadep = sigmadep
+        self._sigmadep = sigmadep
         assert isinstance(bounddep, Bound)
-        self.bounddep = bounddep
+        self._bounddep = bounddep
         assert isinstance(task, Task)
-        self.task = task
+        self._task = task
         assert isinstance(IC, InitialCondition)
-        self.IC = IC
-        assert np.isreal(mu) and np.isreal(sigma) and np.isreal(B)
-        self.parameters = {"mu" : mu, "sigma" : sigma, "B" : B}
+        self._IC = IC
+        self.dx = dx
+        self.dt = dt
+        self.T_dur = T_dur
     # Get an ordered list of all model parameters.  Guaranteed to be
     # in the same order as set_model_parameters().
     def get_model_parameters(self):
         params = []
-        for k in sorted(self.parameters.keys()):
-            params.append(self.parameters[k])
-        for d in [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]:
+        for d in [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]:
             for p in d.required_parameters:
                 params.append(getattr(d, p))
         return params
@@ -210,9 +225,39 @@ class Model(object):
     def set_model_parameters(self, params):
         assert len(params) == len(self.get_model_parameters()), "Invalid params"
         i = 0
-        for d in [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]:
+        for d in [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]:
             for p in d.required_parameters:
                 setattr(d, p, params[i])
                 i += 1
     def get_model_type(self):
-        return list(map(type, [self.mudep, self.sigmadep, self.bounddep, self.task, self.IC]))
+        tt = lambda x : (x.depname, type(x))
+        return dict(map(tt, [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]))
+
+    def bound_base(self):
+        return self._bounddep.B_base()
+    def mu_base(self):
+        return self._mudep.mu_base()
+    def sigma_base(self):
+        return self._sigmadep.sigma_base()
+    def x_domain(self):
+        B = self.bound_base()
+        return np.arange(-B, B+0.1*dx, dx) # +.1*dx is to ensure that the largest number in the array is B
+    def t_domain(self):
+        return np.arange(0., self.T_dur, self.dt)
+    def mu_task_adj(self, t):
+        return self._task.adjust_mu(self.mu_base(), t)
+    def diffusion_matrix(self, x, t):
+        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t))
+        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx)
+        return np.eye(len(x)) + mu_matrix + sigma_matrix
+    def flux(self, x, t):
+        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t), dx=self.dx, dt=self.dt)
+        sigma_flux = self._sigmadep.get_flux(x, t, dx=self.dx, dt=self.dt)
+        return mu_flux + sigma_flux
+    def bound(self, t):
+        return self._bounddep.get_bound(t)
+    def IC(self):
+        return self._IC.get_IC(self.x_domain())
+    def set_mu(self, mu):
+        self._mudep.mu = mu
+

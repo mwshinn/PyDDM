@@ -7,25 +7,25 @@ from DDM_parameters import *
 mu_0 = 0
 sigma_0 = 1
 B = 1
-s1 = Model(name="DDM", mu=mu_0, sigma=sigma_0, B=B,
-           mudep=MuLinear(x=0, t=0),
-           sigmadep=SigmaLinear(x=0, t=0),
-           bounddep=BoundConstant())
-s2 = Model(name="CB_Lin", mu=mu_0, sigma=sigma_0, B=B,
-           mudep=MuLinear(x=0, t=0),
-           sigmadep=SigmaLinear(x=0, t=0),
-           bounddep=BoundCollapsingLinear(t=.01))
-s3 = Model(name="CB_Expo", mu=mu_0, sigma=sigma_0, B=B,
-           mudep=MuLinear(x=0, t=0),
-           sigmadep=SigmaLinear(x=0, t=0),
-           bounddep=BoundCollapsingExponential(tau=1))
-s4 = Model(name="OU+", mu=mu_0, sigma=sigma_0, B=B,
-           mudep=MuLinear(x=0, t=0),
-           sigmadep=SigmaLinear(x=0, t=0),
-           bounddep=BoundConstant())
-s5 = Model(name="OU-", mu=mu_0, sigma=sigma_0, B=B,
-           mudep=MuLinear(x=0, t=0),
-           sigmadep=SigmaLinear(x=0, t=0),
-           bounddep=BoundConstant())
+s1 = Model(name="DDM", 
+           mudep=MuLinear(mu=mu_0, x=0, t=0),
+           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           bounddep=BoundConstant(B=B))
+s2 = Model(name="CB_Lin",
+           mudep=MuLinear(mu=mu_0, x=0, t=0),
+           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           bounddep=BoundCollapsingLinear(B=B, t=.01))
+s3 = Model(name="CB_Expo",
+           mudep=MuLinear(mu=mu_0, x=0, t=0),
+           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           bounddep=BoundCollapsingExponential(B=B, tau=1))
+s4 = Model(name="OU+",
+           mudep=MuLinear(mu=mu_0, x=0, t=0),
+           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           bounddep=BoundConstant(B=B))
+s5 = Model(name="OU-",
+           mudep=MuLinear(mu=mu_0, x=0, t=0),
+           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           bounddep=BoundConstant(B=B))
 models = [s1, s2, s3, s4, s5]
 
