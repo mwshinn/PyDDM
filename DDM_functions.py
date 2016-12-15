@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 import copy
 
 from DDM_parameters import *
-
+from DDM_model import *
 
 ########################################################################################################################
 ### Defined functions.
