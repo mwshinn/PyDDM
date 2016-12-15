@@ -8,24 +8,24 @@ mu_0 = 0
 sigma_0 = 1
 B = 1
 s1 = Model(name="DDM", 
-           mudep=MuLinear(mu=mu_0, x=0, t=0),
-           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           mudep=MuConstant(mu=mu_0),
+           sigmadep=SigmaConstant(sigma=sigma_0),
            bounddep=BoundConstant(B=B))
 s2 = Model(name="CB_Lin",
-           mudep=MuLinear(mu=mu_0, x=0, t=0),
-           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           mudep=MuConstant(mu=mu_0),
+           sigmadep=SigmaConstant(sigma=sigma_0),
            bounddep=BoundCollapsingLinear(B=B, t=.01))
 s3 = Model(name="CB_Expo",
-           mudep=MuLinear(mu=mu_0, x=0, t=0),
-           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           mudep=MuConstant(mu=mu_0),
+           sigmadep=SigmaConstant(sigma=sigma_0),
            bounddep=BoundCollapsingExponential(B=B, tau=1))
 s4 = Model(name="OU+",
-           mudep=MuLinear(mu=mu_0, x=0, t=0),
-           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           mudep=MuConstant(mu=mu_0),
+           sigmadep=SigmaConstant(sigma=sigma_0),
            bounddep=BoundConstant(B=B))
 s5 = Model(name="OU-",
-           mudep=MuLinear(mu=mu_0, x=0, t=0),
-           sigmadep=SigmaLinear(sigma=sigma_0, x=0, t=0),
+           mudep=MuConstant(mu=mu_0),
+           sigmadep=SigmaConstant(sigma=sigma_0),
            bounddep=BoundConstant(B=B))
 models = [s1, s2, s3, s4, s5]
 

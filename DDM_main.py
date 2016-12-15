@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 import matplotlib.cm as matplotlib_cm
-import copy
 
 ########################################################################################################################
 ### Initialization
@@ -115,7 +114,7 @@ for i_models,m in enumerate(models):
         # implied by forcing the full jpdf to sum to 1.  (Because "no
         # decision" does not have a time varying component.)
         m.set_mu(mu)
-        (pdf_corr, pdf_err) = DDM_pdf_general(m)
+        (pdf_corr, pdf_err) = m.solve_numerical()
         prob_corr  = np.sum(pdf_corr)
         prob_err  = np.sum(pdf_err)
         prob_undec  = 1 - prob_corr - prob_err
@@ -141,7 +140,7 @@ for i_models,m in enumerate(models):
 
         ## Analytical solutions (normalized) for simple DDM and CB_Linear, computed if they are in model_list
         if m.name == "DDM" or m.name == "CB_Lin":
-            (pdf_corr_analy, pdf_err_analy) = DDM_pdf_analytical(m)
+            (pdf_corr_analy, pdf_err_analy) = m.solve_analytical()
             prob_corr_analy  = np.sum(pdf_corr_analy)
             prob_err_analy   = np.sum(pdf_err_analy)
             prob_undec_analy = 1 - prob_corr_analy - prob_err_analy
@@ -231,8 +230,8 @@ np.save( "fig3_c_y.npy", Prob_final_corr)   #Resave everytime, just to make sure
 if Flag_Compare_num_analy_sim:
     ###models_list_fig2 = [0,1] #List of models to use. See Setting_list (DDM and CB_Lin only here)
     mu_0_F2 = mu_0_list[-3] # Set a particular mu and play with variour settings...
-    _const_mu = MuLinear(mu=mu_0_F2, x=0, t=0)
-    _const_sigma = SigmaLinear(sigma=sigma_0, x=0, t=0)
+    _const_mu = MuConstant(mu=mu_0_F2)
+    _const_sigma = SigmaConstant(sigma=sigma_0)
     model1 = Model(mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundConstant(B=B))
     model2 = Model(mudep=_const_mu, sigmadep=_const_sigma,
@@ -243,12 +242,12 @@ if Flag_Compare_num_analy_sim:
     model4 = Model(mudep=_const_mu, sigmadep=_const_sigma,
                    bounddep=BoundCollapsingLinear(B=B, t=param_B_t),
                    task=TaskPulseParadigm(onset=T_dur/4.))
-    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = DDM_pdf_general(model1)
-    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = DDM_pdf_analytical(model1)
-    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = DDM_pdf_general(model2)
-    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = DDM_pdf_analytical(model2)
-    (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = DDM_pdf_general(model3)
-    (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = DDM_pdf_general(model4)
+    (Prob_list_corr_1_fig2     , Prob_list_err_1_fig2     ) = model1.solve_numerical()
+    (Prob_list_corr_1_Anal_fig2, Prob_list_err_1_Anal_fig2) = model1.solve_analytical()
+    (Prob_list_corr_2_fig2     , Prob_list_err_2_fig2     ) = model2.solve_numerical()
+    (Prob_list_corr_2_Anal_fig2, Prob_list_err_2_Anal_fig2) = model2.solve_analytical()
+    (Prob_list_corr_3_fig2     , Prob_list_err_3_fig2     ) = model3.solve()
+    (Prob_list_corr_4_fig2     , Prob_list_err_4_fig2     ) = model4.solve()
 
 
     # Cumulative Sums

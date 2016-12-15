@@ -1,4 +1,6 @@
+import copy
 from DDM_parameters import *
+from DDM_analytic import analytic_ddm, analytic_ddm_linbound
 
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
@@ -72,6 +74,22 @@ class Mu(Dependence):
         assert "mu" in self.required_parameters, "Mu must be a required parameter"
         return self.mu
 
+class MuConstant(Mu):
+    name = "constant"
+    required_parameters = ["mu"]
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+        return np.diag( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
+             + np.diag(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
+    ### Amount of flux from bound/end points to correct and erred
+    ### response probabilities, due to different parameters (mu,
+    ### sigma, bound)
+    ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
+    ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
+    ## same x,t with p(x,t) (probability distribution function). Hence
+    ## we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
+    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj)
+
 class MuLinear(Mu):
     name = "linear_xt"
     required_parameters = ["mu", "x", "t"]
@@ -91,10 +109,10 @@ class MuLinear(Mu):
 class MuSinCos(Mu):
     name = "sinx_cost"
     required_parameters = ["mu", "x", "t"]
-    def get_matrix(self, x, t, **kwargs):
+    def get_matrix(self, x, t, adj=0, **kwargs):
         return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
              + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
-    def get_flux(x_bound, t):
+    def get_flux(x_bound, t, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
 class Sigma(Dependence):
@@ -107,6 +125,16 @@ class Sigma(Dependence):
         assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
         return self.sigma
 
+class SigmaConstant(Sigma):
+    name = "constant"
+    required_parameters = ["sigma"]
+    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+        return np.diag(1.0*(self.sigma + adj + 0*x)**2     * dt/dx**2, 0) \
+             - np.diag(0.5*(self.sigma + adj + 0*x[1:])**2 * dt/dx**2, 1) \
+             - np.diag(0.5*(self.sigma + adj+ 0*x[:-1])**2 * dt/dx**2,-1)
+    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+        return 0.5*dt/dx**2 * (self.sigma + adj)**2
+
 class SigmaLinear(Sigma):
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
@@ -114,8 +142,8 @@ class SigmaLinear(Sigma):
         return np.diag(1.0*(self.sigma + adj + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
              - np.diag(0.5*(self.sigma + adj + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
              - np.diag(0.5*(self.sigma + adj + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, **kwargs):
-        return 0.5*dt/dx**2 * (self.sigma + self.x*x_bound + self.t*t)**2
+    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+        return 0.5*dt/dx**2 * (self.sigma + adj + self.x*x_bound + self.t*t)**2
 
 class SigmaSinCos(Sigma):
     name = "sinx_cost"
@@ -260,4 +288,131 @@ class Model(object):
         return self._IC.get_IC(self.x_domain())
     def set_mu(self, mu):
         self._mudep.mu = mu
+
+    def solve(self):
+        mt = self.get_model_type()
+        if mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
+           (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
+            mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter:
+            return self.solve_analytical()
+        else:
+            return self.solve_numerical()
+
+    ########################################################################################################################
+    ## Functions for Analytical Solutions.
+    ### Analytical form of DDM. Can only solve for simple DDM or linearly collapsing bound... From Anderson1960
+    # Note that the solutions are automatically normalized.
+    def solve_analytical(self):
+        '''
+        Now assume f_mu, f_sigma, f_Bound are callable functions
+        See DDM_pdf_general for nomenclature
+        '''
+
+        ### Initialization
+        assert type(self._mudep) == MuConstant, "mu dependence not implemented"
+        assert type(self._sigmadep) == SigmaConstant, "sigma dependence not implemented"
+        assert type(self._bounddep) in [BoundConstant, BoundCollapsingLinear], "bounddep dependence not implemented"
+        assert type(self._task) == TaskFixedDuration, "No analytic solution for that task"
+        assert type(self._IC) == ICPointSourceCenter, "No analytic solution for those initial conditions"
+
+        if type(self._bounddep) == BoundConstant: # Simple DDM
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
+                                                       self.sigma_base(),
+                                                       self.bound_base(), self.t_domain())
+        elif type(self._bounddep) == BoundCollapsingLinear: # Linearly Collapsing Bound
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
+                                                       self.sigma_base(),
+                                                       self.bound_base(),
+                                                       self.t_domain(), -self._bounddep.t) # TODO why must this be negative? -MS
+
+        ## Remove some abnormalities such as NaN due to trivial reasons.
+        anal_pdf_corr[anal_pdf_corr==np.NaN] = 0.
+        anal_pdf_corr[0] = 0.
+        anal_pdf_err[anal_pdf_err==np.NaN] = 0.
+        anal_pdf_err[0] = 0.
+        return anal_pdf_corr*dt, anal_pdf_err*dt
+
+    # Function that simulates one trial of the time-varying drift/bound DDM
+    def solve_numerical(self):
+        '''
+        Now assume f_mu, f_sigma, f_Bound are callable functions
+        '''
+        ### Initialization: Lists
+        pdf_curr = self.IC() # Initial condition
+        pdf_prev = np.zeros((len(pdf_curr)))
+        # If pdf_corr + pdf_err + undecided probability are summed, they
+        # equal 1.  So these are componets of the joint pdf.
+        pdf_corr = np.zeros(len(self.t_domain())) # Probability flux to correct choice.  Not a proper pdf (doesn't sum to 1)
+        pdf_err = np.zeros(len(self.t_domain())) # Probability flux to erred choice. Not a proper pdf (doesn't sum to 1)
+
+
+        ##### Looping through time and updating the pdf.
+        for i_t, t in enumerate(self.t_domain()[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
+            # Update Previous state. To be frank pdf_prev could be
+            # removed for max efficiency. Leave it just in case.
+            pdf_prev = copy.copy(pdf_curr)
+
+            # If we are in a task, adjust mu according to the task
+
+            if sum(pdf_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
+                ## Define the boundaries at current time.
+                bound = self.bound(t) # Boundary at current time-step. Can generalize to assymetric bounds
+
+                ## Now figure out which x positions are still within the
+                # (collapsing) bound.
+                assert self.bound_base() >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+                bound_shift = self.bound_base() - bound
+                # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
+                x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
+                x_index_outer = int(bound_shift/self.dx) # Index for the outer bound (larger matrix)
+                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
+                weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
+                x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
+
+                ## Define the diffusion matrix for implicit method
+                # Diffusion Matrix for Implicit Method. Here defined as
+                # Outer Matrix, and inder matrix is either trivial or an
+                # extracted submatrix.
+                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t)
+
+                ### Compute Probability density functions (pdf)
+                # PDF for outer matrix
+                pdf_outer = np.linalg.solve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+                # PDF for inner matrix (with optimization)
+                if x_index_inner == x_index_outer: # Optimization: When bound is exactly at a grid, use the most efficient method.
+                    pdf_inner = copy.copy(pdf_outer)
+                else:
+                    pdf_inner = np.linalg.solve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+
+                # Pdfs out of bound is consideered decisions made.
+                pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
+                                  + weight_inner * np.sum(pdf_prev[:x_index_inner])
+                pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
+                                   + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
+                pdf_curr = np.zeros((len(x_list))) # Reconstruct current proability density function, adding outer and inner contribution to it.
+                pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer
+                pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
+
+            else:
+                break #break if the remaining densities are too small....
+
+            ### Increase current, transient probability of crossing either
+            ### bounds, as flux.  Corr is a correct answer, err is an
+            ### incorrect answer
+            _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
+            _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
+            _inner_B_err = x_list[x_index_inner]
+            _outer_B_err = x_list[x_index_outer]
+            pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t) \
+                            +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t)
+            pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t) \
+                            +  weight_inner * pdf_inner[0] * self.flux(_inner_B_err, t)
+
+            if bound < self.dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
+                pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+
+        return pdf_corr, pdf_err # Only return jpdf components for correct and erred choices. Add more ouputs if needed
+
+
 
