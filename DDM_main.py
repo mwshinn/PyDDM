@@ -105,18 +105,18 @@ if Flag_Compare_num_analy_sim:
     _linear_mu = MuLinear(mu=.8, x=.3, t=.1)
     _const_sigma = SigmaConstant(sigma=1)
     model1 = Model(name="Model 1", dx=.008, dt=.005,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundConstant(B=B))
+                   mu=_const_mu, sigma=_const_sigma,
+                   bound=BoundConstant(B=B))
     model2 = Model(name="Model 2", dx=.008, dt=.005,
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(B=B, t=1))
+                   mu=_const_mu, sigma=_const_sigma,
+                   bound=BoundCollapsingLinear(B=B, t=1))
     model3 = Model(name="Model 3",
-                   mudep=_const_mu, sigmadep=_const_sigma,
-                   bounddep=BoundConstant(B=B),
+                   mu=_const_mu, sigma=_const_sigma,
+                   bound=BoundConstant(B=B),
                    task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
     model4 = Model(name="Model 4",
-                   mudep=_linear_mu, sigmadep=_const_sigma,
-                   bounddep=BoundCollapsingLinear(B=B, t=1),
+                   mu=_linear_mu, sigma=_const_sigma,
+                   bound=BoundCollapsingLinear(B=B, t=1),
                    task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
     model2.solve_numerical()
     s1n = model1.solve_numerical()
@@ -188,7 +188,7 @@ if Flag_Pulse:
             mu_2use = mu_0_list[i_mu0]
             for i_ton in range(len(t_onset_list_pulse)):
                 t_onset_temp = t_onset_list_pulse[i_ton]
-                (Prob_list_corr_pulse_temp, Prob_list_err_pulse_temp) = DDM_pdf_general(mu_2use, m.mudep,
+                (Prob_list_corr_pulse_temp, Prob_list_err_pulse_temp) = DDM_pdf_general(mu_2use, m.mu,
                                                                                         sigma_0, m.sigmadep,
                                                                                         B, m.bounddep,
                                                                                         Dependency("Pulse_Paradigm", t_onset_temp)) # Simple DDM

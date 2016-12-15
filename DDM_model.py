@@ -10,8 +10,45 @@ from DDM_analytic import analytic_ddm, analytic_ddm_linbound
 # need should be passed as kwargs. To compare to legacy code, the
 # `name` used to be `f_mu_setting` or `f_sigma_setting` and
 # kwargs now encompassed (e.g.) `param_mu_t_temp`.
+
 class Dependence(object):
+    """An abstract class describing how one variable depends on other variables.
+
+    This is an abstract class which is inherrited by other abstract
+    classes only, and has the highest level machinery for describing
+    how one variable depends on others.  For example, an abstract
+    class that inherits from Dependence might describe how the drift
+    rate may change throughout the simulation depending on the value
+    of x and t, and then this class would be inherited by a concrete
+    class describing an implementation.  For example, the relationship
+    between drift rate and x could be linear, exponential, etc., and
+    each of these would be a subsubclass of Dependence.
+
+    In order to subclass Dependence, you must set the (static) class
+    variable `depname`, which gives an alpha-numeric string describing
+    which variable could potentially depend on other variables.
+
+    Each subsubclass of dependence must also define two (static) class
+    variables.  First, it must define `name`, which is an
+    alpha-numeric plus underscores name of what the algorithm is, and
+    also `required_parameters`, a python list of names (strings) for
+    the parameters that must be passed to this algorithm.  (This does
+    not include globally-relevant variables like dt, it only includes
+    variables relevant to a particular instance of the algorithm.)  An
+    optional (static) class variable is `default_parameters`, which is
+    a dictionary indexed by the parameter names from
+    `required_parameters`.  Any parameters referenced here will be
+    given a default value.
+
+    Dependence will check to make sure all of the required parameters
+    have been supplied, with the exception of those which have default
+    versions.  It also provides other convenience and safety features,
+    such as allowing tests for equality of derived algorithms and for
+    ensuring extra parameters were not assigned.
+    """
     def __init__(self, **kwargs):
+        """Create a new Dependence object with parameters specified in **kwargs."""
+        assert hasattr(self, "depname"), "Dependence needs a parameter name"
         assert hasattr(self, "name"), "Dependence classes need a name"
         assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
         if hasattr(self, "default_parameters"):
@@ -22,22 +59,24 @@ class Dependence(object):
         passed_args = sorted(args.keys())
         expected_args = sorted(self.required_parameters)
         assert passed_args == expected_args, "Provided %s arguments, expected %s" % (str(passed_args), str(expected_args))
-        self.add_parameter(**args)
-    def add_parameter(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
-    # Allow tests for equality
+
     def __eq__(self, other):
+        """Equality is defined as having the same algorithm type and the same parameters."""
         if isinstance(other, self.__class__):
             return self.__dict__ == other.__dict__
         return False
-    # Only allow the required parameters to be assigned
+
     def __setattr__(self, name, val):
+        """Only allow the required parameters to be assigned."""
         if name in self.required_parameters:
             return object.__setattr__(self, name, val) # No super() for python2 compatibility
         raise LookupError
     def __delattr__(self, name):
+        """No not allow a required parameter to be deleted."""
         raise LookupError
+    # TODO add __repr__ and __str__
 
 class InitialCondition(Dependence):
     depname = "IC"
@@ -223,17 +262,56 @@ class TaskPulseParadigm(Task):
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
-    def __init__(self, mudep, sigmadep, bounddep, task=TaskFixedDuration(),
-                 IC=ICPointSourceCenter(), name="",
+    """A full simulation of a single DDM-style model.
+
+    Each model simulation depends on five key components:
+    
+    - A description of how drift rate (mu) changes throughout the simulation.
+    - A description of how variability (sigma) changes throughout the simulation.
+    - A description of how the boundary changes throughout the simulation.
+    - Starting conditions for the model
+    - Specific details of a task which cause dynamic changes in the model (e.g. a stimulus intensity change)
+
+    This class manages these, and also provides the affiliated
+    services, such as analytical or numerical simulations of the
+    resulting reaction time distribution.
+    """
+    def __init__(self, mu=MuConstant(mu=0),
+                 sigma=SigmaConstant(sigma=1),
+                 bound=BoundConstant(B=1),
+                 IC=ICPointSourceCenter(),
+                 task=TaskFixedDuration(), name="",
                  dx=dx, dt=dt, T_dur=T_dur):
+        """Construct a Model object from the 5 key components.
+
+        The five key components of our DDM-style models describe how
+        the drift rate (`mu`), noise (`sigma`), and bounds (`bound`)
+        change over time, the initial conditions (`IC`), and a
+        description of a potential task which could modify the model
+        during the simulation (`task`).
+
+        These five components are given by the parameters `mu`, `sigma`,
+        `bound`, `IC`, and `task`, respectively.  They should be types
+        which inherit from the types Mu, Sigma, Bound, Task, and
+        InitialCondition, respectively.  They default to constant
+        unitary values.
+
+        Additionally, simulation parameters can be set, such as time
+        and spacial precision (`dt` and `dx`) and the simulation
+        duration `T_dur`.  If not specified, they will be taken from
+        the defaults specified in the parameters file.
+
+        The `name` parameter is exclusively for convenience, and may
+        be used in plotting or in debugging.
+        """
         assert name.__str__() == name # TODO crappy way to test type(name) == str for Python2 and Python3
         self.name = name
-        assert isinstance(mudep, Mu)
-        self._mudep = mudep
-        assert isinstance(sigmadep, Sigma)
-        self._sigmadep = sigmadep
-        assert isinstance(bounddep, Bound)
-        self._bounddep = bounddep
+        assert isinstance(mu, Mu)
+        self._mudep = mu
+        assert isinstance(sigma, Sigma)
+        self._sigmadep = sigma
+        assert isinstance(bound, Bound)
+        self._bounddep = bound
         assert isinstance(task, Task)
         self._task = task
         assert isinstance(IC, InitialCondition)
@@ -259,63 +337,97 @@ class Model(object):
                 setattr(d, p, params[i])
                 i += 1
     def get_model_type(self):
+        """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]))
 
     def bound_base(self):
+        """The boundary at the beginning of the simulation."""
         return self._bounddep.B_base()
     def mu_base(self):
+        """The drift rate at the beginning of the simulation."""
         return self._mudep.mu_base()
     def sigma_base(self):
+        """The noise at the beginning of the simulation."""
         return self._sigmadep.sigma_base()
     def x_domain(self):
+        """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         B = self.bound_base()
         return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
+        """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur, self.dt)
     def mu_task_adj(self, t):
+        """The amount by which we should adjust the drift rate at time `t` for the current task."""
         return self._task.adjust_mu(self.mu_base(), t)
     def diffusion_matrix(self, x, t):
+        """The matrix for the implicit method of solving the diffusion equation.
+
+        - `x` - a length N ndarray representing the domain over which
+          the matrix is to be defined. Usually a contiguous subset of
+          x_domain().
+        - `t` - The timepoint at which the matrix is valid.
+
+        Returns a size NxN ndarray
+        """
         mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t))
         sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx)
         return np.eye(len(x)) + mu_matrix + sigma_matrix
     def flux(self, x, t):
+        """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t), dx=self.dx, dt=self.dt)
         sigma_flux = self._sigmadep.get_flux(x, t, dx=self.dx, dt=self.dt)
         return mu_flux + sigma_flux
     def bound(self, t):
+        """The upper boundary of the simulation at time `t`."""
         return self._bounddep.get_bound(t)
     def IC(self):
+        """The initial distribution at t=0.
+
+        Returns a length N ndarray (where N is the size of x_domain())
+        which should sum to 1.
+        """
         return self._IC.get_IC(self.x_domain())
     def set_mu(self, mu):
+        """Assign the value of `mu` to the drift rate.
+
+        Does not return a value."""
         self._mudep.mu = mu
 
 
     def has_analytical_solution(self):
+        """Is it possible to find an analytic solution for this model?"""
         mt = self.get_model_type()
         return mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
             (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
             mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter
         
     def solve(self):
+        """Solve the model using an analytic solution if possible, and a numeric solution if not.
+
+        Return a Solution object describing the joint PDF distribution of reaction times."""
         if self.has_analytical_solution():
             return self.solve_analytical()
         else:
             return self.solve_numerical()
 
-    ########################################################################################################################
-    ## Functions for Analytical Solutions.
-    ### Analytical form of DDM. Can only solve for simple DDM or linearly collapsing bound... From Anderson1960
-    # Note that the solutions are automatically normalized.
     def solve_analytical(self):
-        '''
-        Now assume f_mu, f_sigma, f_Bound are callable functions
-        See DDM_pdf_general for nomenclature
-        '''
+        """Solve the model with an analytic solution, if possible.
 
-        ### Initialization
+        Analytic solutions are only possible in a select number of
+        special cases; in particular, it works for simple DDM and for
+        linearly collapsing bounds.  (See Anderson (1960) for
+        implementation details.)  For most reasonably complex models,
+        the method will fail.  Check whether a solution is possible
+        with has_analytic_solution().
+
+        If successful, this returns a Solution object describing the
+        joint PDF.  If unsuccessful, this will raise an exception.
+        """
+
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
 
+        # The analytic_ddm function does the heavy lifting.
         if type(self._bounddep) == BoundConstant: # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
                                                        self.sigma_base(),
@@ -333,44 +445,54 @@ class Model(object):
         anal_pdf_err[0] = 0.
         return Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self)
 
-    # Function that simulates one trial of the time-varying drift/bound DDM
     def solve_numerical(self):
-        '''
-        Now assume f_mu, f_sigma, f_Bound are callable functions
-        '''
+        """Solve the DDM model numerically.
+
+        This uses the implicit method to solve the DDM at each
+        timepoint.  Results are then compiled together.  This is the
+        core DDM solver of this library.
+
+        It returns a Solution object describing the joint PDF.  This
+        method should not fail for any model type.
+        """
+
         ### Initialization: Lists
         pdf_curr = self.IC() # Initial condition
         pdf_prev = np.zeros((len(pdf_curr)))
         # If pdf_corr + pdf_err + undecided probability are summed, they
         # equal 1.  So these are componets of the joint pdf.
-        pdf_corr = np.zeros(len(self.t_domain())) # Probability flux to correct choice.  Not a proper pdf (doesn't sum to 1)
-        pdf_err = np.zeros(len(self.t_domain())) # Probability flux to erred choice. Not a proper pdf (doesn't sum to 1)
+        pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain()
 
-        ##### Looping through time and updating the pdf.
+        # Looping through time and updating the pdf.
         for i_t, t in enumerate(self.t_domain()[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
             # Update Previous state. To be frank pdf_prev could be
             # removed for max efficiency. Leave it just in case.
             pdf_prev = copy.copy(pdf_curr)
 
-            # If we are in a task, adjust mu according to the task
-
-            if sum(pdf_curr[:])>0.0001: # For efficiency only do diffusion if there's at least some densities remaining in the channel.
+            # For efficiency only do diffusion if there's at least
+            # some densities remaining in the channel.
+            if sum(pdf_curr[:])>0.0001:
                 ## Define the boundaries at current time.
-                bound = self.bound(t) # Boundary at current time-step. Can generalize to assymetric bounds
+                bound = self.bound(t) # Boundary at current time-step.
 
-                ## Now figure out which x positions are still within the
-                # (collapsing) bound.
+                # Now figure out which x positions are still within
+                # the (collapsing) bound.
                 assert self.bound_base() >= bound, "Invalid change in bound" # Ensure the bound didn't expand
                 bound_shift = self.bound_base() - bound
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
                 x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
-                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx # The weight of the upper bound matrix, approximated linearly. 0 when bound exactly at grids.
+
+                # We weight the upper and lower matrices according to
+                # how far away the bound is from each.  The weight of
+                # each matrix is approximated linearly. The inner
+                # bound is 0 when bound exactly at grids.
+                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx 
                 weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
                 x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
 
-                ## Define the diffusion matrix for implicit method
                 # Diffusion Matrix for Implicit Method. Here defined as
                 # Outer Matrix, and inder matrix is either trivial or an
                 # extracted submatrix.
@@ -379,8 +501,11 @@ class Model(object):
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
                 pdf_outer = np.linalg.solve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
-                # PDF for inner matrix (with optimization)
-                if x_index_inner == x_index_outer: # Optimization: When bound is exactly at a grid, use the most efficient method.
+                # If the bounds are the same the bound perfectly
+                # aligns with the grid), we don't need so solve the
+                # diffusion matrix again since we don't need a linear
+                # approximation.
+                if x_index_inner == x_index_outer:
                     pdf_inner = copy.copy(pdf_outer)
                 else:
                     pdf_inner = np.linalg.solve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
@@ -397,9 +522,9 @@ class Model(object):
             else:
                 break #break if the remaining densities are too small....
 
-            ### Increase current, transient probability of crossing either
-            ### bounds, as flux.  Corr is a correct answer, err is an
-            ### incorrect answer
+            # Increase current, transient probability of crossing
+            # either bounds, as flux.  Corr is a correct answer, err
+            # is an incorrect answer
             _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
             _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
             _inner_B_err = x_list[x_index_inner]
@@ -410,49 +535,84 @@ class Model(object):
             pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t) \
                             +  weight_inner * pdf_inner[0] * self.flux(_inner_B_err, t)
 
-            if bound < self.dx: # Renormalize when the channel size has <1 grid, although all hell breaks loose in this regime.
+            # Renormalize when the channel size has <1 grid, although
+            # all hell breaks loose in this regime.
+            if bound < self.dx:
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        return Solution(pdf_corr, pdf_err, self) # Only return jpdf components for correct and erred choices. Add more ouputs if needed
+        return Solution(pdf_corr, pdf_err, self)
 
 
 
 class Solution(object):
+    """Describes the result of an analytic or numerical DDM run.
+
+    This is a glorified container for a joint pdf, between the
+    response options (correct, error, and no decision) and the
+    response time distribution associated with each.  It stores a copy
+    of the response time distribution for both the correct case and
+    the incorrect case, and the rest of the properties can be
+    calculated from there.  
+
+    It also stores a full deep copy of the model used to simulate it.
+    This is most important for storing, e.g. the dt and the name
+    associated with the simulation, but it is also good to keep the
+    whole object as a full record describing the simulation, so that
+    the full parametrization of every run is recorded.  Note that this
+    may increase memory requirements when many simulations are run.
+
+    """
     def __init__(self, pdf_corr, pdf_err, model):
+        """Create a Solution object from the results of a model
+        simulation.
+
+        Constructor takes three arguments.
+
+            - `model` - the Model object used to generate `pdf_corr` and `pdf_err`
+            - `pdf_corr` - a size N numpy ndarray describing the correct portion of the joint pdf
+            - `pdf_err` - a size N numpy ndarray describing the error portion of the joint pdf
+        """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
         self._pdf_corr = pdf_corr
         self._pdf_err = pdf_err
 
     def pdf_corr(self):
+        """The correct component of the joint PDF."""
         return self._pdf_corr/self.model.dt
 
     def pdf_err(self):
+        """The error (incorrect) component of the joint PDF."""
         return self._pdf_err/self.model.dt
 
     def cdf_corr(self):
+        """The correct component of the joint CDF."""
         return np.cumsum(self._pdf_corr)
 
     def cdf_err(self):
+        """The error (incorrect) component of the joint CDF."""
         return np.cumsum(self._pdf_err)
 
     def prob_correct(self):
+        """The probability of selecting the right response."""
         return np.sum(self._pdf_corr)
 
     def prob_error(self):
+        """The probability of selecting the incorrect (error) response."""
         return np.sum(self._pdf_err)
 
     def prob_undecided(self):
+        """The probability of selecting neither response (undecided)."""
         return 1 - self.prob_correct() - self.prob_error()
 
     def prob_correct_forced(self):
+        """The probability of selecting the correct response if a response is forced."""
         return self.prob_correct() + prob_undecided()/2.
 
     def prob_error_forced(self):
+        """The probability of selecting the incorrect response if a response is forced."""
         return self.prob_error() + prob_undecided()/2.
 
-    # Only consider correct choices. Note that Mean_Dec_Time does not
-    # includes choices supposedly undecided and made at the last
-    # moment.
     def mean_decision_time(self):
+        """The mean decision time in the correct trials (excluding undecided trials)."""
         return np.sum((self._pdf_corr)*self.model.t_domain()) / self.prob_correct()
