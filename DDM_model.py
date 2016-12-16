@@ -1,6 +1,6 @@
 import numpy as np
 import copy
-from DDM_parameters import *
+import DDM_parameters as param
 from DDM_analytic import analytic_ddm, analytic_ddm_linbound
 
 # This describes how a variable is dependent on other variables.
@@ -59,7 +59,7 @@ class Dependence(object):
         passed_args = sorted(args.keys())
         expected_args = sorted(self.required_parameters)
         assert passed_args == expected_args, "Provided %s arguments, expected %s" % (str(passed_args), str(expected_args))
-        for key, value in kwargs.items():
+        for key, value in args.items():
             setattr(self, key, value)
 
     def __eq__(self, other):
@@ -79,17 +79,29 @@ class Dependence(object):
     # TODO add __repr__ and __str__
 
 class InitialCondition(Dependence):
+    """Subclass this to compute the initial conditions of the simulation.
+
+    This abstract class describes initial PDF at the beginning of a
+    simulation.  To subclass it, implement get_IC(x).
+
+    Also, since it inherits from Dependence, subclasses must also
+    assign a `name` and `required_parameters` (see documentation for
+    Dependence.)
+    """
     depname = "IC"
     def get_IC(self, x):
+        """Get the initial conditions (a PDF) withsupport `x`.
+
+        `x` is a length N ndarray representing the support of the
+        initial condition PDF, i.e. the x-domain.  This returns a
+        length N ndarray describing the distribution.
+        """
         raise NotImplementedError
 
 class ICPointSourceCenter(InitialCondition):
+    """Initial condition: a dirac delta function in the center of the domain."""
     name = "point_source_center"
     required_parameters = []
-    ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
-    ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
-    ## same x,t with p(x,t) (probability distribution function). Hence
-    ## we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_IC(self, x):
         pdf = np.zeros(len(x))
         pdf[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
@@ -97,6 +109,7 @@ class ICPointSourceCenter(InitialCondition):
 
 # Dependence for testing.
 class ICUniform(InitialCondition):
+    """Initial condition: a uniform distribution."""
     name = "uniform"
     required_parameters = []
     def get_IC(self, x):
@@ -105,48 +118,91 @@ class ICUniform(InitialCondition):
         return pdf
 
 class Mu(Dependence):
+    """Subclass this to specify how drift rate varies with position and time.
+
+    This abstract class provides the methods which define a dependence
+    of mu on x and t.  To subclass it, implement get_matrix and
+    get_flux.  All subclasses must include a parameter mu in
+    required_parameters, which is the drift rate at the start of the
+    simulation.
+
+    Also, since it inherits from Dependence, subclasses must also
+    assign a `name` and `required_parameters` (see documentation for
+    Dependence.)
+    """
     depname = "Mu"
     def get_matrix(self, x, t, adj=0, **kwargs):
+        """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
+
+        `x` should be a length N ndarray.  
+        `adj` is the optional amount by which to adjust `mu`.  This is
+        most relevant for tasks which modify `mu` over time.
+        """
         raise NotImplementedError
+    # Amount of flux from bound/end points to correct and erred
+    # response probabilities, due to different parameters.
     def get_flux(self, x_bound, t, adj=0, **kwargs):
+        """The drift component of flux across the boundary at position `x_bound` at time `t`.
+
+        Flux here is essentially the amount of the mass of the PDF
+        that is past the boundary point `x_bound`.
+
+        `adj` is the optional amount by which to adjust `mu`.  This is
+        most relevant for tasks which modify `mu` over time.
+        """
         raise NotImplementedError
     def mu_base(self):
+        """Return the value of mu at the beginning of the simulation."""
         assert "mu" in self.required_parameters, "Mu must be a required parameter"
         return self.mu
 
 class MuConstant(Mu):
+    """Mu dependence: drift rate is constant throughout the simulation.
+
+    Only take one parameter: mu, the constant drift rate.
+
+    Note that this is a special case of MuLinear."""
     name = "constant"
     required_parameters = ["mu"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
         return np.diag( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
              + np.diag(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
-    ### Amount of flux from bound/end points to correct and erred
-    ### response probabilities, due to different parameters (mu,
-    ### sigma, bound)
-    ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
-    ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
-    ## same x,t with p(x,t) (probability distribution function). Hence
-    ## we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj)
 
 class MuLinear(Mu):
+    """Mu dependence: drift rate varies linearly with position and time.
+
+    Take three parameters:
+
+    - `mu` - The starting drift rate
+    - `x` - The coefficient by which mu varies with x
+    - `t` - The coefficient by which mu varies with t
+    """
     name = "linear_xt"
     required_parameters = ["mu", "x", "t"]
+    # Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
+    # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
+    # same x,t with p(x,t) (probability distribution function). Hence
+    # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
         return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
              + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
-    ### Amount of flux from bound/end points to correct and erred
-    ### response probabilities, due to different parameters (mu,
-    ### sigma, bound)
-    ## Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
-    ## (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
-    ## same x,t with p(x,t) (probability distribution function). Hence
-    ## we use x_list[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
 
 class MuSinCos(Mu):
+    """Mu dependence: drift rate varies linearly with sin(x) and cos(t).
+
+    This was intended for testing purposes and is not intended to be
+    used seriously.
+
+    Take three parameters:
+
+    - `mu` - The starting drift rate
+    - `x` - The coefficient by which mu varies with sin(x)
+    - `t` - The coefficient by which mu varies with cos(t)
+    """
     name = "sinx_cost"
     required_parameters = ["mu", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
@@ -156,16 +212,48 @@ class MuSinCos(Mu):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
 class Sigma(Dependence):
+    """Subclass this to specify how diffusion rate/noise varies with position and time.
+
+    This abstract class provides the methods which define a dependence
+    of sigma on x and t.  To subclass it, implement get_matrix and
+    get_flux.  All subclasses must include a parameter sigma in
+    required_parameters, which is the diffusion rate/noise at the
+    start of the simulation.
+
+    Also, since it inherits from Dependence, subclasses must also
+    assign a `name` and `required_parameters` (see documentation for
+    Dependence.)
+    """
     depname = "Sigma"
     def get_matrix(self, x, t, adj=0, **kwargs):
+        """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
+
+        `x` should be a length N ndarray.  
+        `adj` is the optional amount by which to adjust `sigma`.  This
+        is most relevant for tasks which modify `sigma` over time.
+        """
         raise NotImplementedError
     def get_flux(self, x_bound, t, adj=0, **kwargs):
+        """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
+
+        Flux here is essentially the amount of the mass of the PDF
+        that is past the boundary point `x_bound`.
+
+        `adj` is the optional amount by which to adjust `sigma`.  This
+        is most relevant for tasks which modify `sigma` over time.
+        """
         raise NotImplementedError
     def sigma_base(self):
+        """Return the value of sigma at the beginning of the simulation."""
         assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
         return self.sigma
 
 class SigmaConstant(Sigma):
+    """Simga dependence: diffusion rate/noise is constant throughout the simulation.
+
+    Only take one parameter: sigma, the diffusion rate.
+
+    Note that this is a special case of SigmaLinear."""
     name = "constant"
     required_parameters = ["sigma"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
@@ -176,6 +264,14 @@ class SigmaConstant(Sigma):
         return 0.5*dt/dx**2 * (self.sigma + adj)**2
 
 class SigmaLinear(Sigma):
+    """Sigma dependence: diffusion rate varies linearly with position and time.
+
+    Take three parameters:
+
+    - `sigma` - The starting diffusion rate/noise
+    - `x` - The coefficient by which sigma varies with x
+    - `t` - The coefficient by which sigma varies with t
+    """
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
@@ -186,6 +282,17 @@ class SigmaLinear(Sigma):
         return 0.5*dt/dx**2 * (self.sigma + adj + self.x*x_bound + self.t*t)**2
 
 class SigmaSinCos(Sigma):
+    """Sigma dependence: diffusion rate varies linearly with sin(x) and cos(t).
+
+    This was intended for testing purposes and is not intended to be
+    used seriously.
+
+    Take three parameters:
+
+    - `sigma` - The starting diffusion rate/noise
+    - `x` - The coefficient by which sigma varies with sin(x)
+    - `t` - The coefficient by which sigma varies with cos(t)
+    """
     name = "sinx_cost"
     required_parameters = ["sigma", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
@@ -196,28 +303,60 @@ class SigmaSinCos(Sigma):
         return 0.5*dt/dx**2 * (self.sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
 
 class Bound(Dependence):
+    """Subclass this to specify how bounds vary with time.
+
+    This abstract class provides the methods which define a dependence
+    of the bounds on t.  To subclass it, implement get_bound.  All
+    subclasses must include a parameter `B` in required_parameters,
+    which is the upper bound at the start of the simulation.  (The
+    lower bound is symmetrically -B.)
+
+    Also, since it inherits from Dependence, subclasses must also
+    assign a `name` and `required_parameters` (see documentation for
+    Dependence.)
+    """
     depname = "Bound"
     ## Second effect of Collapsing Bounds: Collapsing Center: Positive
     ## and Negative states are closer to each other over time.
     def get_bound(self, t, **kwargs):
+        """Return the bound at time `t`."""
         raise NotImplementedError
     def B_base(self):
         assert "B" in self.required_parameters, "B must be a required parameter"
         return self.B
 
 class BoundConstant(Bound):
+    """Bound dependence: bound is constant throuhgout the simulation.
+
+    Takes only one parameter: `B`, the constant bound."""
     name = "constant"
     required_parameters = ["B"]
     def get_bound(self, t, adj=0, **kwargs):
         return self.B
 
 class BoundCollapsingLinear(Bound):
+    """Bound dependence: bound collapses linearly over time.
+
+    Takes two parameters: 
+
+    `B` - the bound at time t = 0.
+    `t` - the slope, i.e. the coefficient of time, should be greater
+    than zero.
+    """
     name = "collapsing_linear"
     required_parameters = ["B", "t"]
     def get_bound(self, t, adj=0, **kwargs):
         return max(self.B + adj - self.t*t, 0.)
 
 class BoundCollapsingExponential(Bound):
+    """Bound dependence: bound collapses exponentially over time.
+
+    Takes two parameters: 
+
+    `B` - the bound at time t = 0.
+    `tau` - the time constant for the collapse, should be greater than
+    zero.
+    """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]
     def get_bound(self, t, adj=0, **kwargs):
@@ -281,7 +420,7 @@ class Model(object):
                  bound=BoundConstant(B=1),
                  IC=ICPointSourceCenter(),
                  task=TaskFixedDuration(), name="",
-                 dx=dx, dt=dt, T_dur=T_dur):
+                 dx=param.dx, dt=param.dt, T_dur=param.T_dur):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how

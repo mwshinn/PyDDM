@@ -19,21 +19,42 @@ Flag_Duration = 0
 Flag_PK = 0
 
 #Load parameters and functions
-from DDM_parameters import *
-from DDM_functions import *
 from DDM_model import *
-from DDM_defaults import *
 from DDM_plot import *
 
 
 
-####################### LEGACY PARAMETERS #######################
-#mu= Drift Rate
-mu_0_list = [-10, -5, -2, -1, -0.5, -0.1, -0.05, -0.01, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10] # List of mu_0, to be looped through for tasks.
+mu_0 = 0
+sigma_0 = 1
+B = 1
+s1 = Model(name="DDM", 
+           mu=MuConstant(mu=mu_0),
+           sigma=SigmaConstant(sigma=sigma_0),
+           bound=BoundConstant(B=B))
+s2 = Model(name="CB_Lin",
+           mu=MuConstant(mu=mu_0),
+           sigma=SigmaConstant(sigma=sigma_0),
+           bound=BoundCollapsingLinear(B=B, t=.01))
+s3 = Model(name="CB_Expo",
+           mu=MuConstant(mu=mu_0),
+           sigma=SigmaConstant(sigma=sigma_0),
+           bound=BoundCollapsingExponential(B=B, tau=1))
+s4 = Model(name="OU+",
+           mu=MuConstant(mu=mu_0),
+           sigma=SigmaConstant(sigma=sigma_0),
+           bound=BoundConstant(B=B))
+s5 = Model(name="OU-",
+           mu=MuConstant(mu=mu_0),
+           sigma=SigmaConstant(sigma=sigma_0),
+           bound=BoundConstant(B=B))
+models = [s1, s2, s3, s4, s5]
+
 
 ### Compute the probability distribution functions for the correct and erred choices
 # NOTE: First set T_dur to be the the duration of the fixed duration task.
-solutions = []
+mu_0_list = [-10, -5, -2, -1, -0.5, -0.1, -0.05, -0.01,
+             0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10] # List of mu_0, to be looped through for tasks.
+solutions = [] 
 for m in models:
     musolutions = []
     for mu in mu_0_list:
@@ -113,11 +134,11 @@ if Flag_Compare_num_analy_sim:
     model3 = Model(name="Model 3",
                    mu=_const_mu, sigma=_const_sigma,
                    bound=BoundConstant(B=B),
-                   task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
+                   task=TaskPulseParadigm(onset=.5, adjustment=6))
     model4 = Model(name="Model 4",
                    mu=_linear_mu, sigma=_const_sigma,
                    bound=BoundCollapsingLinear(B=B, t=1),
-                   task=TaskPulseParadigm(onset=T_dur/4., adjustment=6))
+                   task=TaskPulseParadigm(onset=.5, adjustment=6))
     model2.solve_numerical()
     s1n = model1.solve_numerical()
     s1a = model1.solve_analytical()
