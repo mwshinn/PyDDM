@@ -475,11 +475,24 @@ class Model(object):
             for p in d.required_parameters:
                 setattr(d, p, params[i])
                 i += 1
+
+    def get_dependence(self, name):
+        if name.lower() in ["mu", "mudep", "_mudep"]:
+            return self._mudep
+        elif name.lower() in ["sigma", "sigmadep", "_sigmadep"]:
+            return self._sigmadep
+        elif name.lower() in ["b", "bound", "bounddep", "_bounddep"]:
+            return self._bounddep
+        elif name.lower() in ["ic", "initialcondition", "_ic"]:
+            return self._IC
+        elif name.lower() in ["task", "_task"]:
+            return self._task
+        raise NameError("Invalid dependence name")
+
     def get_model_type(self):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]))
-
     def bound_base(self):
         """The boundary at the beginning of the simulation."""
         return self._bounddep.B_base()
@@ -755,3 +768,29 @@ class Solution(object):
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return np.sum((self._pdf_corr)*self.model.t_domain()) / self.prob_correct()
+
+class Fittable:
+    """For parameters that should be adjusted when fitting a model to data.
+
+    Each Fittable object does not need any parameters, however several
+    parameters may improve the ability to fit the model.  In
+    particular, `maxval` and `minval` ensure we do not choose an
+    invalid parameter value.  `default` is the value to start with
+    when fitting; if it is not given, it will be selected at random.
+    """
+    def __init__(self, minval=-np.inf, maxval=np.inf, default=None):
+        self.minval = minval
+        self.maxval = maxval
+        if default != None:
+            self.default = default
+        else:
+            if maxval < np.inf and minval > -np.inf:
+                self.default = np.random.beta(2, 2)*(maxval-minval) + minval
+            elif maxval == np.inf and minval > -np.inf:
+                self.default = np.random.pareto(1) + minval
+            elif maxval < np.inf and minval == -np.inf:
+                self.default = maxval - np.random.pareto(1)
+            elif maxval == np.inf and minval == -np.inf:
+                self.default = np.random.standard_cauchy()
+            else:
+                raise ValueError("Error with the maximum or minimum bounds")

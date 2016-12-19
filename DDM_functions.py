@@ -15,7 +15,62 @@ from DDM_model import *
 ### Defined functions.
 
 
-
+def fit_model(fit_to_data,
+              mu=MuConstant(mu=0),
+              sigma=SigmaConstant(sigma=1),
+              bound=BoundConstant(B=1),
+              IC=ICPointSourceCenter(),
+              task=TaskFixedDuration()):
+    # Loop through the different components of the model and get the
+    # parameters that are fittable.  
+    components_list = [mu, sigma, bound, IC, task]
+    params = [] # A list of all of the Fittables that were passed.
+    setters = [] # A list of functions which set the value of the corresponding parameter in `params`
+    for component in components_list:
+        for param_name in component.required_parameters:
+            pv = getattr(component, param_name) # Parameter value in the object
+            if isinstance(pv, Fittable):
+                params.append(getattr(component, param_name))
+                # Create a function which sets each parameter in the
+                # list to some value `a` for model `x`.  Note the
+                # default arguments to the lambda function are
+                # necessary here to preserve scope.  Without them,
+                # these variables would be interpreted in the local
+                # scope, so they would be equal to the last value
+                # encountered in the loop.
+                setters.append(lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a))
+    # For optimization purposes, create a base model, and then use
+    # that base model in the optimization routine.  First, set up the
+    # model with all of the Fittables inside.
+    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task))
+    # And now get rid of the Fittables, replacing them with the
+    # default values.  Simultaneously, create a list to pass to the
+    # solver.
+    x_0 = []
+    constraints = [] # List of (min, max) tuples.  min/max=None if no constraint.
+    for p,s in zip(params, setters):
+        s(m, p.default)
+        minval = p.minval if p.minval > -np.inf else None
+        maxval = p.maxval if p.maxval < np.inf else None
+        constraints.append((minval, maxval))
+        x_0.append(p.default)
+    # A function for the solver to minimize.  Since the model is in
+    # this scope, we can make use of it by using, for example, the
+    # model `m` defined previously.
+    def fit_model(xs):
+        for x,s in zip(xs, setters):
+            s(m, x)
+        sol = m.solve()
+        to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
+        return to_min
+    # Run the solver
+    print(x_0)
+    x_fit = minimize(fit_model, x_0, bounds=constraints, options={"disp":True})
+    print(x_fit.x)
+    for x,s in zip(x_fit.x, setters):
+        s(m, x)
+    return m
+    
 
 ### Fit Functions: Largely overlapping...modify from one...
 # coh = coherence
