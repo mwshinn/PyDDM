@@ -14,6 +14,33 @@ from DDM_model import *
 ########################################################################################################################
 ### Defined functions.
 
+def models_close(m1, m2):
+    p1 = m1.get_model_parameters()
+    p2 = m2.get_model_parameters()
+    assert len(p1) == len(p2)
+    assert m1.get_model_type() == m2.get_model_type()
+    for mp1, mp2 in zip(p1, p2):
+        if np.abs(mp1-mp2) > .1:
+            return False
+    return True
+
+def fit_model_stable(fit_to_data,
+                     mu=MuConstant(mu=0),
+                     sigma=SigmaConstant(sigma=1),
+                     bound=BoundConstant(B=1),
+                     IC=ICPointSourceCenter(),
+                     task=TaskFixedDuration()):
+
+    models = []
+    while True:
+        m = fit_model(fit_to_data, mu=mu, sigma=sigma,
+                      bound=bound, IC=IC, task=task)
+        for mc in models:
+            if models_close(m, mc):
+                return m
+        models.append(m)
+    
+
 
 def fit_model(fit_to_data,
               mu=MuConstant(mu=0),
@@ -61,11 +88,12 @@ def fit_model(fit_to_data,
         for x,s in zip(xs, setters):
             s(m, x)
         sol = m.solve()
-        to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
+        #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
+        to_min = np.sum((fit_to_data-np.asarray([sol.pdf_corr(), sol.pdf_err()]))**2) # Squared difference
         return to_min
     # Run the solver
     print(x_0)
-    x_fit = minimize(fit_model, x_0, bounds=constraints, options={"disp":True})
+    x_fit = minimize(fit_model, x_0, bounds=constraints)
     print(x_fit.x)
     for x,s in zip(x_fit.x, setters):
         s(m, x)
