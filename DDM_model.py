@@ -76,7 +76,18 @@ class Dependence(object):
     def __delattr__(self, name):
         """No not allow a required parameter to be deleted."""
         raise LookupError
-    # TODO add __repr__ and __str__
+    def __repr__(self):
+        params = ""
+        # If it is a sub-sub-class, then print the parameters it was
+        # instantiated with
+        if self.name:
+            for p in self.required_parameters:
+                params += str(p) + "=" + getattr(self, p).__repr__()
+                if p != self.required_parameters[-1]:
+                    params += ", "
+        return type(self).__name__ + "(" + params + ")"
+    def __str__(self):
+        return self.__repr__()
 
 class InitialCondition(Dependence):
     """Subclass this to compute the initial conditions of the simulation.
@@ -458,6 +469,24 @@ class Model(object):
         self.dx = dx
         self.dt = dt
         self.T_dur = T_dur
+    # Get a string representation of the model
+    def __repr__(self, pretty=False):
+        # Use a list so they can be sorted
+        allobjects = [("name", self.name), ("mu", self._mudep),
+                      ("sigma", self._sigmadep), ("bound", self._bounddep),
+                      ("task", self._task), ("IC", self._IC),
+                      ("dx", self.dx), ("dt", self.dt), ("T_dur", self.T_dur)]
+        params = ""
+        for n,o in allobjects:
+            params += n + "=" + o.__repr__()
+            if (n,o) != allobjects[-1]:
+                if pretty == True:
+                    params += ",\n" + " "*(len(type(self).__name__)+1)
+                else:
+                    params += ", "
+        return type(self).__name__ + "(" + params + ")"
+    def __str__(self):
+        return self.__repr__(pretty=True)
     # Get an ordered list of all model parameters.  Guaranteed to be
     # in the same order as set_model_parameters().
     def get_model_parameters(self):
@@ -794,3 +823,12 @@ class Fittable:
                 self.default = np.random.standard_cauchy()
             else:
                 raise ValueError("Error with the maximum or minimum bounds")
+    def __repr__(self):
+        reprstr = "Fittable("
+        if self.minval != -np.inf:
+            reprstr += "minval=" + self.minval.__repr__() + ", "
+        if self.maxval != np.inf:
+            reprstr += "maxval=" + self.maxval.__repr__() + ", "
+        reprstr += "default=" + self.default.__repr__()
+        reprstr += ")"
+        return reprstr
