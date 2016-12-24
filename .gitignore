@@ -2,3 +2,7 @@
 ###########
 *.dat
 *.pyc
+*~
+*.npy
+.cache
+*.pdf

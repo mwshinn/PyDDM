@@ -8,35 +8,35 @@ from DDM_model import *
 from DDM_plot import *
 from DDM_functions import fit_model, fit_model_stable
 
-SHOW_PLOTS = False
+SHOW_PLOTS = True
 
 if SHOW_PLOTS:
-    from matplotlib.pyplot import plt
+    import matplotlib.pyplot as plt
 
 
 def test_verify_ddm_analytic_close_to_numeric_params1():
-    m = Model(dx=.01, dt=.02, T_dur=2,
+    m = Model(dx=.005, dt=.01, T_dur=2,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1))
     _modeltest_numerical_vs_analytical(m)
 
 def test_verify_ddm_analytic_close_to_numeric_params2():
-    m = Model(dx=.01, dt=.02, T_dur=2,
+    m = Model(dx=.005, dt=.01, T_dur=2,
               mu=MuConstant(mu=1),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1))
     _modeltest_numerical_vs_analytical(m)
 
 def test_verify_ddm_analytic_close_to_numeric_params3():
-    m = Model(dx=.01, dt=.02, T_dur=3,
+    m = Model(dx=.001, dt=.0005, T_dur=2,
               mu=MuConstant(mu=1),
               sigma=SigmaConstant(sigma=.05),
               bound=BoundConstant(B=1))
     _modeltest_numerical_vs_analytical(m)
 
 def test_verify_ddm_analytic_close_to_numeric_params4():
-    m = Model(dx=.01, dt=.02, T_dur=2,
+    m = Model(dx=.005, dt=.01, T_dur=2,
               mu=MuConstant(mu=.4),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=.3))
@@ -53,6 +53,7 @@ def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=
         plt.show()
     max_difference = np.max(np.abs(a.pdf_corr() - n.pdf_corr()))
     mean_difference = np.sum(np.abs(a.pdf_corr() - n.pdf_corr()))/len(m.t_domain())
+    print(max_difference, mean_difference)
     assert max_difference < max_diff, "Maximum distance between correct distributions was too high"
     assert mean_difference < mean_diff, "Mean distance between correct distributions was too high"
     max_difference = np.max(np.abs(a.pdf_err() - n.pdf_err()))
@@ -88,7 +89,7 @@ def test_fit_simple_ddm():
         plt.show()
 
 def test_fit_constant_mu_constant_sigma():
-    m2 = Model(name="DDM", 
+    m2 = Model(name="DDM",
                mu=MuConstant(mu=1.1),
                sigma=SigmaConstant(sigma=.3),
                bound=BoundConstant(B=1))

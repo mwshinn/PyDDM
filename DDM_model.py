@@ -2,6 +2,8 @@ import numpy as np
 import copy
 import DDM_parameters as param
 from DDM_analytic import analytic_ddm, analytic_ddm_linbound
+from scipy import sparse
+import scipy.sparse.linalg
 
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
@@ -88,6 +90,8 @@ class Dependence(object):
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__()
+    def __hash__(self):
+        return hash(repr(self))
 
 class InitialCondition(Dependence):
     """Subclass this to compute the initial conditions of the simulation.
@@ -148,6 +152,8 @@ class Mu(Dependence):
         `x` should be a length N ndarray.  
         `adj` is the optional amount by which to adjust `mu`.  This is
         most relevant for tasks which modify `mu` over time.
+
+        Returns a sparse numpy matrix.
         """
         raise NotImplementedError
     # Amount of flux from bound/end points to correct and erred
@@ -176,8 +182,8 @@ class MuConstant(Mu):
     name = "constant"
     required_parameters = ["mu"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
-             + np.diag(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
+        return sparse.diags( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
+             + sparse.diags(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj)
 
@@ -197,8 +203,8 @@ class MuLinear(Mu):
     # same x,t with p(x,t) (probability distribution function). Hence
     # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
-             + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
+        return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
+             + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
 
@@ -217,8 +223,8 @@ class MuSinCos(Mu):
     name = "sinx_cost"
     required_parameters = ["mu", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
-             + np.diag(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
+        return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
+             + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
     def get_flux(x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
@@ -268,9 +274,9 @@ class SigmaConstant(Sigma):
     name = "constant"
     required_parameters = ["sigma"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag(1.0*(self.sigma + adj + 0*x)**2     * dt/dx**2, 0) \
-             - np.diag(0.5*(self.sigma + adj + 0*x[1:])**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(self.sigma + adj+ 0*x[:-1])**2 * dt/dx**2,-1)
+        return sparse.diags(1.0*(self.sigma + adj + 0*x)**2     * dt/dx**2, 0) \
+             - sparse.diags(0.5*(self.sigma + adj + 0*x[1:])**2 * dt/dx**2, 1) \
+             - sparse.diags(0.5*(self.sigma + adj+ 0*x[:-1])**2 * dt/dx**2,-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + adj)**2
 
@@ -286,9 +292,9 @@ class SigmaLinear(Sigma):
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag(1.0*(self.sigma + adj + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(self.sigma + adj + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(self.sigma + adj + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
+        return sparse.diags(1.0*(self.sigma + adj + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
+             - sparse.diags(0.5*(self.sigma + adj + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
+             - sparse.diags(0.5*(self.sigma + adj + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + adj + self.x*x_bound + self.t*t)**2
 
@@ -307,9 +313,9 @@ class SigmaSinCos(Sigma):
     name = "sinx_cost"
     required_parameters = ["sigma", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return np.diag(1.0*(self.sigma + adj + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
-             - np.diag(0.5*(self.sigma + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
-             - np.diag(0.5*(self.sigma + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
+        return sparse.diags(1.0*(self.sigma + adj + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
+             - sparse.diags(0.5*(self.sigma + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
+             - sparse.diags(0.5*(self.sigma + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
 
@@ -541,6 +547,8 @@ class Model(object):
     def mu_task_adj(self, t):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
         return self._task.adjust_mu(self.mu_base(), t)
+    # TODO: This, as well as mu_matrix and sigma_matrix, are
+    # bottlenecks.  Maybe we could cache or pre-allocate memory?
     def diffusion_matrix(self, x, t):
         """The matrix for the implicit method of solving the diffusion equation.
 
@@ -549,11 +557,11 @@ class Model(object):
           x_domain().
         - `t` - The timepoint at which the matrix is valid.
 
-        Returns a size NxN ndarray
+        Returns a size NxN scipy sparse array.
         """
         mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t))
         sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx)
-        return np.eye(len(x)) + mu_matrix + sigma_matrix
+        return sparse.eye(len(x)) + mu_matrix + sigma_matrix
     def flux(self, x, t):
         """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t), dx=self.dx, dt=self.dt)
@@ -681,7 +689,7 @@ class Model(object):
 
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
-                pdf_outer = np.linalg.solve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+                pdf_outer = sparse.linalg.spsolve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
                 # If the bounds are the same the bound perfectly
                 # aligns with the grid), we don't need so solve the
                 # diffusion matrix again since we don't need a linear
@@ -689,14 +697,19 @@ class Model(object):
                 if x_index_inner == x_index_outer:
                     pdf_inner = copy.copy(pdf_outer)
                 else:
-                    pdf_inner = np.linalg.solve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    # TODO this solve call is a bottleneck... can it be optimized?
+                    pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
                 # Pdfs out of bound is consideered decisions made.
                 pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
                                   + weight_inner * np.sum(pdf_prev[:x_index_inner])
                 pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
                                    + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
-                pdf_curr = np.zeros((len(x_list))) # Reconstruct current proability density function, adding outer and inner contribution to it.
+                # Reconstruct current proability density function,
+                # adding outer and inner contribution to it.  Use
+                # .fill() method to avoid alocating memory with
+                # np.zeros().
+                pdf_curr.fill(0) # Reset
                 pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer
                 pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
 

@@ -39,6 +39,7 @@ def fit_model_stable(fit_to_data,
             if models_close(m, mc):
                 return m
         models.append(m)
+        print(models)
     
 
 
