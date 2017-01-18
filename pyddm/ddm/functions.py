@@ -8,19 +8,25 @@ import numpy as np
 from scipy.optimize import minimize
 import copy
 
-from DDM_parameters import *
-from DDM_model import *
+from .parameters import *
+from .model import *
 
 ########################################################################################################################
 ### Defined functions.
 
-def models_close(m1, m2):
+def models_close(m1, m2, tol=.1):
+    """Determines whether two models are similar.
+
+    This compares the parameters of models `m1` and `m2` and checks to
+    make sure that each of the parameters in model `m1` is within a
+    distance of `tol` of `m2`.  Return True if this is the case,
+    otherwise False."""
     p1 = m1.get_model_parameters()
     p2 = m2.get_model_parameters()
     assert len(p1) == len(p2)
     assert m1.get_model_type() == m2.get_model_type()
     for mp1, mp2 in zip(p1, p2):
-        if np.abs(mp1-mp2) > .1:
+        if np.abs(mp1-mp2) > tol:
             return False
     return True
 
@@ -30,6 +36,18 @@ def fit_model_stable(fit_to_data,
                      bound=BoundConstant(B=1),
                      IC=ICPointSourceCenter(),
                      task=TaskFixedDuration()):
+    """A more stable version of fit_model.
+
+    The purpose of this function is to avoid local minima when fitting
+    models.  This calls `fit_model` multiple times until the same
+    answer is received twice.  If we make certain assumptions, this
+    can be proven to be optimal in reducing the number of iterations
+    while maximizing the probability that it will give the same result
+    after multiple runs.
+
+    For documentation of the parameters, see "fit_model".
+    """
+
 
     models = []
     while True:
@@ -49,6 +67,17 @@ def fit_model(fit_to_data,
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               task=TaskFixedDuration()):
+    """Fit a model to reaction time data.
+
+    The data `fit_to_data` should be a vector of reaction time data.
+    This function will generate a model using the `mu`, `sigma`,
+    `bound`, `IC`, and `task` parameters to specify the model.  At
+    least one of these should have a parameter which is a "Fittable()"
+    instance, as this will be the parameter to be fit.
+
+    Returns a "Model()" object with the specified `mu`, `sigma`,
+    `bound`, `IC`, and `task`."""
+
     # Loop through the different components of the model and get the
     # parameters that are fittable.  
     components_list = [mu, sigma, bound, IC, task]
@@ -85,7 +114,7 @@ def fit_model(fit_to_data,
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
-    def fit_model(xs):
+    def _fit_model(xs):
         for x,s in zip(xs, setters):
             s(m, x)
         sol = m.solve()
@@ -94,7 +123,7 @@ def fit_model(fit_to_data,
         return to_min
     # Run the solver
     print(x_0)
-    x_fit = minimize(fit_model, x_0, bounds=constraints)
+    x_fit = minimize(_fit_model, x_0, bounds=constraints)
     print(x_fit.x)
     for x,s in zip(x_fit.x, setters):
         s(m, x)

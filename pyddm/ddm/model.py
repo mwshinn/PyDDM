@@ -1,7 +1,7 @@
 import numpy as np
 import copy
-import DDM_parameters as param
-from DDM_analytic import analytic_ddm, analytic_ddm_linbound
+from . import parameters as param
+from .analytic import analytic_ddm, analytic_ddm_linbound
 from scipy import sparse
 import scipy.sparse.linalg
 

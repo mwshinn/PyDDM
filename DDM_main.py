@@ -19,8 +19,8 @@ Flag_Duration = 0
 Flag_PK = 0
 
 #Load parameters and functions
-from DDM_model import *
-from DDM_plot import *
+from ddm import *
+from ddm.plot import *
 
 
 
