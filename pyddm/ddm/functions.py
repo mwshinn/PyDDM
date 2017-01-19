@@ -30,12 +30,14 @@ def models_close(m1, m2, tol=.1):
             return False
     return True
 
-def fit_model_stable(fit_to_data,
+def fit_model_stable(fit_to_data_corr,
+                     fit_to_data_err,
                      mu=MuConstant(mu=0),
                      sigma=SigmaConstant(sigma=1),
                      bound=BoundConstant(B=1),
                      IC=ICPointSourceCenter(),
-                     task=TaskFixedDuration()):
+                     task=TaskFixedDuration(),
+                     dt=dt):
     """A more stable version of fit_model.
 
     The purpose of this function is to avoid local minima when fitting
@@ -51,8 +53,9 @@ def fit_model_stable(fit_to_data,
 
     models = []
     while True:
-        m = fit_model(fit_to_data, mu=mu, sigma=sigma,
-                      bound=bound, IC=IC, task=task)
+        m = fit_model(fit_to_data_corr, fit_to_data_err,
+                      mu=mu, sigma=sigma,
+                      bound=bound, IC=IC, task=task, dt=dt)
         for mc in models:
             if models_close(m, mc):
                 return m
@@ -61,22 +64,29 @@ def fit_model_stable(fit_to_data,
     
 
 
-def fit_model(fit_to_data,
+def fit_model(fit_to_data_corr,
+              fit_to_data_err,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
-              task=TaskFixedDuration()):
+              task=TaskFixedDuration(),
+              dt=dt):
     """Fit a model to reaction time data.
 
-    The data `fit_to_data` should be a vector of reaction time data.
-    This function will generate a model using the `mu`, `sigma`,
-    `bound`, `IC`, and `task` parameters to specify the model.  At
-    least one of these should have a parameter which is a "Fittable()"
-    instance, as this will be the parameter to be fit.
+    The data `fit_to_data` should be a vector of reaction times in
+    seconds (NOT milliseconds).  This function will generate a model
+    using the `mu`, `sigma`, `bound`, `IC`, and `task` parameters to
+    specify the model.  At least one of these should have a parameter
+    which is a "Fittable()" instance, as this will be the parameter to
+    be fit.
+
+    Optionally, dt specifies the temporal resolution with which to fit
+    the model.
 
     Returns a "Model()" object with the specified `mu`, `sigma`,
-    `bound`, `IC`, and `task`."""
+    `bound`, `IC`, and `task`.
+    """
 
     # Loop through the different components of the model and get the
     # parameters that are fittable.  
@@ -96,10 +106,18 @@ def fit_model(fit_to_data,
                 # scope, so they would be equal to the last value
                 # encountered in the loop.
                 setters.append(lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a))
+    # Use the reaction time data (a list of reaction times) to
+    # construct a reaction time distribution.  
+    T_dur = np.ceil(np.max(np.concatenate([fit_to_data_corr, fit_to_data_err]))/dt)*dt
+    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
+    hist_to_fit_corr = np.histogram(fit_to_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2), density=True)[0] # dt/2 (and +1) is continuity correction
+    hist_to_fit_err = np.histogram(fit_to_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2), density=True)[0]
     # For optimization purposes, create a base model, and then use
     # that base model in the optimization routine.  First, set up the
-    # model with all of the Fittables inside.
-    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task))
+    # model with all of the Fittables inside.  Deep copy on the entire
+    # model is a shortcut for deep copying each individual component
+    # of the model.
+    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, T_dur=T_dur, dt=dt))
     # And now get rid of the Fittables, replacing them with the
     # default values.  Simultaneously, create a list to pass to the
     # solver.
@@ -118,12 +136,14 @@ def fit_model(fit_to_data,
         for x,s in zip(xs, setters):
             s(m, x)
         sol = m.solve()
+        print(len(hist_to_fit_corr), len(hist_to_fit_err), len(sol.pdf_corr()), len(sol.pdf_err()))
         #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
-        to_min = np.sum((fit_to_data-np.asarray([sol.pdf_corr(), sol.pdf_err()]))**2) # Squared difference
+        to_min = np.sum((np.concatenate([hist_to_fit_corr, hist_to_fit_err])-np.concatenate([sol.pdf_corr(), sol.pdf_err()]))**2) # Squared difference
         return to_min
     # Run the solver
     print(x_0)
     x_fit = minimize(_fit_model, x_0, bounds=constraints)
+    assert x_fit.success == True, "Fit failed: %s" % x_fit.message
     print(x_fit.x)
     for x,s in zip(x_fit.x, setters):
         s(m, x)
@@ -185,7 +205,7 @@ def MSE_model_fit_RT(params, model_types, y_goal): # Fit the probability density
               bounddep=mts[2], task=mts[3], IC=mts[4])
     
     (pdf_corr, pdf_err) = DDM_pdf_general(m)
-    to_min = -np.log(np.sum((y_goal*numpy.asarray([pdf_corr, pdf_err]))**0.5)) # Bhattacharyya distance
+    to_min = -np.log(np.sum((y_goal*np.asarray([pdf_corr, pdf_err]))**0.5)) # Bhattacharyya distance
     return to_min
 #    to_min = sum(np.log(Prob_list_cumsum_corr_temp) *y_fit2)                                                           # MLE
 #    to_min = -np.sum((Prob_list_corr_temp) *y_fit2)

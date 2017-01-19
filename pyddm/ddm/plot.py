@@ -45,3 +45,22 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     ax.set_xlabel('time (s)')
     ax.set_ylabel('CDF (normalized)')
     
+def plot_fit_diagnostics(model, rt_data_corr, rt_data_err):
+    """Compare actual data to the best fit model of the data.
+
+    - `model` should be the Model object fit from `rt_data`.
+    - `rt_data_corr` should be a list of reaction times for correct trials
+    - `rt_data_err` should be a list of reaction times for error trials
+    """
+    T_dur = model.T_dur
+    dt = model.dt
+    data_hist_corr = np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0] # dt/2 terms are for continuity correction
+    data_hist_err = np.histogram(rt_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+    total_samples = len(rt_data_corr) + len(rt_data_err)
+    sol = model.solve()
+    plt.subplot(2, 1, 1)
+    plt.plot(model.t_domain(), data_hist_corr/total_samples/dt) # Divide by samples and dt to scale to same size as solution pdf
+    plt.plot(model.t_domain(), sol.pdf_corr())
+    plt.subplot(2, 1, 2)
+    plt.plot(model.t_domain(), data_hist_err/total_samples/dt)
+    plt.plot(model.t_domain(), sol.pdf_err())
