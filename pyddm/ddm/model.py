@@ -543,7 +543,7 @@ class Model(object):
         return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
-        return np.arange(0., self.T_dur, self.dt)
+        return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
     def mu_task_adj(self, t):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
         return self._task.adjust_mu(self.mu_base(), t)
@@ -655,7 +655,7 @@ class Model(object):
         x_list = self.x_domain()
 
         # Looping through time and updating the pdf.
-        for i_t, t in enumerate(self.t_domain()[:-1]): # NOTE I translated this directly from "for i_t in range(len(t_list_temp)-1):" but I think the -1 was a bug -MS
+        for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
             # Update Previous state. To be frank pdf_prev could be
             # removed for max efficiency. Leave it just in case.
             pdf_prev = copy.copy(pdf_curr)
@@ -811,9 +811,76 @@ class Solution(object):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return np.sum((self._pdf_corr)*self.model.t_domain()) / self.prob_correct()
 
+    def _sample_from_histogram(self, hist, hist_bins, k, seed=0):
+        """Generate a sample from a histogram.
+
+        Given a histogram, imply the distribution and generate a
+        sample. `hist` should be either a normalized histogram
+        (i.e. summing to 1 or less for non-decision) or else a listing
+        of bin membership counts, of size n.  (I.e. there are n bins.)
+        The bins should be labeled by `hist_bins`, a list of size
+        n+1. This will sample from the distribution and return a list
+        of size `k`.  This uses the naive method of selecting
+        uniformly from the area of each histogram bar according to the
+        size of the bar, rather than non-parametrically estimating the
+        distribution and then sampling from the distribution (which
+        would arguably be better).
+        """
+        assert len(hist_bins) == len(hist) + 1, "Incorrect bin specification"
+        rng = np.random.RandomState(seed)
+        sample = []
+        h = hist
+        norm = np.round(np.sum(h), 5)
+        assert norm <= 1 or int(norm) == norm, "Invalid histogram of size %f" % norm
+        if norm >= 1:
+            h = h/norm
+            norm = 1
+        hcum = np.cumsum(h)
+        rns = rng.rand(k)
+        for rn in rns:
+            ind = next((i for i in range(0, len(hcum)) if rn < hcum[i]), np.nan)
+            if np.isnan(ind):
+                sample.append(np.nan)
+            else:
+                sample.append(rng.uniform(low=hist_bins[ind], high=hist_bins[ind+1]))
+        return sample
+
+    def resample(self, k=1, seed=0):
+        """Generate a list of reaction times sampled from the PDF.
+
+        `k` is the number of TRIALS, not the number of samples.  Since
+        we are only showing the distribution from the correct trials,
+        we guarantee that, for an identical seed, the sum of the two
+        return values will be less than `k`.  If no non-decision
+        trials exist, the sum of return values will be equal to `k`.
+
+        This relies on the assumption that reaction time cannot be
+        less than 0.
+
+        Returns a tuple, where the first element is a list of correct
+        reaction times, and the second element is a list of error
+        reaction times.
+        """
+        # To sample from both correct and error distributions, we make
+        # the correct answers be positive and the incorrect answers be
+        # negative.
+        pdf_domain = self.model.t_domain()
+        assert pdf_domain[0] == 0, "Invalid PDF domain"
+        combined_domain = list(reversed(np.asarray(pdf_domain)*-1)) + list(pdf_domain[1:])
+        # Continuity correction doesn't work here.  Instead we say
+        # that the histogram value at time dt belongs in the [0, dt]
+        # bin, the value at time 2*dt belongs in the [dt, 2*dt] bin,
+        # etc.
+        assert self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0, "Invalid pdfs"
+        combined_pdf = list(reversed(self.pdf_err()[1:]))+list(self.pdf_corr()[1:])
+        sample = self._sample_from_histogram(np.asarray(combined_pdf)*self.model.dt, combined_domain, k, seed=seed)
+        corr_sample = filter(lambda x : x >= 0, sample)
+        err_sample = filter(lambda x : x < 0, sample)
+        return (list(corr_sample), list(np.asarray(list(err_sample))*-1))
+
 class Fittable:
     """For parameters that should be adjusted when fitting a model to data.
-
+        
     Each Fittable object does not need any parameters, however several
     parameters may improve the ability to fit the model.  In
     particular, `maxval` and `minval` ensure we do not choose an

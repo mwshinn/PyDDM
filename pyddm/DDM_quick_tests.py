@@ -15,14 +15,41 @@
 #   getting into a local maximum, but I have not investigated further.
 
 import numpy as np
-from DDM_model import *
-from DDM_plot import *
-from DDM_functions import fit_model, fit_model_stable
+from ddm import *
+from ddm.plot import *
 
 SHOW_PLOTS = False
 
 if SHOW_PLOTS:
     import matplotlib.pyplot as plt
+
+# ========== Utility functions ==============    
+
+def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=.01):
+    a = m.solve_analytical()
+    n = m.solve_numerical()
+    if SHOW_PLOTS:
+        plot_solution_pdf(a)
+        plot_solution_pdf(n)
+        plt.show()
+    max_difference = np.max(np.abs(a.pdf_corr() - n.pdf_corr()))
+    mean_difference = np.sum(np.abs(a.pdf_corr() - n.pdf_corr()))/len(m.t_domain())
+    print(max_difference, mean_difference)
+    assert max_difference < max_diff, "Maximum distance between correct distributions was too high"
+    assert mean_difference < mean_diff, "Mean distance between correct distributions was too high"
+    max_difference = np.max(np.abs(a.pdf_err() - n.pdf_err()))
+    mean_difference = np.sum(np.abs(a.pdf_err() - n.pdf_err()))/len(m.t_domain())
+    assert max_difference < max_diff, "Maximum distance between error distributions was too high"
+    assert mean_difference < mean_diff, "Mean distance between error distributions was too high"
+    assert abs(a.prob_correct() - n.prob_correct()) < prob_diff, "Correct probability was too different"
+    assert abs(a.prob_error() - n.prob_error()) < prob_diff, "Error probability was too different"
+    assert abs(a.prob_undecided() - n.prob_undecided()) < prob_diff, "Undecided probability was too different"
+
+
+
+
+
+# ============ Actual tests =================
 
 
 def test_verify_ddm_analytic_close_to_numeric_params1():
@@ -55,42 +82,22 @@ def test_verify_ddm_analytic_close_to_numeric_params4():
 
 
 
-def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=.01):
-    a = m.solve_analytical()
-    n = m.solve_numerical()
-    if SHOW_PLOTS:
-        plot_solution_pdf(a)
-        plot_solution_pdf(n)
-        plt.show()
-    max_difference = np.max(np.abs(a.pdf_corr() - n.pdf_corr()))
-    mean_difference = np.sum(np.abs(a.pdf_corr() - n.pdf_corr()))/len(m.t_domain())
-    print(max_difference, mean_difference)
-    assert max_difference < max_diff, "Maximum distance between correct distributions was too high"
-    assert mean_difference < mean_diff, "Mean distance between correct distributions was too high"
-    max_difference = np.max(np.abs(a.pdf_err() - n.pdf_err()))
-    mean_difference = np.sum(np.abs(a.pdf_err() - n.pdf_err()))/len(m.t_domain())
-    assert max_difference < max_diff, "Maximum distance between error distributions was too high"
-    assert mean_difference < mean_diff, "Mean distance between error distributions was too high"
-    assert abs(a.prob_correct() - n.prob_correct()) < prob_diff, "Correct probability was too different"
-    assert abs(a.prob_error() - n.prob_error()) < prob_diff, "Error probability was too different"
-    assert abs(a.prob_undecided() - n.prob_undecided()) < prob_diff, "Undecided probability was too different"
-
-
 # TODO Test to make sure increasing mean/varince decreases decision time, etc.
 
 def test_fit_simple_ddm():
     m1 = Model(name="DDM", 
-               mu=MuConstant(mu=1),
+               mu=MuConstant(mu=2),
                sigma=SigmaConstant(sigma=1),
                bound=BoundConstant(B=1))
-
+    
     s1 = m1.solve()
-
-    m1fit = fit_model_stable([s1.pdf_corr(), s1.pdf_err()],
-                             mu=MuConstant(mu=Fittable()))
-
-    assert abs(m1._mudep.mu - m1fit._mudep.mu) < .01
-
+    
+    m1fit = fit_model_stable(s1.resample(1000)[0], s1.resample(1000)[1],
+                             mu=MuConstant(mu=Fittable(minval=0)))
+    
+    # Within 10%
+    assert abs(m1._mudep.mu - m1fit._mudep.mu) < 0.1 * m1._mudep.mu
+    
     if SHOW_PLOTS:
         m1fit.name = "Fitted solution"
         s1_fit = m1fit.solve()

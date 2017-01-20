@@ -59,8 +59,11 @@ def plot_fit_diagnostics(model, rt_data_corr, rt_data_err):
     total_samples = len(rt_data_corr) + len(rt_data_err)
     sol = model.solve()
     plt.subplot(2, 1, 1)
-    plt.plot(model.t_domain(), data_hist_corr/total_samples/dt) # Divide by samples and dt to scale to same size as solution pdf
+    print(np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[1])
+    print(model.t_domain())
+    print(len(model.t_domain()), len(np.asarray(data_hist_corr)/total_samples/dt), len(np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[1]))
+    plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt) # Divide by samples and dt to scale to same size as solution pdf
     plt.plot(model.t_domain(), sol.pdf_corr())
     plt.subplot(2, 1, 2)
-    plt.plot(model.t_domain(), data_hist_err/total_samples/dt)
+    plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt)
     plt.plot(model.t_domain(), sol.pdf_err())
