@@ -32,6 +32,7 @@ def models_close(m1, m2, tol=.1):
 
 def fit_model_stable(fit_to_data_corr,
                      fit_to_data_err,
+                     non_decision=0,
                      mu=MuConstant(mu=0),
                      sigma=SigmaConstant(sigma=1),
                      bound=BoundConstant(B=1),
@@ -66,6 +67,7 @@ def fit_model_stable(fit_to_data_corr,
 
 def fit_model(fit_to_data_corr,
               fit_to_data_err,
+              non_decision=0,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1),
@@ -75,11 +77,12 @@ def fit_model(fit_to_data_corr,
     """Fit a model to reaction time data.
 
     The data `fit_to_data` should be a vector of reaction times in
-    seconds (NOT milliseconds).  This function will generate a model
-    using the `mu`, `sigma`, `bound`, `IC`, and `task` parameters to
-    specify the model.  At least one of these should have a parameter
-    which is a "Fittable()" instance, as this will be the parameter to
-    be fit.
+    seconds (NOT milliseconds).  `non_decision` is the number of
+    trials which did not reach a decision of correct or error.  This
+    function will generate a model using the `mu`, `sigma`, `bound`,
+    `IC`, and `task` parameters to specify the model.  At least one of
+    these should have a parameter which is a "Fittable()" instance, as
+    this will be the parameter to be fit.
 
     Optionally, dt specifies the temporal resolution with which to fit
     the model.
@@ -110,8 +113,10 @@ def fit_model(fit_to_data_corr,
     # construct a reaction time distribution.  
     T_dur = np.ceil(np.max(np.concatenate([fit_to_data_corr, fit_to_data_err]))/dt)*dt
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    hist_to_fit_corr = np.histogram(fit_to_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2), density=True)[0] # dt/2 (and +1) is continuity correction
-    hist_to_fit_err = np.histogram(fit_to_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2), density=True)[0]
+    total_samples = len(fit_to_data_corr) + len(fit_to_data_err) + non_decision
+    # TODO Modify here for total samples
+    hist_to_fit_corr = np.histogram(fit_to_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt # dt/2 (and +1) is continuity correction
+    hist_to_fit_err = np.histogram(fit_to_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
     # For optimization purposes, create a base model, and then use
     # that base model in the optimization routine.  First, set up the
     # model with all of the Fittables inside.  Deep copy on the entire

@@ -45,7 +45,7 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     ax.set_xlabel('time (s)')
     ax.set_ylabel('CDF (normalized)')
     
-def plot_fit_diagnostics(model, rt_data_corr, rt_data_err):
+def plot_fit_diagnostics(model, rt_data_corr, rt_data_err, non_decision=0):
     """Compare actual data to the best fit model of the data.
 
     - `model` should be the Model object fit from `rt_data`.
@@ -54,16 +54,28 @@ def plot_fit_diagnostics(model, rt_data_corr, rt_data_err):
     """
     T_dur = model.T_dur
     dt = model.dt
+    total_samples = len(rt_data_corr) + len(rt_data_err) + non_decision
     data_hist_corr = np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0] # dt/2 terms are for continuity correction
     data_hist_err = np.histogram(rt_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-    total_samples = len(rt_data_corr) + len(rt_data_err)
     sol = model.solve()
     plt.subplot(2, 1, 1)
-    print(np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[1])
-    print(model.t_domain())
-    print(len(model.t_domain()), len(np.asarray(data_hist_corr)/total_samples/dt), len(np.histogram(rt_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[1]))
-    plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt) # Divide by samples and dt to scale to same size as solution pdf
-    plt.plot(model.t_domain(), sol.pdf_corr())
+    plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt, label="Data") # Divide by samples and dt to scale to same size as solution pdf
+    plt.plot(model.t_domain(), sol.pdf_corr(), label="Fit")
+    plt.legend()
     plt.subplot(2, 1, 2)
-    plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt)
-    plt.plot(model.t_domain(), sol.pdf_err())
+    plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt, label="Data")
+    plt.plot(model.t_domain(), sol.pdf_err(), label="Fit")
+
+def plot_compare_solutions(s1, s2):
+    """Compare two model solutions to each other.
+
+    `s1` and `s2` should be solution objects.  This will display a
+    pretty picture of the correct and error distribution pdfs.
+    """
+    plt.subplot(2, 1, 1)
+    plot_solution_pdf(s1)
+    plot_solution_pdf(s2)
+    plt.legend()
+    plt.subplot(2, 1, 2)
+    plot_solution_pdf(s1, correct=False)
+    plot_solution_pdf(s2, correct=False)

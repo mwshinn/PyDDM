@@ -18,7 +18,7 @@ import numpy as np
 from ddm import *
 from ddm.plot import *
 
-SHOW_PLOTS = False
+SHOW_PLOTS = True
 
 if SHOW_PLOTS:
     import matplotlib.pyplot as plt
@@ -89,49 +89,40 @@ def test_fit_simple_ddm():
                mu=MuConstant(mu=2),
                sigma=SigmaConstant(sigma=1),
                bound=BoundConstant(B=1))
-    
     s1 = m1.solve()
-    
-    m1fit = fit_model_stable(s1.resample(1000)[0], s1.resample(1000)[1],
+    sample = s1.resample(10000)
+    non_decision = 10000-(len(sample[0])+len(sample[1]))
+    m1fit = fit_model_stable(sample[0], sample[1], non_decision,
                              mu=MuConstant(mu=Fittable(minval=0)))
-    
     # Within 10%
-    assert abs(m1._mudep.mu - m1fit._mudep.mu) < 0.1 * m1._mudep.mu
-    
     if SHOW_PLOTS:
         m1fit.name = "Fitted solution"
-        s1_fit = m1fit.solve()
-        plot_solution_pdf(s1)
-        plot_solution_pdf(s1_fit)
-        plt.legend()
+        s1fit = m1fit.solve()
+        plot_compare_solutions(s1, s1fit)
         plt.show()
+
+    assert abs(m1._mudep.mu - m1fit._mudep.mu) < 0.1 * m1._mudep.mu
 
 def test_fit_constant_mu_constant_sigma():
     m2 = Model(name="DDM",
-               mu=MuConstant(mu=1.1),
-               sigma=SigmaConstant(sigma=.6),
+               mu=MuConstant(mu=.1),
+               sigma=SigmaConstant(sigma=1.1),
                bound=BoundConstant(B=1))
-
     s2 = m2.solve()
-    m2fit = fit_model_stable([s2.pdf_corr(), s2.pdf_err()],
+    sample = s2.resample(10000)
+    non_decision = 10000-(len(sample[0])+len(sample[1]))
+    m2fit = fit_model_stable(sample[0], sample[1], non_decision,
                              mu=MuConstant(mu=Fittable(minval=0.01)),
                              sigma=SigmaConstant(sigma=Fittable(minval=0.01)),
                              bound=BoundConstant(B=1))
-
-    print(m2._mudep)
-    print(m2fit._mudep)
-    print(m2._sigmadep)
-    print(m2fit._sigmadep)
-    if True:#SHOW_PLOTS:
-        s2_fit = m2fit.solve()
-        plot_solution_pdf(s2)
-        plot_solution_pdf(s2_fit)
-        plt.legend()
+    if SHOW_PLOTS:
+        m2fit.name = "Fitted solution"
+        s2fit = m2fit.solve()
+        plot_compare_solutions(s2, s2fit)
         plt.show()
 
-    assert abs(m2._mudep.mu - m2fit._mudep.mu) < .01
-    assert abs(m2._sigmadep.sigma - m2fit._sigmadep.sigma) < .01
-    
+    assert abs(m2._mudep.mu - m2fit._mudep.mu) < 0.1 * m2._mudep.mu
+    assert abs(m2._sigmadep.sigma - m2fit._sigmadep.sigma) < 0.1 * m2._sigmadep.sigma
 
 
 def test_fit_linear_mu_constant_sigma():
@@ -139,22 +130,20 @@ def test_fit_linear_mu_constant_sigma():
                mu=MuLinear(mu=1, x=0, t=.3),
                sigma=SigmaConstant(sigma=.3),
                bound=BoundConstant(B=1))
-
     s3 = m3.solve()
-
-    m3fit = fit_model_stable([s3.pdf_corr(), s3.pdf_err()],
+    sample = s3.resample(10000)
+    non_decision = 10000-(len(sample[0])+len(sample[1]))
+    s3 = m3.solve()
+    m3fit = fit_model_stable(sample[0], sample[1], non_decision,
                              mu=MuLinear(mu=Fittable(minval=0.01), x=0, t=Fittable()),
                              sigma=SigmaConstant(sigma=Fittable(minval=0.01)))
-
     if SHOW_PLOTS:
         m3fit.name = "Fitted solution"
-        s3_fit = m3fit.solve()
-        plot_solution_pdf(s3)
-        plot_solution_pdf(s3_fit)
-        plt.legend()
+        s3fit = m3fit.solve()
+        plot_compare_solutions(s3, s3fit)
         plt.show()
     
-    assert abs(m3._mudep.mu - m3fit._mudep.mu) < .01
-    assert abs(m3._sigmadep.sigma - m3fit._sigmadep.sigma) < .01
-    assert abs(m3._mudep.t - m3fit._mudep.t) < .01
+    assert abs(m3._mudep.mu - m3fit._mudep.mu) < 0.1 * m3._mudep.mu
+    assert abs(m3._sigmadep.sigma - m3fit._sigmadep.sigma) < 0.1 * m3._sigmadep.sigma
+    assert abs(m3._mudep.t - m3fit._mudep.t) < 0.1 * m3._mudep.t
     
