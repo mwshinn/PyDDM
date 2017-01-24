@@ -382,19 +382,13 @@ class BoundCollapsingExponential(Bound):
 class Task(Dependence):
     depname = "Task"
     def adjust_mu(self, mu, t):
-        raise NotImplementedError
+        return 0
+    def adjust_sigma(self, sigma, t):
+        return 0
 
 class TaskFixedDuration(Task):
     name = "Fixed_Duration"
     required_parameters = []
-    def adjust_mu(self, mu, t):
-        return 0
-
-class TaskPsychoPhysicalKernel(Task):
-    name = "PsychoPhysical_Kernel"
-    required_parameters = ["kernel"]
-    def adjust_mu(self, mu, t):
-        return self.kernel[int(t/dt_mu_PK)] ## Fix/Implement later
 
 class TaskDurationParadigm(Task):
     name = "Duration_Paradigm"
@@ -415,6 +409,20 @@ class TaskPulseParadigm(Task):
         else:
             return 0
 
+class TaskDelay(Task):
+    name = "Delay"
+    required_parameters = ["delay"]
+    def adjust_mu(self, mu, t):
+        if t < self.delay:
+            return -mu
+        else:
+            return 0
+    def adjust_sigma(self, sigma, t):
+        if t < self.delay:
+            return -sigma
+        else:
+            return 0
+    
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
@@ -547,6 +555,9 @@ class Model(object):
     def mu_task_adj(self, t):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
         return self._task.adjust_mu(self.mu_base(), t)
+    def sigma_task_adj(self, t):
+        """The amount by which we should adjust the drift rate at time `t` for the current task."""
+        return self._task.adjust_sigma(self.sigma_base(), t)
     # TODO: This, as well as mu_matrix and sigma_matrix, are
     # bottlenecks.  Maybe we could cache or pre-allocate memory?
     def diffusion_matrix(self, x, t):
@@ -560,12 +571,12 @@ class Model(object):
         Returns a size NxN scipy sparse array.
         """
         mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t))
-        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx)
+        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t))
         return sparse.eye(len(x)) + mu_matrix + sigma_matrix
     def flux(self, x, t):
         """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t), dx=self.dx, dt=self.dt)
-        sigma_flux = self._sigmadep.get_flux(x, t, dx=self.dx, dt=self.dt)
+        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t), dx=self.dx, dt=self.dt)
         return mu_flux + sigma_flux
     def bound(self, t):
         """The upper boundary of the simulation at time `t`."""
@@ -738,6 +749,21 @@ class Model(object):
         return Solution(pdf_corr, pdf_err, self)
 
 
+class Sample(object):
+    """Describes a sample from some (empirical or simulated) distribution.
+
+    Similarly to Solution, this is a glorified container for three
+    items: a list of correct reaction times, a list of error reaction
+    times, and the number of non-decision trials.
+    """
+    def __init__(self, sample_corr, sample_err, non_decision=0):
+        self.corr = sample_corr
+        self.err = sample_err
+        self.non_decision = non_decision
+    def __len__(self):
+        return len(self.corr) + len(self.err) + self.non_decision
+    def __iter__(self):
+        return np.concatenate([self.corr, self.err]).__iter__()
 
 class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
@@ -874,9 +900,10 @@ class Solution(object):
         assert self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0, "Invalid pdfs"
         combined_pdf = list(reversed(self.pdf_err()[1:]))+list(self.pdf_corr()[1:])
         sample = self._sample_from_histogram(np.asarray(combined_pdf)*self.model.dt, combined_domain, k, seed=seed)
-        corr_sample = filter(lambda x : x >= 0, sample)
-        err_sample = filter(lambda x : x < 0, sample)
-        return (list(corr_sample), list(np.asarray(list(err_sample))*-1))
+        corr_sample = list(filter(lambda x : x >= 0, sample))
+        err_sample = list(np.asarray(list(filter(lambda x : x < 0, sample)))*-1)
+        non_decision = k - (len(corr_sample) + len(err_sample))
+        return Sample(corr_sample, err_sample, non_decision)
 
 class Fittable:
     """For parameters that should be adjusted when fitting a model to data.

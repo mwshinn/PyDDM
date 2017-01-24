@@ -30,9 +30,7 @@ def models_close(m1, m2, tol=.1):
             return False
     return True
 
-def fit_model_stable(fit_to_data_corr,
-                     fit_to_data_err,
-                     non_decision=0,
+def fit_model_stable(sample,
                      mu=MuConstant(mu=0),
                      sigma=SigmaConstant(sigma=1),
                      bound=BoundConstant(B=1),
@@ -53,10 +51,9 @@ def fit_model_stable(fit_to_data_corr,
     min_fit_val = np.inf
     best_model = None
     while True:
-        m = fit_model(fit_to_data_corr, fit_to_data_err,
+        m = fit_model(sample,
                       mu=mu, sigma=sigma,
                       bound=bound, IC=IC, task=task, dt=dt)
-        print(m._fitfunval)
         if (not best_model is None) and models_close(best_model, m):
             if m._fitfunval < min_fit_val:
                 return m
@@ -64,11 +61,10 @@ def fit_model_stable(fit_to_data_corr,
                 return best_model
         elif m._fitfunval < min_fit_val:
             best_model = m
+            min_fit_val = m._fitfunval
 
 
-def fit_model(fit_to_data_corr,
-              fit_to_data_err,
-              non_decision=0,
+def fit_model(sample,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1),
@@ -77,13 +73,12 @@ def fit_model(fit_to_data_corr,
               dt=dt):
     """Fit a model to reaction time data.
 
-    The data `fit_to_data` should be a vector of reaction times in
-    seconds (NOT milliseconds).  `non_decision` is the number of
-    trials which did not reach a decision of correct or error.  This
-    function will generate a model using the `mu`, `sigma`, `bound`,
-    `IC`, and `task` parameters to specify the model.  At least one of
-    these should have a parameter which is a "Fittable()" instance, as
-    this will be the parameter to be fit.
+    The data `sample` should be a Sample object of the reaction times
+    to fit in seconds (NOT milliseconds).  This function will generate
+    a model using the `mu`, `sigma`, `bound`, `IC`, and `task`
+    parameters to specify the model.  At least one of these should
+    have a parameter which is a "Fittable()" instance, as this will be
+    the parameter to be fit.
 
     Optionally, dt specifies the temporal resolution with which to fit
     the model.
@@ -112,12 +107,11 @@ def fit_model(fit_to_data_corr,
                 setters.append(lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a))
     # Use the reaction time data (a list of reaction times) to
     # construct a reaction time distribution.  
-    T_dur = np.ceil(np.max(np.concatenate([fit_to_data_corr, fit_to_data_err]))/dt)*dt
+    T_dur = np.ceil(max(sample)/dt)*dt
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    total_samples = len(fit_to_data_corr) + len(fit_to_data_err) + non_decision
-    # TODO Modify here for total samples
-    hist_to_fit_corr = np.histogram(fit_to_data_corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt # dt/2 (and +1) is continuity correction
-    hist_to_fit_err = np.histogram(fit_to_data_err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
+    total_samples = len(sample)
+    hist_to_fit_corr = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(sample)/dt # dt/2 (and +1) is continuity correction
+    hist_to_fit_err = np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(sample)/dt
     # For optimization purposes, create a base model, and then use
     # that base model in the optimization routine.  First, set up the
     # model with all of the Fittables inside.  Deep copy on the entire
@@ -150,7 +144,7 @@ def fit_model(fit_to_data_corr,
     print(x_0)
     x_fit = minimize(_fit_model, x_0, bounds=constraints)
     assert x_fit.success == True, "Fit failed: %s" % x_fit.message
-    print(x_fit.x)
+    print("Params", x_fit.x, "gave", x_fit.fun)
     m._fitfunval = x_fit.fun
     for x,s in zip(x_fit.x, setters):
         s(m, x)
