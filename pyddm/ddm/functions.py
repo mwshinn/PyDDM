@@ -42,27 +42,28 @@ def fit_model_stable(fit_to_data_corr,
     """A more stable version of fit_model.
 
     The purpose of this function is to avoid local minima when fitting
-    models.  This calls `fit_model` multiple times until the same
-    answer is received twice.  If we make certain assumptions, this
-    can be proven to be optimal in reducing the number of iterations
-    while maximizing the probability that it will give the same result
-    after multiple runs.
+    models.  This calls `fit_model` multiple times, saving the best
+    model.  Once a second model is found which matches the best model,
+    it returns this model.
 
     For documentation of the parameters, see "fit_model".
     """
 
-
     models = []
+    min_fit_val = np.inf
+    best_model = None
     while True:
         m = fit_model(fit_to_data_corr, fit_to_data_err,
                       mu=mu, sigma=sigma,
                       bound=bound, IC=IC, task=task, dt=dt)
-        for mc in models:
-            if models_close(m, mc):
+        print(m._fitfunval)
+        if (not best_model is None) and models_close(best_model, m):
+            if m._fitfunval < min_fit_val:
                 return m
-        models.append(m)
-        print(models)
-    
+            else:
+                return best_model
+        elif m._fitfunval < min_fit_val:
+            best_model = m
 
 
 def fit_model(fit_to_data_corr,
@@ -129,11 +130,12 @@ def fit_model(fit_to_data_corr,
     x_0 = []
     constraints = [] # List of (min, max) tuples.  min/max=None if no constraint.
     for p,s in zip(params, setters):
-        s(m, p.default)
+        default = p.default()
+        s(m, default)
         minval = p.minval if p.minval > -np.inf else None
         maxval = p.maxval if p.maxval < np.inf else None
         constraints.append((minval, maxval))
-        x_0.append(p.default)
+        x_0.append(default)
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
@@ -141,7 +143,6 @@ def fit_model(fit_to_data_corr,
         for x,s in zip(xs, setters):
             s(m, x)
         sol = m.solve()
-        print(len(hist_to_fit_corr), len(hist_to_fit_err), len(sol.pdf_corr()), len(sol.pdf_err()))
         #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
         to_min = np.sum((np.concatenate([hist_to_fit_corr, hist_to_fit_err])-np.concatenate([sol.pdf_corr(), sol.pdf_err()]))**2) # Squared difference
         return to_min
@@ -150,6 +151,7 @@ def fit_model(fit_to_data_corr,
     x_fit = minimize(_fit_model, x_0, bounds=constraints)
     assert x_fit.success == True, "Fit failed: %s" % x_fit.message
     print(x_fit.x)
+    m._fitfunval = x_fit.fun
     for x,s in zip(x_fit.x, setters):
         s(m, x)
     return m

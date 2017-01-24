@@ -890,25 +890,34 @@ class Fittable:
     def __init__(self, minval=-np.inf, maxval=np.inf, default=None):
         self.minval = minval
         self.maxval = maxval
-        if default != None:
-            self.default = default
-        else:
-            if maxval < np.inf and minval > -np.inf:
-                self.default = np.random.beta(2, 2)*(maxval-minval) + minval
-            elif maxval == np.inf and minval > -np.inf:
-                self.default = np.random.pareto(1) + minval
-            elif maxval < np.inf and minval == -np.inf:
-                self.default = maxval - np.random.pareto(1)
-            elif maxval == np.inf and minval == -np.inf:
-                self.default = np.random.standard_cauchy()
-            else:
-                raise ValueError("Error with the maximum or minimum bounds")
+        self.default_value = default
     def __repr__(self):
         reprstr = "Fittable("
         if self.minval != -np.inf:
             reprstr += "minval=" + self.minval.__repr__() + ", "
         if self.maxval != np.inf:
             reprstr += "maxval=" + self.maxval.__repr__() + ", "
-        reprstr += "default=" + self.default.__repr__()
+        reprstr += "default=" + self.default_value.__repr__()
         reprstr += ")"
         return reprstr
+    def default(self):
+        """Choose a default value.
+
+        This chooses a value for the Fittable object randomly abiding
+        by any constraints.  Note that calling this function multiple
+        times will give different results.
+        """
+        if self.default_value is not None:
+            return self.default_value
+        else:
+            maxval = self.maxval; minval = self.minval # Makes equations below more readable
+            if maxval < np.inf and minval > -np.inf:
+                return np.random.beta(2, 2)*(maxval-minval) + minval
+            elif maxval == np.inf and minval > -np.inf:
+                return np.random.pareto(1) + minval
+            elif maxval < np.inf and minval == -np.inf:
+                return maxval - np.random.pareto(1)
+            elif maxval == np.inf and minval == -np.inf:
+                return np.random.standard_cauchy()
+            else:
+                raise ValueError("Error with the maximum or minimum bounds")
