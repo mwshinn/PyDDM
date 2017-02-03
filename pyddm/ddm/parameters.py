@@ -10,4 +10,4 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 # Parameters.
 dx = .05#0.008 # grid size
 T_dur = 2. # [s] Duration of simulation
-dt = .05#0.005 # [s] Time-step.
+dt = .003#0.005 # [s] Time-step.

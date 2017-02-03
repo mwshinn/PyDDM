@@ -5,7 +5,7 @@ Author: Norman Lam (norman.lam@yale.edu)
 
 from __future__ import print_function, unicode_literals, absolute_import, division
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, basinhopping, differential_evolution
 import copy
 
 from .parameters import *
@@ -53,7 +53,8 @@ def fit_model_stable(sample,
     while True:
         m = fit_model(sample,
                       mu=mu, sigma=sigma,
-                      bound=bound, IC=IC, task=task, dt=dt)
+                      bound=bound, IC=IC, task=task, dt=dt,
+                      fitparams={"niter" : 1})
         if (not best_model is None) and models_close(best_model, m):
             if m._fitfunval < min_fit_val:
                 return m
@@ -63,30 +64,44 @@ def fit_model_stable(sample,
             best_model = m
             min_fit_val = m._fitfunval
 
-
 def fit_model(sample,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               task=TaskFixedDuration(),
-              dt=dt):
+              dt=dt, fitparams={},
+              method="differential_evolution"):
     """Fit a model to reaction time data.
-
+    
     The data `sample` should be a Sample object of the reaction times
     to fit in seconds (NOT milliseconds).  This function will generate
     a model using the `mu`, `sigma`, `bound`, `IC`, and `task`
     parameters to specify the model.  At least one of these should
     have a parameter which is a "Fittable()" instance, as this will be
     the parameter to be fit.
-
+    
     Optionally, dt specifies the temporal resolution with which to fit
     the model.
 
+    `method` specifies how the model should be fit.
+    "differential_evolution" is the default, which seems to be able to
+    accurately locate the global maximum without using a
+    derivative. "simple" uses a derivative-based method to minimize,
+    and just uses randomly initialized parameters and gradient
+    descent.  "basin" uses "scipy.optimize.basinhopping" to find an
+    optimal solution, which is much slower but also gives better
+    results than "simple".  It does not appear to give better results
+    than "differential_evolution".
+
+    `fitparams` is a dictionary of kwargs to be passed directly to the
+    minimization routine for fine-grained low-level control over the
+    optimization.  Normally this should not be needed.  
+    
     Returns a "Model()" object with the specified `mu`, `sigma`,
     `bound`, `IC`, and `task`.
     """
-
+    
     # Loop through the different components of the model and get the
     # parameters that are fittable.  
     components_list = [mu, sigma, bound, IC, task]
@@ -134,6 +149,7 @@ def fit_model(sample,
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
     def _fit_model(xs):
+        print(xs)
         for x,s in zip(xs, setters):
             s(m, x)
         sol = m.solve()
@@ -142,8 +158,15 @@ def fit_model(sample,
         return to_min
     # Run the solver
     print(x_0)
-    x_fit = minimize(_fit_model, x_0, bounds=constraints)
-    assert x_fit.success == True, "Fit failed: %s" % x_fit.message
+    if method == "simple":
+        x_fit = minimize(_fit_model, x_0, bounds=constraints)
+        assert x_fit.success == True, "Fit failed: %s" % x_fit.message
+    elif method == "basin":
+        x_fit = basinhopping(_fit_model, x_0, minimizer_kwargs={"bounds" : constraints, "method" : "TNC"}, disp=True, **fitparams)
+    elif method == "differential_evolution":
+        x_fit = differential_evolution(_fit_model, constraints, disp=True, **fitparams)
+    else:
+        raise NotImplementedError("Invalid method")
     print("Params", x_fit.x, "gave", x_fit.fun)
     m._fitfunval = x_fit.fun
     for x,s in zip(x_fit.x, setters):

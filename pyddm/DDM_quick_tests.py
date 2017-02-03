@@ -142,3 +142,24 @@ def test_fit_linear_mu_constant_sigma():
     assert abs(m3._sigmadep.sigma - m3fit._sigmadep.sigma) < 0.1 * m3._sigmadep.sigma
     assert abs(m3._mudep.t - m3fit._mudep.t) < 0.1 * m3._mudep.t
     
+
+def test_fit_linear_mu_linear_sigma():
+    m = Model(name="DDM", dt=.01,
+               mu=MuLinear(mu=1, x=0, t=.3),
+               sigma=SigmaLinear(sigma=.3, t=.7, x=0),
+               bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model_stable(sample,
+                             mu=MuLinear(mu=Fittable(minval=0.01), x=0, t=.3),
+                             sigma=SigmaLinear(sigma=Fittable(minval=0.01), t=Fittable(), x=0))
+    if SHOW_PLOTS:
+        mfit.name = "Fitted solution"
+        sfit = mfit.solve()
+        plot_compare_solutions(s, sfit)
+        plt.show()
+    
+    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
+    assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
+    

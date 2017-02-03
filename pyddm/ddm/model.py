@@ -245,7 +245,8 @@ class Sigma(Dependence):
     def get_matrix(self, x, t, adj=0, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
-        `x` should be a length N ndarray.  
+        `x` should be a length N ndarray.
+        `t` should be a float for the time.
         `adj` is the optional amount by which to adjust `sigma`.  This
         is most relevant for tasks which modify `sigma` over time.
         """
@@ -254,7 +255,7 @@ class Sigma(Dependence):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
-        that is past the boundary point `x_bound`.
+        that is past the boundary point `x_bound` at time `t` (a float).
 
         `adj` is the optional amount by which to adjust `sigma`.  This
         is most relevant for tasks which modify `sigma` over time.
@@ -292,11 +293,16 @@ class SigmaLinear(Sigma):
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
     def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
-        return sparse.diags(1.0*(self.sigma + adj + self.x*x      + self.t*t)**2 * dt/dx**2, 0) \
-             - sparse.diags(0.5*(self.sigma + adj + self.x*x[1:]  + self.t*t)**2 * dt/dx**2, 1) \
-             - sparse.diags(0.5*(self.sigma + adj + self.x*x[:-1] + self.t*t)**2 * dt/dx**2,-1)
+        diagadj = self.sigma + adj + self.x*x + self.t*t
+        diagadj[diagadj<0] = 0
+        return sparse.diags(1.0*(diagadj)**2 * dt/dx**2, 0) \
+             - sparse.diags(0.5*(diagadj[1:])**2 * dt/dx**2, 1) \
+             - sparse.diags(0.5*(diagadj[:-1])**2 * dt/dx**2,-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
-        return 0.5*dt/dx**2 * (self.sigma + adj + self.x*x_bound + self.t*t)**2
+        fluxadj = (self.sigma + adj + self.x*x_bound + self.t*t)
+        if fluxadj < 0:
+            return 0
+        return 0.5*dt/dx**2 * fluxadj**2
 
 class SigmaSinCos(Sigma):
     """Sigma dependence: diffusion rate varies linearly with sin(x) and cos(t).
@@ -419,6 +425,20 @@ class TaskDelay(Task):
             return 0
     def adjust_sigma(self, sigma, t):
         if t < self.delay:
+            return -sigma
+        else:
+            return 0
+    
+class TaskIndependentDelays(Task):
+    name = "Independent_Delays"
+    required_parameters = ["delay_mu", "delay_sigma"]
+    def adjust_mu(self, mu, t):
+        if t < self.delay_mu:
+            return -mu
+        else:
+            return 0
+    def adjust_sigma(self, sigma, t):
+        if t < self.delay_sigma:
             return -sigma
         else:
             return 0
@@ -755,6 +775,10 @@ class Sample(object):
     Similarly to Solution, this is a glorified container for three
     items: a list of correct reaction times, a list of error reaction
     times, and the number of non-decision trials.
+
+    Optionally, additional data can be associated with each
+    independent data point.  These should be passed as keyword
+    arguments, where the keyword name is the property and the 
     """
     def __init__(self, sample_corr, sample_err, non_decision=0):
         self.corr = sample_corr
