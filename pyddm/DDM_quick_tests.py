@@ -85,74 +85,74 @@ def test_verify_ddm_analytic_close_to_numeric_params4():
 # TODO Test to make sure increasing mean/varince decreases decision time, etc.
 
 def test_fit_simple_ddm():
-    m1 = Model(name="DDM", dt=.01,
-               mu=MuConstant(mu=2),
-               sigma=SigmaConstant(sigma=1),
-               bound=BoundConstant(B=1))
-    s1 = m1.solve()
-    sample = s1.resample(10000)
-    m1fit = fit_model_stable(sample, mu=MuConstant(mu=Fittable(minval=0)))
+    m = Model(name="DDM", dt=.01,
+              mu=MuConstant(mu=2),
+              sigma=SigmaConstant(sigma=1),
+              bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=10)))
     # Within 10%
     if SHOW_PLOTS:
-        m1fit.name = "Fitted solution"
-        s1fit = m1fit.solve()
-        plot_compare_solutions(s1, s1fit)
+        mfit.name = "Fitted solution"
+        sfit = mfit.solve()
+        plot_compare_solutions(s, sfit)
         plt.show()
 
-    assert abs(m1._mudep.mu - m1fit._mudep.mu) < 0.1 * m1._mudep.mu
+    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
 
 def test_fit_constant_mu_constant_sigma():
-    m2 = Model(name="DDM", dt=.01,
-               mu=MuConstant(mu=.1),
-               sigma=SigmaConstant(sigma=1.1),
-               bound=BoundConstant(B=1))
-    s2 = m2.solve()
-    sample = s2.resample(10000)
-    m2fit = fit_model_stable(sample,
-                             mu=MuConstant(mu=Fittable(minval=0.01)),
-                             sigma=SigmaConstant(sigma=Fittable(minval=0.01)),
-                             bound=BoundConstant(B=1))
+    m = Model(name="DDM", dt=.01,
+              mu=MuConstant(mu=.1),
+              sigma=SigmaConstant(sigma=1.1),
+              bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model(sample,
+                     mu=MuConstant(mu=Fittable(minval=0.01, maxval=10)),
+                     sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)),
+                     bound=BoundConstant(B=1))
     if SHOW_PLOTS:
-        m2fit.name = "Fitted solution"
-        s2fit = m2fit.solve()
-        plot_compare_solutions(s2, s2fit)
+        mfit.name = "Fitted solution"
+        sfit = mfit.solve()
+        plot_compare_solutions(s, sfit)
         plt.show()
 
-    assert abs(m2._mudep.mu - m2fit._mudep.mu) < 0.1 * m2._mudep.mu
-    assert abs(m2._sigmadep.sigma - m2fit._sigmadep.sigma) < 0.1 * m2._sigmadep.sigma
+    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
 
 
 def test_fit_linear_mu_constant_sigma():
-    m3 = Model(name="DDM", dt=.01,
-               mu=MuLinear(mu=1, x=0, t=.3),
-               sigma=SigmaConstant(sigma=.3),
-               bound=BoundConstant(B=1))
-    s3 = m3.solve()
-    sample = s3.resample(10000)
-    m3fit = fit_model_stable(sample,
-                             mu=MuLinear(mu=Fittable(minval=0.01), x=0, t=Fittable()),
-                             sigma=SigmaConstant(sigma=Fittable(minval=0.01)))
+    m = Model(name="DDM", dt=.01,
+              mu=MuLinear(mu=1, x=0, t=.3),
+              sigma=SigmaConstant(sigma=.3),
+              bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model(sample,
+                     mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=Fittable(minval=-5, maxval=5)),
+                     sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)))
     if SHOW_PLOTS:
-        m3fit.name = "Fitted solution"
-        s3fit = m3fit.solve()
-        plot_compare_solutions(s3, s3fit)
+        mfit.name = "Fitted solution"
+        sfit = mfit.solve()
+        plot_compare_solutions(s, sfit)
         plt.show()
     
-    assert abs(m3._mudep.mu - m3fit._mudep.mu) < 0.1 * m3._mudep.mu
-    assert abs(m3._sigmadep.sigma - m3fit._sigmadep.sigma) < 0.1 * m3._sigmadep.sigma
-    assert abs(m3._mudep.t - m3fit._mudep.t) < 0.1 * m3._mudep.t
+    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
+    assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
     
 
 def test_fit_linear_mu_linear_sigma():
     m = Model(name="DDM", dt=.01,
-               mu=MuLinear(mu=1, x=0, t=.3),
-               sigma=SigmaLinear(sigma=.3, t=.7, x=0),
-               bound=BoundConstant(B=1))
+              mu=MuLinear(mu=1, x=0, t=.3),
+              sigma=SigmaLinear(sigma=.3, t=.7, x=0),
+              bound=BoundConstant(B=1))
     s = m.solve()
     sample = s.resample(10000)
-    mfit = fit_model_stable(sample,
-                             mu=MuLinear(mu=Fittable(minval=0.01), x=0, t=.3),
-                             sigma=SigmaLinear(sigma=Fittable(minval=0.01), t=Fittable(), x=0))
+    mfit = fit_model(sample,
+                     mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=.3),
+                     sigma=SigmaLinear(sigma=Fittable(minval=0.01, maxval=5), t=Fittable(minval=-2, maxval=2), x=0))
     if SHOW_PLOTS:
         mfit.name = "Fitted solution"
         sfit = mfit.solve()

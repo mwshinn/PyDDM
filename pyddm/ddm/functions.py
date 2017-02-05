@@ -53,8 +53,7 @@ def fit_model_stable(sample,
     while True:
         m = fit_model(sample,
                       mu=mu, sigma=sigma,
-                      bound=bound, IC=IC, task=task, dt=dt,
-                      fitparams={"niter" : 1})
+                      bound=bound, IC=IC, task=task, dt=dt)
         if (not best_model is None) and models_close(best_model, m):
             if m._fitfunval < min_fit_val:
                 return m

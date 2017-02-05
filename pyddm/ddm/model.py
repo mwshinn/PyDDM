@@ -146,7 +146,7 @@ class Mu(Dependence):
     Dependence.)
     """
     depname = "Mu"
-    def get_matrix(self, x, t, adj=0, **kwargs):
+    def get_matrix(self, x, t, adj=0, conditions={}, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.  
@@ -158,7 +158,7 @@ class Mu(Dependence):
         raise NotImplementedError
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
-    def get_flux(self, x_bound, t, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, adj=0, conditions={}, **kwargs):
         """The drift component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
@@ -168,7 +168,7 @@ class Mu(Dependence):
         most relevant for tasks which modify `mu` over time.
         """
         raise NotImplementedError
-    def mu_base(self):
+    def mu_base(self, conditions={}):
         """Return the value of mu at the beginning of the simulation."""
         assert "mu" in self.required_parameters, "Mu must be a required parameter"
         return self.mu
@@ -181,7 +181,7 @@ class MuConstant(Mu):
     Note that this is a special case of MuLinear."""
     name = "constant"
     required_parameters = ["mu"]
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
@@ -202,7 +202,7 @@ class MuLinear(Mu):
     # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
     # same x,t with p(x,t) (probability distribution function). Hence
     # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
@@ -222,10 +222,10 @@ class MuSinCos(Mu):
     """
     name = "sinx_cost"
     required_parameters = ["mu", "x", "t"]
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t)), 1) \
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
-    def get_flux(x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
 
 class Sigma(Dependence):
@@ -242,7 +242,7 @@ class Sigma(Dependence):
     Dependence.)
     """
     depname = "Sigma"
-    def get_matrix(self, x, t, adj=0, **kwargs):
+    def get_matrix(self, x, t, adj=0, conditions={}, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.
@@ -251,7 +251,7 @@ class Sigma(Dependence):
         is most relevant for tasks which modify `sigma` over time.
         """
         raise NotImplementedError
-    def get_flux(self, x_bound, t, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, adj=0, conditions={}, **kwargs):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
@@ -261,7 +261,7 @@ class Sigma(Dependence):
         is most relevant for tasks which modify `sigma` over time.
         """
         raise NotImplementedError
-    def sigma_base(self):
+    def sigma_base(self, conditions={}):
         """Return the value of sigma at the beginning of the simulation."""
         assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
         return self.sigma
@@ -274,11 +274,11 @@ class SigmaConstant(Sigma):
     Note that this is a special case of SigmaLinear."""
     name = "constant"
     required_parameters = ["sigma"]
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags(1.0*(self.sigma + adj + 0*x)**2     * dt/dx**2, 0) \
              - sparse.diags(0.5*(self.sigma + adj + 0*x[1:])**2 * dt/dx**2, 1) \
              - sparse.diags(0.5*(self.sigma + adj+ 0*x[:-1])**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + adj)**2
 
 class SigmaLinear(Sigma):
@@ -292,13 +292,13 @@ class SigmaLinear(Sigma):
     """
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         diagadj = self.sigma + adj + self.x*x + self.t*t
         diagadj[diagadj<0] = 0
         return sparse.diags(1.0*(diagadj)**2 * dt/dx**2, 0) \
              - sparse.diags(0.5*(diagadj[1:])**2 * dt/dx**2, 1) \
              - sparse.diags(0.5*(diagadj[:-1])**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         fluxadj = (self.sigma + adj + self.x*x_bound + self.t*t)
         if fluxadj < 0:
             return 0
@@ -318,11 +318,11 @@ class SigmaSinCos(Sigma):
     """
     name = "sinx_cost"
     required_parameters = ["sigma", "x", "t"]
-    def get_matrix(self, x, t, dx, dt, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags(1.0*(self.sigma + adj + self.x*np.sin(x)      + self.t*np.cos(t))**2 * dt/dx**2, 0) \
              - sparse.diags(0.5*(self.sigma + adj + self.x*np.sin(x[1:])  + self.t*np.cos(t))**2 * dt/dx**2, 1) \
              - sparse.diags(0.5*(self.sigma + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
 
 class Bound(Dependence):
@@ -341,10 +341,10 @@ class Bound(Dependence):
     depname = "Bound"
     ## Second effect of Collapsing Bounds: Collapsing Center: Positive
     ## and Negative states are closer to each other over time.
-    def get_bound(self, t, **kwargs):
+    def get_bound(self, t, conditions={}, **kwargs):
         """Return the bound at time `t`."""
         raise NotImplementedError
-    def B_base(self):
+    def B_base(self, conditions={}):
         assert "B" in self.required_parameters, "B must be a required parameter"
         return self.B
 
@@ -354,7 +354,7 @@ class BoundConstant(Bound):
     Takes only one parameter: `B`, the constant bound."""
     name = "constant"
     required_parameters = ["B"]
-    def get_bound(self, t, adj=0, **kwargs):
+    def get_bound(self, t, adj=0, conditions={}, **kwargs):
         return self.B
 
 class BoundCollapsingLinear(Bound):
@@ -368,7 +368,7 @@ class BoundCollapsingLinear(Bound):
     """
     name = "collapsing_linear"
     required_parameters = ["B", "t"]
-    def get_bound(self, t, adj=0, **kwargs):
+    def get_bound(self, t, adj=0, conditions={}, **kwargs):
         return max(self.B + adj - self.t*t, 0.)
 
 class BoundCollapsingExponential(Bound):
@@ -382,14 +382,14 @@ class BoundCollapsingExponential(Bound):
     """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]
-    def get_bound(self, t, adj=0, **kwargs):
+    def get_bound(self, t, adj=0, conditions={}, **kwargs):
         return (self.B + adj) * np.exp(-self.tau*t)
     
 class Task(Dependence):
     depname = "Task"
-    def adjust_mu(self, mu, t):
+    def adjust_mu(self, mu, t, conditions={}):
         return 0
-    def adjust_sigma(self, sigma, t):
+    def adjust_sigma(self, sigma, t, conditions={}):
         return 0
 
 class TaskFixedDuration(Task):
@@ -399,7 +399,7 @@ class TaskFixedDuration(Task):
 class TaskDurationParadigm(Task):
     name = "Duration_Paradigm"
     required_parameters = ["duration"]
-    def adjust_mu(self, mu, t):
+    def adjust_mu(self, mu, t, conditions={}):
         if t < self.duration:
             return 0
         else:
@@ -409,7 +409,7 @@ class TaskPulseParadigm(Task):
     name = "Pulse_Paradigm"
     required_parameters = ["onset", "duration", "adjustment"]
     default_parameters = {"duration" : .1, "adjustment" : .15}
-    def adjust_mu(self, mu, t):
+    def adjust_mu(self, mu, t, conditions={}):
         if (t > self.onset) and (t < (self.onset + self.duration)):
             return mu * self.adjustment
         else:
@@ -418,12 +418,12 @@ class TaskPulseParadigm(Task):
 class TaskDelay(Task):
     name = "Delay"
     required_parameters = ["delay"]
-    def adjust_mu(self, mu, t):
+    def adjust_mu(self, mu, t, conditions={}):
         if t < self.delay:
             return -mu
         else:
             return 0
-    def adjust_sigma(self, sigma, t):
+    def adjust_sigma(self, sigma, t, conditions={}):
         if t < self.delay:
             return -sigma
         else:
@@ -432,12 +432,12 @@ class TaskDelay(Task):
 class TaskIndependentDelays(Task):
     name = "Independent_Delays"
     required_parameters = ["delay_mu", "delay_sigma"]
-    def adjust_mu(self, mu, t):
+    def adjust_mu(self, mu, t, conditions={}):
         if t < self.delay_mu:
             return -mu
         else:
             return 0
-    def adjust_sigma(self, sigma, t):
+    def adjust_sigma(self, sigma, t, conditions={}):
         if t < self.delay_sigma:
             return -sigma
         else:
@@ -556,15 +556,15 @@ class Model(object):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]))
-    def bound_base(self):
+    def bound_base(self, conditions={}):
         """The boundary at the beginning of the simulation."""
-        return self._bounddep.B_base()
-    def mu_base(self):
+        return self._bounddep.B_base(conditions=conditions)
+    def mu_base(self, conditions={}):
         """The drift rate at the beginning of the simulation."""
-        return self._mudep.mu_base()
-    def sigma_base(self):
+        return self._mudep.mu_base(conditions=conditions)
+    def sigma_base(self, conditions={}):
         """The noise at the beginning of the simulation."""
-        return self._sigmadep.sigma_base()
+        return self._sigmadep.sigma_base(conditions=conditions)
     def x_domain(self):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         B = self.bound_base()
@@ -572,15 +572,15 @@ class Model(object):
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
-    def mu_task_adj(self, t):
+    def mu_task_adj(self, t, conditions={}):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_mu(self.mu_base(), t)
-    def sigma_task_adj(self, t):
+        return self._task.adjust_mu(self.mu_base(conditions=conditions), t, conditions=conditions)
+    def sigma_task_adj(self, t, conditions={}):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_sigma(self.sigma_base(), t)
+        return self._task.adjust_sigma(self.sigma_base(conditions=conditions), t, conditions=conditions)
     # TODO: This, as well as mu_matrix and sigma_matrix, are
     # bottlenecks.  Maybe we could cache or pre-allocate memory?
-    def diffusion_matrix(self, x, t):
+    def diffusion_matrix(self, x, t, conditions={}):
         """The matrix for the implicit method of solving the diffusion equation.
 
         - `x` - a length N ndarray representing the domain over which
@@ -590,17 +590,17 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t))
-        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t))
+        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions))
+        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions))
         return sparse.eye(len(x)) + mu_matrix + sigma_matrix
-    def flux(self, x, t):
+    def flux(self, x, t, conditions={}):
         """The flux across the boundary at position `x` at time `t`."""
-        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t), dx=self.dx, dt=self.dt)
-        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t), dx=self.dx, dt=self.dt)
+        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt)
+        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt)
         return mu_flux + sigma_flux
-    def bound(self, t):
+    def bound(self, t, conditions={}):
         """The upper boundary of the simulation at time `t`."""
-        return self._bounddep.get_bound(t)
+        return self._bounddep.get_bound(t, conditions=conditions)
     def IC(self):
         """The initial distribution at t=0.
 
@@ -608,12 +608,6 @@ class Model(object):
         which should sum to 1.
         """
         return self._IC.get_IC(self.x_domain())
-    def set_mu(self, mu):
-        """Assign the value of `mu` to the drift rate.
-
-        Does not return a value."""
-        self._mudep.mu = mu
-
 
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
@@ -631,7 +625,7 @@ class Model(object):
         else:
             return self.solve_numerical()
 
-    def solve_analytical(self):
+    def solve_analytical(self, conditions={}):
         """Solve the model with an analytic solution, if possible.
 
         Analytic solutions are only possible in a select number of
@@ -649,13 +643,13 @@ class Model(object):
 
         # The analytic_ddm function does the heavy lifting.
         if type(self._bounddep) == BoundConstant: # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
-                                                       self.sigma_base(),
-                                                       self.bound_base(), self.t_domain())
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(conditions=conditions),
+                                                       self.sigma_base(conditions=conditions),
+                                                       self.bound_base(conditions=conditions), self.t_domain())
         elif type(self._bounddep) == BoundCollapsingLinear: # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(),
-                                                       self.sigma_base(),
-                                                       self.bound_base(),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(conditions=conditions),
+                                                       self.sigma_base(conditions=conditions),
+                                                       self.bound_base(conditions=conditions),
                                                        self.t_domain(), -self._bounddep.t) # TODO why must this be negative? -MS
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
@@ -665,7 +659,7 @@ class Model(object):
         anal_pdf_err[0] = 0.
         return Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self)
 
-    def solve_numerical(self):
+    def solve_numerical(self, conditions={}):
         """Solve the DDM model numerically.
 
         This uses the implicit method to solve the DDM at each
@@ -700,7 +694,7 @@ class Model(object):
                 # Now figure out which x positions are still within
                 # the (collapsing) bound.
                 assert self.bound_base() >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-                bound_shift = self.bound_base() - bound
+                bound_shift = self.bound_base(conditions=conditions) - bound
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
                 x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
@@ -716,7 +710,7 @@ class Model(object):
                 # Diffusion Matrix for Implicit Method. Here defined as
                 # Outer Matrix, and inder matrix is either trivial or an
                 # extracted submatrix.
-                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t)
+                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t, conditions=conditions)
 
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
@@ -755,10 +749,10 @@ class Model(object):
             _inner_B_err = x_list[x_index_inner]
             _outer_B_err = x_list[x_index_outer]
             if len(pdf_inner) == 0: pdf_inner = np.array([0]) # Fix error when bounds collapse to 0
-            pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t) \
-                            +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t)
-            pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t) \
-                            +  weight_inner * pdf_inner[0] * self.flux(_inner_B_err, t)
+            pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
+                            +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
+            pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t, conditions=conditions) \
+                            +  weight_inner * pdf_inner[0] * self.flux(_inner_B_err, t, conditions=conditions)
 
             # Renormalize when the channel size has <1 grid, although
             # all hell breaks loose in this regime.
