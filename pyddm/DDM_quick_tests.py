@@ -18,7 +18,7 @@ import numpy as np
 from ddm import *
 from ddm.plot import *
 
-SHOW_PLOTS = True
+SHOW_PLOTS = False
 
 if SHOW_PLOTS:
     import matplotlib.pyplot as plt

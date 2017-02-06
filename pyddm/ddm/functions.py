@@ -70,7 +70,8 @@ def fit_model(sample,
               IC=ICPointSourceCenter(),
               task=TaskFixedDuration(),
               dt=dt, fitparams={},
-              method="differential_evolution"):
+              method="differential_evolution",
+              lossfunction=SquaredErrorLoss):
     """Fit a model to reaction time data.
     
     The data `sample` should be a Sample object of the reaction times
@@ -123,9 +124,6 @@ def fit_model(sample,
     # construct a reaction time distribution.  
     T_dur = np.ceil(max(sample)/dt)*dt
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    total_samples = len(sample)
-    hist_to_fit_corr = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(sample)/dt # dt/2 (and +1) is continuity correction
-    hist_to_fit_err = np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(sample)/dt
     # For optimization purposes, create a base model, and then use
     # that base model in the optimization routine.  First, set up the
     # model with all of the Fittables inside.  Deep copy on the entire
@@ -144,6 +142,8 @@ def fit_model(sample,
         maxval = p.maxval if p.maxval < np.inf else None
         constraints.append((minval, maxval))
         x_0.append(default)
+    # Set up a loss function
+    lf = lossfunction(sample, T_dur=T_dur, dt=dt)
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
@@ -151,10 +151,8 @@ def fit_model(sample,
         print(xs)
         for x,s in zip(xs, setters):
             s(m, x)
-        sol = m.solve()
         #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
-        to_min = np.sum((np.concatenate([hist_to_fit_corr, hist_to_fit_err])-np.concatenate([sol.pdf_corr(), sol.pdf_err()]))**2) # Squared difference
-        return to_min
+        return lf.loss(m)
     # Run the solver
     print(x_0)
     if method == "simple":

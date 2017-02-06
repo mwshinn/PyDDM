@@ -760,28 +760,74 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        return Solution(pdf_corr, pdf_err, self)
+        return Solution(pdf_corr, pdf_err, self, conditions=conditions)
 
+class _Sample_Iter_Wraper(object):
+    def __init__(self, sample_obj, correct=None):
+        self.sample = sample_obj
+        self.i = 0
+        self.correct = correct
+    def __iter__(self):
+        return self
+    def next(self):
+        if self.i == len(sample):
+            raise StopIteration
+        self.i += 1
+        if self.correct == True:
+            rt = self.sample.corr
+            ind = 0
+        elif self.correct == False:
+            rt = self.sample.err
+            ind = 1
+        return (rt[self.i-1], {k : self.sample.conditions[k][0][self.i-1] for k in self.sample.conditions.keys()})
+        
 
 class Sample(object):
     """Describes a sample from some (empirical or simulated) distribution.
 
     Similarly to Solution, this is a glorified container for three
     items: a list of correct reaction times, a list of error reaction
-    times, and the number of non-decision trials.
+    times, and the number of non-decision trials.  Each can have
+    different properties associated with it, known as "conditions"
+    elsewhere in this codebase.  This is to specifiy the experimental
+    parameters of the trial, to allow fitting of stimuli by (for
+    example) color or intensity.
+
+    To specify conditions, pass a keyword argument to the constructor.
+    The name should be the name of the property, and the value should
+    be a tuple of length two or three.  The first element of the tuple
+    should be a list of length equal to the number of correct trials,
+    and the second should be equal to the number of error trials.  If
+    there are any non-decision trials, the third argument should
+    contain a list of length equal to `non_decision`.
 
     Optionally, additional data can be associated with each
     independent data point.  These should be passed as keyword
-    arguments, where the keyword name is the property and the 
+    arguments, where the keyword name is the propertyp and the
     """
-    def __init__(self, sample_corr, sample_err, non_decision=0):
+    def __init__(self, sample_corr, sample_err, non_decision=0, **kwargs):
         self.corr = sample_corr
         self.err = sample_err
         self.non_decision = non_decision
+        # Make sure the kwarg parameters/conditions are in the correct
+        # format
+        for k,v in kwargs.items():
+            assert type(v) == tuple
+            assert len(v) in [2, 3]
+            assert len(v[0]) == len(self.corr)
+            assert len(v[1]) == len(self.err)
+            if len(v) == 3:
+                assert len(v) == non_decision
+            else:
+                assert non_decision == 0
+        self.conditions = kwargs
     def __len__(self):
         return len(self.corr) + len(self.err) + self.non_decision
     def __iter__(self):
         return np.concatenate([self.corr, self.err]).__iter__()
+    def items(self, correct):
+        return _Sample_Iter_Wrapper(self, correct=correct)
+    
 
 class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
@@ -801,7 +847,7 @@ class Solution(object):
     may increase memory requirements when many simulations are run.
 
     """
-    def __init__(self, pdf_corr, pdf_err, model):
+    def __init__(self, pdf_corr, pdf_err, model, conditions={}):
         """Create a Solution object from the results of a model
         simulation.
 
@@ -814,6 +860,7 @@ class Solution(object):
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
         self._pdf_corr = pdf_corr
         self._pdf_err = pdf_err
+        self.conditions = conditions
 
     def pdf_corr(self):
         """The correct component of the joint PDF."""
@@ -921,7 +968,8 @@ class Solution(object):
         corr_sample = list(filter(lambda x : x >= 0, sample))
         err_sample = list(np.asarray(list(filter(lambda x : x < 0, sample)))*-1)
         non_decision = k - (len(corr_sample) + len(err_sample))
-        return Sample(corr_sample, err_sample, non_decision)
+        conditions = {k : ([v]*len(corr_sample), [v]*len(err_sample), [v]*non_decision) for k,v in self.conditions.items()}
+        return Sample(corr_sample, err_sample, non_decision, **conditions)
 
 class Fittable:
     """For parameters that should be adjusted when fitting a model to data.
@@ -966,3 +1014,26 @@ class Fittable:
                 return np.random.standard_cauchy()
             else:
                 raise ValueError("Error with the maximum or minimum bounds")
+
+class LossFunction(object):
+    def __init__(self, sample, **kwargs):
+        assert hasattr(self, "name"), "Solver needs a name"
+        self.sample = sample
+        self.setup(**kwargs)
+    def setup(self, **kwargs):
+        pass
+    def loss(self, model):
+        raise NotImplementedError
+
+class SquaredErrorLoss(LossFunction):
+    name = "Squared Difference"
+    def setup(self, dt, T_dur, **kwargs):
+        self.dt = dt
+        self.T_dur = T_dur
+        self.T_dur = np.ceil(max(self.sample)/dt)*dt
+        self.hist_to_fit_corr = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt # dt/2 (and +1) is continuity correction
+        self.hist_to_fit_err = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt
+    def loss(self, model):
+        assert model.dt == self.dt and model.T_dur == self.T_dur
+        sol = model.solve()
+        return np.sum((np.concatenate([self.hist_to_fit_corr, self.hist_to_fit_err])-np.concatenate([sol.pdf_corr(), sol.pdf_err()]))**2)
