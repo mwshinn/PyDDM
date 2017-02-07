@@ -4,6 +4,7 @@ from . import parameters as param
 from .analytic import analytic_ddm, analytic_ddm_linbound
 from scipy import sparse
 import scipy.sparse.linalg
+import itertools
 
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
@@ -58,6 +59,8 @@ class Dependence(object):
             args.update(kwargs)
         else:
             args = kwargs
+        if not hasattr(self, "required_conditions"):
+            object.__setattr__(self, 'required_conditions', [])
         passed_args = sorted(args.keys())
         expected_args = sorted(self.required_parameters)
         assert passed_args == expected_args, "Provided %s arguments, expected %s" % (str(passed_args), str(expected_args))
@@ -616,14 +619,14 @@ class Model(object):
             (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
             mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter
         
-    def solve(self):
+    def solve(self, conditions={}):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
         if self.has_analytical_solution():
-            return self.solve_analytical()
+            return self.solve_analytical(conditions=conditions)
         else:
-            return self.solve_numerical()
+            return self.solve_numerical(conditions=conditions)
 
     def solve_analytical(self, conditions={}):
         """Solve the model with an analytic solution, if possible.
@@ -827,6 +830,11 @@ class Sample(object):
         return np.concatenate([self.corr, self.err]).__iter__()
     def items(self, correct):
         return _Sample_Iter_Wrapper(self, correct=correct)
+    def where(self, **kwargs):
+        for k,v in kwargs.items():
+            return _Sample_Iter_Wrapper(self, correct=correct)
+    def condition_names(self):
+        return list(self.conditions.keys())
     
 
 class Solution(object):
@@ -1024,16 +1032,37 @@ class LossFunction(object):
         pass
     def loss(self, model):
         raise NotImplementedError
+    def condition_combinations(self):
+        cs = self.sample.conditions
+        conditions = []
+        names = self.sample.condition_names()
+        for c in names:
+            conditions.append(list(set(cs[c][0]).union(set(cs[c][1]))))
+        combs = []
+        for p in itertools.product(*conditions):
+            combs.append(dict(zip(names, p)))
+        if len(combs) == 0:
+            return [{}]
+        return combs
+    def cache_by_conditions(self, model):
+        cache = {}
+        for c in self.condition_combinations():
+            cache[frozenset(c.items())] = model.solve(conditions=c)
+        return cache
 
 class SquaredErrorLoss(LossFunction):
     name = "Squared Difference"
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
-        self.T_dur = np.ceil(max(self.sample)/dt)*dt
-        self.hist_to_fit_corr = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt # dt/2 (and +1) is continuity correction
-        self.hist_to_fit_err = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt
+        self.hists_corr = {}
+        self.hists_err = {}
+        for comb in self.condition_combinations():
+            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt # dt/2 (and +1) is continuity correction
+            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt
+        self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
-        sol = model.solve()
-        return np.sum((np.concatenate([self.hist_to_fit_corr, self.hist_to_fit_err])-np.concatenate([sol.pdf_corr(), sol.pdf_err()]))**2)
+        sols = self.cache_by_conditions(model)
+        this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
+        return np.sum((this-self.target)**2)
