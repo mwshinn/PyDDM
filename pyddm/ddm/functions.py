@@ -105,6 +105,7 @@ def fit_model(sample,
     # Loop through the different components of the model and get the
     # parameters that are fittable.  
     components_list = [mu, sigma, bound, IC, task]
+    required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
     for component in components_list:
@@ -143,7 +144,7 @@ def fit_model(sample,
         constraints.append((minval, maxval))
         x_0.append(default)
     # Set up a loss function
-    lf = lossfunction(sample, T_dur=T_dur, dt=dt)
+    lf = lossfunction(sample, required_conditions=required_conditions, T_dur=T_dur, dt=dt)
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.

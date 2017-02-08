@@ -54,16 +54,29 @@ def plot_fit_diagnostics(model, sample):
     T_dur = model.T_dur
     dt = model.dt
     total_samples = len(sample)
+    print(T_dur, dt, total_samples, len(sample.corr), len(sample.err))
     data_hist_corr = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0] # dt/2 terms are for continuity correction
     data_hist_err = np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-    sol = model.solve()
+    # First create an empty array the same length as the histogram.
+    # Then, for each type of model in the sample, add it to the plot
+    # weighted by its frequency of occuring.
+    model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
+    model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    for conds in sample.condition_combinations(required_conditions=None): # TODO make None the default in the API
+        print(conds)
+        subset = sample.subset(**conds)
+        sol = model.solve(conditions=conds)
+        model_corr += len(subset)/len(sample)*sol.pdf_corr()
+        model_err += len(subset)/len(sample)*sol.pdf_err()
+        print(sum(model_corr)+sum(model_err))
     plt.subplot(2, 1, 1)
     plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt, label="Data") # Divide by samples and dt to scale to same size as solution pdf
-    plt.plot(model.t_domain(), sol.pdf_corr(), label="Fit")
+    plt.plot(model.t_domain(), model_corr, label="Fit")
+    print(sum(data_hist_corr/total_samples/dt)+sum(data_hist_err/total_samples/dt))
     plt.legend()
     plt.subplot(2, 1, 2)
     plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt, label="Data")
-    plt.plot(model.t_domain(), sol.pdf_err(), label="Fit")
+    plt.plot(model.t_domain(), model_err, label="Fit")
 
 def plot_compare_solutions(s1, s2):
     """Compare two model solutions to each other.

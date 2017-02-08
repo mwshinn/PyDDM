@@ -18,7 +18,7 @@ import numpy as np
 from ddm import *
 from ddm.plot import *
 
-SHOW_PLOTS = False
+SHOW_PLOTS = True
 
 if SHOW_PLOTS:
     import matplotlib.pyplot as plt
@@ -52,33 +52,33 @@ def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=
 # ============ Actual tests =================
 
 
-def test_verify_ddm_analytic_close_to_numeric_params1():
-    m = Model(dx=.005, dt=.01, T_dur=2,
-              mu=MuConstant(mu=0),
-              sigma=SigmaConstant(sigma=1),
-              bound=BoundConstant(B=1))
-    _modeltest_numerical_vs_analytical(m)
+# def test_verify_ddm_analytic_close_to_numeric_params1():
+#     m = Model(dx=.005, dt=.01, T_dur=2,
+#               mu=MuConstant(mu=0),
+#               sigma=SigmaConstant(sigma=1),
+#               bound=BoundConstant(B=1))
+#     _modeltest_numerical_vs_analytical(m)
 
-def test_verify_ddm_analytic_close_to_numeric_params2():
-    m = Model(dx=.005, dt=.01, T_dur=2,
-              mu=MuConstant(mu=1),
-              sigma=SigmaConstant(sigma=1),
-              bound=BoundConstant(B=1))
-    _modeltest_numerical_vs_analytical(m)
+# def test_verify_ddm_analytic_close_to_numeric_params2():
+#     m = Model(dx=.005, dt=.01, T_dur=2,
+#               mu=MuConstant(mu=1),
+#               sigma=SigmaConstant(sigma=1),
+#               bound=BoundConstant(B=1))
+#     _modeltest_numerical_vs_analytical(m)
 
-def test_verify_ddm_analytic_close_to_numeric_params3():
-    m = Model(dx=.001, dt=.0005, T_dur=2,
-              mu=MuConstant(mu=1),
-              sigma=SigmaConstant(sigma=.05),
-              bound=BoundConstant(B=1))
-    _modeltest_numerical_vs_analytical(m, max_diff=1)
+# def test_verify_ddm_analytic_close_to_numeric_params3():
+#     m = Model(dx=.001, dt=.0005, T_dur=2,
+#               mu=MuConstant(mu=1),
+#               sigma=SigmaConstant(sigma=.05),
+#               bound=BoundConstant(B=1))
+#     _modeltest_numerical_vs_analytical(m, max_diff=1)
 
-def test_verify_ddm_analytic_close_to_numeric_params4():
-    m = Model(dx=.005, dt=.01, T_dur=2,
-              mu=MuConstant(mu=.1),
-              sigma=SigmaConstant(sigma=1),
-              bound=BoundConstant(B=.6))
-    _modeltest_numerical_vs_analytical(m, max_diff=1)
+# def test_verify_ddm_analytic_close_to_numeric_params4():
+#     m = Model(dx=.005, dt=.01, T_dur=2,
+#               mu=MuConstant(mu=.1),
+#               sigma=SigmaConstant(sigma=1),
+#               bound=BoundConstant(B=.6))
+#     _modeltest_numerical_vs_analytical(m, max_diff=1)
 
 
 
@@ -122,44 +122,44 @@ def test_fit_constant_mu_constant_sigma():
     assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
 
 
-def test_fit_linear_mu_constant_sigma():
-    m = Model(name="DDM", dt=.01,
-              mu=MuLinear(mu=1, x=0, t=.3),
-              sigma=SigmaConstant(sigma=.3),
-              bound=BoundConstant(B=1))
-    s = m.solve()
-    sample = s.resample(10000)
-    mfit = fit_model(sample,
-                     mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=Fittable(minval=-5, maxval=5)),
-                     sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)))
-    if SHOW_PLOTS:
-        mfit.name = "Fitted solution"
-        sfit = mfit.solve()
-        plot_compare_solutions(s, sfit)
-        plt.show()
+# def test_fit_linear_mu_constant_sigma():
+#     m = Model(name="DDM", dt=.01,
+#               mu=MuLinear(mu=1, x=0, t=.3),
+#               sigma=SigmaConstant(sigma=.3),
+#               bound=BoundConstant(B=1))
+#     s = m.solve()
+#     sample = s.resample(10000)
+#     mfit = fit_model(sample,
+#                      mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=Fittable(minval=-5, maxval=5)),
+#                      sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)))
+#     if SHOW_PLOTS:
+#         mfit.name = "Fitted solution"
+#         sfit = mfit.solve()
+#         plot_compare_solutions(s, sfit)
+#         plt.show()
     
-    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
-    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
-    assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
+#     assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+#     assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
+#     assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
     
 
-def test_fit_linear_mu_linear_sigma():
-    m = Model(name="DDM", dt=.01,
-              mu=MuLinear(mu=1, x=0, t=.3),
-              sigma=SigmaLinear(sigma=.3, t=.7, x=0),
-              bound=BoundConstant(B=1))
-    s = m.solve()
-    sample = s.resample(10000)
-    mfit = fit_model(sample,
-                     mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=.3),
-                     sigma=SigmaLinear(sigma=Fittable(minval=0.01, maxval=5), t=Fittable(minval=-2, maxval=2), x=0))
-    if SHOW_PLOTS:
-        mfit.name = "Fitted solution"
-        sfit = mfit.solve()
-        plot_compare_solutions(s, sfit)
-        plt.show()
+# def test_fit_linear_mu_linear_sigma():
+#     m = Model(name="DDM", dt=.01,
+#               mu=MuLinear(mu=1, x=0, t=.3),
+#               sigma=SigmaLinear(sigma=.3, t=.7, x=0),
+#               bound=BoundConstant(B=1))
+#     s = m.solve()
+#     sample = s.resample(10000)
+#     mfit = fit_model(sample,
+#                      mu=MuLinear(mu=Fittable(minval=0.01, maxval=10), x=0, t=.3),
+#                      sigma=SigmaLinear(sigma=Fittable(minval=0.01, maxval=5), t=Fittable(minval=-2, maxval=2), x=0))
+#     if SHOW_PLOTS:
+#         mfit.name = "Fitted solution"
+#         sfit = mfit.solve()
+#         plot_compare_solutions(s, sfit)
+#         plt.show()
     
-    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
-    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
-    assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
+#     assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+#     assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
+#     assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
     

@@ -187,7 +187,7 @@ class MuConstant(Mu):
     def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj)
 
 class MuLinear(Mu):
@@ -208,7 +208,7 @@ class MuLinear(Mu):
     def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
 
 class MuSinCos(Mu):
@@ -503,6 +503,8 @@ class Model(object):
         self._task = task
         assert isinstance(IC, InitialCondition)
         self._IC = IC
+        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]
+        self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
         self.dx = dx
         self.dt = dt
         self.T_dur = T_dur
@@ -528,7 +530,7 @@ class Model(object):
     # in the same order as set_model_parameters().
     def get_model_parameters(self):
         params = []
-        for d in [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]:
+        for d in self.dependencies:
             for p in d.required_parameters:
                 params.append(getattr(d, p))
         return params
@@ -593,13 +595,13 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions))
-        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions))
+        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions), conditions=conditions)
+        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions), conditions=conditions)
         return sparse.eye(len(x)) + mu_matrix + sigma_matrix
     def flux(self, x, t, conditions={}):
         """The flux across the boundary at position `x` at time `t`."""
-        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt)
-        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt)
+        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
+        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
         return mu_flux + sigma_flux
     def bound(self, t, conditions={}):
         """The upper boundary of the simulation at time `t`."""
@@ -820,7 +822,7 @@ class Sample(object):
             assert len(v[0]) == len(self.corr)
             assert len(v[1]) == len(self.err)
             if len(v) == 3:
-                assert len(v) == non_decision
+                assert len(v[2]) == non_decision
             else:
                 assert non_decision == 0
         self.conditions = kwargs
@@ -829,12 +831,49 @@ class Sample(object):
     def __iter__(self):
         return np.concatenate([self.corr, self.err]).__iter__()
     def items(self, correct):
-        return _Sample_Iter_Wrapper(self, correct=correct)
-    def where(self, **kwargs):
+        return _Sample_Iter_Wraper(self, correct=correct)
+    def subset(self, **kwargs):
+        mask_corr = np.ones(len(self.corr)).astype(bool)
+        mask_err = np.ones(len(self.err)).astype(bool)
+        mask_non = np.ones(self.non_decision).astype(bool)
         for k,v in kwargs.items():
-            return _Sample_Iter_Wrapper(self, correct=correct)
+            if hasattr(v, '__call__'):
+                mask_corr = np.logical_and(mask_corr, map(v, self.conditions[k][0]))
+                mask_err = np.logical_and(mask_err, map(v, self.conditions[k][1]))
+                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, map(v, self.conditions[k][2]))
+            if hasattr(v, '__contains__'):
+                mask_corr = np.logical_and(mask_corr, [i in v for i in self.conditions[k][0]])
+                mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
+                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i in v for i in self.conditions[k][2]])
+            else:
+                mask_corr = np.logical_and(mask_corr, self.conditions[k][0] == v)
+                mask_err = np.logical_and(mask_err, self.conditions[k][1] == v)
+                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, self.conditions[k][2] == v)
+        filtered_conditions = {k : (list(itertools.compress(v[0], mask_corr)),
+                                    list(itertools.compress(v[1], mask_err)),
+                                    (list(itertools.compress(v[2], mask_non)) if len(v) == 3 else []))
+                               for k,v in self.conditions.items()}
+        return Sample(list(itertools.compress(self.corr, list(mask_corr))),
+                      list(itertools.compress(self.err, list(mask_err))),
+                      sum(mask_non),
+                      **filtered_conditions)
+                      
     def condition_names(self):
         return list(self.conditions.keys())
+    def condition_combinations(self, required_conditions=None):
+        cs = self.conditions
+        conditions = []
+        names = self.condition_names()
+        if required_conditions != None:
+            names = [n for n in names if n in required_conditions]
+        for c in names:
+            conditions.append(list(set(cs[c][0]).union(set(cs[c][1]))))
+        combs = []
+        for p in itertools.product(*conditions):
+            combs.append(dict(zip(names, p)))
+        if len(combs) == 0:
+            return [{}]
+        return combs
     
 
 class Solution(object):
@@ -1024,29 +1063,18 @@ class Fittable:
                 raise ValueError("Error with the maximum or minimum bounds")
 
 class LossFunction(object):
-    def __init__(self, sample, **kwargs):
+    def __init__(self, sample, required_conditions=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
+        self.required_conditions = required_conditions
         self.setup(**kwargs)
     def setup(self, **kwargs):
         pass
     def loss(self, model):
         raise NotImplementedError
-    def condition_combinations(self):
-        cs = self.sample.conditions
-        conditions = []
-        names = self.sample.condition_names()
-        for c in names:
-            conditions.append(list(set(cs[c][0]).union(set(cs[c][1]))))
-        combs = []
-        for p in itertools.product(*conditions):
-            combs.append(dict(zip(names, p)))
-        if len(combs) == 0:
-            return [{}]
-        return combs
     def cache_by_conditions(self, model):
         cache = {}
-        for c in self.condition_combinations():
+        for c in self.sample.condition_combinations(required_conditions=self.required_conditions):
             cache[frozenset(c.items())] = model.solve(conditions=c)
         return cache
 
@@ -1057,9 +1085,9 @@ class SquaredErrorLoss(LossFunction):
         self.T_dur = T_dur
         self.hists_corr = {}
         self.hists_err = {}
-        for comb in self.condition_combinations():
-            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt # dt/2 (and +1) is continuity correction
-            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample)/dt
+        for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
+            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
+            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
         self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
