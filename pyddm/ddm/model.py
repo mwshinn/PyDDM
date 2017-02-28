@@ -6,6 +6,11 @@ from scipy import sparse
 import scipy.sparse.linalg
 import itertools
 
+# TODO:
+# - Clean up mu_base to return the value of mu at time t
+# - Use mu_base as a default mu diffusion matrix implementation
+# - Fix documentation
+
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
 # `name` is the type of dependence (e.g. "linear") for methods which
@@ -107,7 +112,7 @@ class InitialCondition(Dependence):
     Dependence.)
     """
     depname = "IC"
-    def get_IC(self, x):
+    def get_IC(self, x, dx, **kwargs):
         """Get the initial conditions (a PDF) withsupport `x`.
 
         `x` is a length N ndarray representing the support of the
@@ -120,7 +125,7 @@ class ICPointSourceCenter(InitialCondition):
     """Initial condition: a dirac delta function in the center of the domain."""
     name = "point_source_center"
     required_parameters = []
-    def get_IC(self, x):
+    def get_IC(self, x, dx, **kwargs):
         pdf = np.zeros(len(x))
         pdf[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
         return pdf
@@ -130,7 +135,7 @@ class ICUniform(InitialCondition):
     """Initial condition: a uniform distribution."""
     name = "uniform"
     required_parameters = []
-    def get_IC(self, x):
+    def get_IC(self, x, dx, **kwargs):
         pdf = np.zeros(len(x))
         pdf = 1/(len(x))*np.ones((len(x)))
         return pdf
@@ -606,13 +611,13 @@ class Model(object):
     def bound(self, t, conditions={}):
         """The upper boundary of the simulation at time `t`."""
         return self._bounddep.get_bound(t, conditions=conditions)
-    def IC(self):
+    def IC(self, conditions={}):
         """The initial distribution at t=0.
 
         Returns a length N ndarray (where N is the size of x_domain())
         which should sum to 1.
         """
-        return self._IC.get_IC(self.x_domain())
+        return self._IC.get_IC(self.x_domain(), dx=self.dx, conditions=conditions)
 
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
@@ -645,7 +650,6 @@ class Model(object):
         """
 
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
-
         # The analytic_ddm function does the heavy lifting.
         if type(self._bounddep) == BoundConstant: # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(conditions=conditions),
@@ -676,7 +680,7 @@ class Model(object):
         """
 
         ### Initialization: Lists
-        pdf_curr = self.IC() # Initial condition
+        pdf_curr = self.IC(conditions=conditions) # Initial condition
         pdf_prev = np.zeros((len(pdf_curr)))
         # If pdf_corr + pdf_err + undecided probability are summed, they
         # equal 1.  So these are componets of the joint pdf.
@@ -846,9 +850,9 @@ class Sample(object):
                 mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
                 mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i in v for i in self.conditions[k][2]])
             else:
-                mask_corr = np.logical_and(mask_corr, self.conditions[k][0] == v)
-                mask_err = np.logical_and(mask_err, self.conditions[k][1] == v)
-                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, self.conditions[k][2] == v)
+                mask_corr = np.logical_and(mask_corr, [i == v for i in self.conditions[k][0]])
+                mask_err = np.logical_and(mask_err, [i == v for i in self.conditions[k][1]])
+                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i == v for i in self.conditions[k][2]])
         filtered_conditions = {k : (list(itertools.compress(v[0], mask_corr)),
                                     list(itertools.compress(v[1], mask_err)),
                                     (list(itertools.compress(v[2], mask_non)) if len(v) == 3 else []))
@@ -864,7 +868,7 @@ class Sample(object):
         cs = self.conditions
         conditions = []
         names = self.condition_names()
-        if required_conditions != None:
+        if required_conditions is not None:
             names = [n for n in names if n in required_conditions]
         for c in names:
             conditions.append(list(set(cs[c][0]).union(set(cs[c][1]))))
@@ -1078,7 +1082,7 @@ class LossFunction(object):
             cache[frozenset(c.items())] = model.solve(conditions=c)
         return cache
 
-class SquaredErrorLoss(LossFunction):
+class LossSquaredError(LossFunction):
     name = "Squared Difference"
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
@@ -1086,11 +1090,59 @@ class SquaredErrorLoss(LossFunction):
         self.hists_corr = {}
         self.hists_err = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
-            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
+            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
+            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
         self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
         this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
         return np.sum((this-self.target)**2)
+
+SquaredErrorLoss = LossSquaredError # Named this incorrectly on the first go... lecacy
+    
+class LossMLE(LossFunction):
+    name = "MLE"
+    def setup(self, dt, T_dur, **kwargs):
+        self.dt = dt
+        self.T_dur = T_dur
+        # Each element in the dict is indexed by the conditions of the
+        # model (e.g. coherence, trial conditions) as a frozenset.
+        # Each contains a tuple of lists, which are to contain the
+        # position for each within a histogram.  For instance, if a
+        # reaction time corresponds to position i, then we can index a
+        # list representing a normalized histogram/"pdf" (given by dt
+        # and T_dur) for immediate access to the probability of
+        # obtaining that value.
+        self.hist_indexes = {}
+        for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
+            s = self.sample.subset(**comb)
+            corr = [int(round(e/dt)) for e in s.corr]
+            err = [int(round(e/dt)) for e in s.err]
+            nondec = self.sample.non_decision
+            self.hist_indexes[frozenset(comb)] = (corr, err, nondec)
+    def loss(self, model):
+        assert model.dt == self.dt and model.T_dur == self.T_dur
+        sols = self.cache_by_conditions(model)
+        loglikelihood = 0
+        for k in sols.keys():
+            loglikelihood += numpy.sum(numpy.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]))
+            loglikelihood += numpy.sum(numpy.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
+            if sols[k].prob_undecided() > 0:
+                loglikelihood += numpy.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+        return -loglikelihood
+
+class LossMLEMixture(LossMLE):
+    name = "MLE with 2% uniform noise"
+    def loss(self, model):
+        assert model.dt == self.dt and model.T_dur == self.T_dur
+        sols = self.cache_by_conditions(model)
+        loglikelihood = 0
+        for k in sols.keys():
+            pdfcorr = sols[k].pdf_corr()*.98 + .01*numpy.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
+            pdferr = sols[k].pdf_err()*.98 + .01*numpy.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
+            loglikelihood += numpy.sum(numpy.log(pdfcorr[self.hist_indexes[k][0]]))
+            loglikelihood += numpy.sum(numpy.log(pdferr[self.hist_indexes[k][1]]))
+            if sols[k].prob_undecided() > 0:
+                loglikelihood += numpy.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+        return -loglikelihood

@@ -69,7 +69,7 @@ def fit_model(sample,
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               task=TaskFixedDuration(),
-              dt=dt, fitparams={},
+              dt=dt, dx=dx, fitparams={},
               method="differential_evolution",
               lossfunction=SquaredErrorLoss):
     """Fit a model to reaction time data.
@@ -130,7 +130,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, T_dur=T_dur, dt=dt))
+    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, T_dur=T_dur, dt=dt, dx=dx))
     # And now get rid of the Fittables, replacing them with the
     # default values.  Simultaneously, create a list to pass to the
     # solver.

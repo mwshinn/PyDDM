@@ -62,7 +62,7 @@ def plot_fit_diagnostics(model, sample):
     # weighted by its frequency of occuring.
     model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
     model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
-    for conds in sample.condition_combinations(required_conditions=None): # TODO make None the default in the API
+    for conds in sample.condition_combinations(): # TODO make None the default in the API
         print(conds)
         subset = sample.subset(**conds)
         sol = model.solve(conditions=conds)
