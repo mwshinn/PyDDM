@@ -1120,16 +1120,16 @@ class LossMLE(LossFunction):
             corr = [int(round(e/dt)) for e in s.corr]
             err = [int(round(e/dt)) for e in s.err]
             nondec = self.sample.non_decision
-            self.hist_indexes[frozenset(comb)] = (corr, err, nondec)
+            self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
-            loglikelihood += numpy.sum(numpy.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]))
-            loglikelihood += numpy.sum(numpy.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
+            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]))
+            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
             if sols[k].prob_undecided() > 0:
-                loglikelihood += numpy.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
 class LossMLEMixture(LossMLE):
@@ -1139,10 +1139,10 @@ class LossMLEMixture(LossMLE):
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
-            pdfcorr = sols[k].pdf_corr()*.98 + .01*numpy.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
-            pdferr = sols[k].pdf_err()*.98 + .01*numpy.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
-            loglikelihood += numpy.sum(numpy.log(pdfcorr[self.hist_indexes[k][0]]))
-            loglikelihood += numpy.sum(numpy.log(pdferr[self.hist_indexes[k][1]]))
+            pdfcorr = sols[k].pdf_corr()*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
+            pdferr = sols[k].pdf_err()*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
+            loglikelihood += np.sum(np.log(pdfcorr[self.hist_indexes[k][0]]))
+            loglikelihood += np.sum(np.log(pdferr[self.hist_indexes[k][1]]))
             if sols[k].prob_undecided() > 0:
-                loglikelihood += numpy.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
