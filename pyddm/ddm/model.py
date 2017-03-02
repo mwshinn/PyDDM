@@ -154,7 +154,7 @@ class Mu(Dependence):
     Dependence.)
     """
     depname = "Mu"
-    def get_matrix(self, x, t, adj=0, conditions={}, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.  
@@ -163,10 +163,13 @@ class Mu(Dependence):
 
         Returns a sparse numpy matrix.
         """
-        raise NotImplementedError
+        mu = self.get_mu(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
+        return sparse.diags([ 0.5*dt/dx * (mu + adj),
+                             -0.5*dt/dx * (mu + adj)],
+                            [1, -1], shape=(len(x), len(x)), format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
-    def get_flux(self, x_bound, t, adj=0, conditions={}, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The drift component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
@@ -175,11 +178,13 @@ class Mu(Dependence):
         `adj` is the optional amount by which to adjust `mu`.  This is
         most relevant for tasks which modify `mu` over time.
         """
-        raise NotImplementedError
+        return 0.5*dt/dx * np.sign(x_bound) * (self.get_mu(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs) + adj)
     def mu_base(self, conditions={}):
         """Return the value of mu at the beginning of the simulation."""
         assert "mu" in self.required_parameters, "Mu must be a required parameter"
         return self.mu
+    def get_mu(self, conditions={}, **kwargs):
+        raise NotImplementedError
 
 class MuConstant(Mu):
     """Mu dependence: drift rate is constant throughout the simulation.
@@ -189,11 +194,8 @@ class MuConstant(Mu):
     Note that this is a special case of MuLinear."""
     name = "constant"
     required_parameters = ["mu"]
-    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
-        return sparse.diags( 0.5*dt/dx * (self.mu + adj + 0*x[1:] ), 1) \
-             + sparse.diags(-0.5*dt/dx * (self.mu + adj + 0*x[:-1]),-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
-        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj)
+    def get_mu(self, **kwargs):
+        return self.mu
 
 class MuLinear(Mu):
     """Mu dependence: drift rate varies linearly with position and time.
@@ -215,6 +217,8 @@ class MuLinear(Mu):
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
+    def get_mu(self, x, t, **kwargs):
+        return self.mu + self.x*x_bound + self.t*t
 
 class MuSinCos(Mu):
     """Mu dependence: drift rate varies linearly with sin(x) and cos(t).
@@ -235,6 +239,8 @@ class MuSinCos(Mu):
              + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t)),-1)
     def get_flux(x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*np.sin(x_bound) + self.t*np.cos(t))
+    def get_mu(self, x, t, **kwargs):
+        return self.mu + self.x*np.sin(x_bound) + self.t*np.cos(t)
 
 class Sigma(Dependence):
     """Subclass this to specify how diffusion rate/noise varies with position and time.
@@ -250,7 +256,7 @@ class Sigma(Dependence):
     Dependence.)
     """
     depname = "Sigma"
-    def get_matrix(self, x, t, adj=0, conditions={}, **kwargs):
+    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.
@@ -258,8 +264,12 @@ class Sigma(Dependence):
         `adj` is the optional amount by which to adjust `sigma`.  This
         is most relevant for tasks which modify `sigma` over time.
         """
-        raise NotImplementedError
-    def get_flux(self, x_bound, t, adj=0, conditions={}, **kwargs):
+        sigma = self.get_sigma(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
+        return sparse.diags([1.0*(sigma + adj)**2 * dt/dx**2,
+                             -0.5*(sigma + adj)**2 * dt/dx**2,
+                             -0.5*(sigma + adj)**2 * dt/dx**2],
+                            [0, 1, -1], shape=(len(x), len(x)), format="csr")
+    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
@@ -268,11 +278,13 @@ class Sigma(Dependence):
         `adj` is the optional amount by which to adjust `sigma`.  This
         is most relevant for tasks which modify `sigma` over time.
         """
-        raise NotImplementedError
+        return 0.5*dt/dx**2 * (self.get_sigma(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs) + adj)**2
     def sigma_base(self, conditions={}):
         """Return the value of sigma at the beginning of the simulation."""
         assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
         return self.sigma
+    def get_sigma(self, conditions={}, **kwargs):
+        raise NotImplementedError
 
 class SigmaConstant(Sigma):
     """Simga dependence: diffusion rate/noise is constant throughout the simulation.
@@ -282,12 +294,8 @@ class SigmaConstant(Sigma):
     Note that this is a special case of SigmaLinear."""
     name = "constant"
     required_parameters = ["sigma"]
-    def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
-        return sparse.diags(1.0*(self.sigma + adj + 0*x)**2     * dt/dx**2, 0) \
-             - sparse.diags(0.5*(self.sigma + adj + 0*x[1:])**2 * dt/dx**2, 1) \
-             - sparse.diags(0.5*(self.sigma + adj+ 0*x[:-1])**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
-        return 0.5*dt/dx**2 * (self.sigma + adj)**2
+    def get_sigma(self, **kwargs):
+        return self.sigma
 
 class SigmaLinear(Sigma):
     """Sigma dependence: diffusion rate varies linearly with position and time.
@@ -311,6 +319,8 @@ class SigmaLinear(Sigma):
         if fluxadj < 0:
             return 0
         return 0.5*dt/dx**2 * fluxadj**2
+    def get_sigma(self, x, t, **kwargs):
+        return self.sigma + self.x*x + self.t*t
 
 class SigmaSinCos(Sigma):
     """Sigma dependence: diffusion rate varies linearly with sin(x) and cos(t).
@@ -332,6 +342,8 @@ class SigmaSinCos(Sigma):
              - sparse.diags(0.5*(self.sigma + adj + self.x*np.sin(x[:-1]) + self.t*np.cos(t))**2 * dt/dx**2,-1)
     def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         return 0.5*dt/dx**2 * (self.sigma + self.x*np.sin(x_bound) + self.t*np.cos(t))**2
+    def get_sigma(self, x, t, **kwargs):
+        return self.sigma + self.x*np.sin(x) + self.t*np.cos(t)
 
 class Bound(Dependence):
     """Subclass this to specify how bounds vary with time.
@@ -602,7 +614,7 @@ class Model(object):
         """
         mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions), conditions=conditions)
         sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions), conditions=conditions)
-        return sparse.eye(len(x)) + mu_matrix + sigma_matrix
+        return sparse.eye(len(x), format="csr") + mu_matrix + sigma_matrix
     def flux(self, x, t, conditions={}):
         """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
@@ -1139,8 +1151,12 @@ class LossMLEMixture(LossMLE):
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
-            pdfcorr = sols[k].pdf_corr()*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
-            pdferr = sols[k].pdf_err()*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
+            solpdfcorr = sols[k].pdf_corr()
+            solpdfcorr[solpdfcorr<0] = 0 # Numerical errors cause this to be negative sometimes
+            solpdferr = sols[k].pdf_err()
+            solpdferr[solpdferr<0] = 0 # Numerical errors cause this to be negative sometimes
+            pdfcorr = solpdfcorr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
+            pdferr = solpdferr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
             loglikelihood += np.sum(np.log(pdfcorr[self.hist_indexes[k][0]]))
             loglikelihood += np.sum(np.log(pdferr[self.hist_indexes[k][1]]))
             if sols[k].prob_undecided() > 0:

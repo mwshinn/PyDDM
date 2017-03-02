@@ -52,33 +52,33 @@ def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=
 # ============ Actual tests =================
 
 
-# def test_verify_ddm_analytic_close_to_numeric_params1():
-#     m = Model(dx=.005, dt=.01, T_dur=2,
-#               mu=MuConstant(mu=0),
-#               sigma=SigmaConstant(sigma=1),
-#               bound=BoundConstant(B=1))
-#     _modeltest_numerical_vs_analytical(m)
+def test_verify_ddm_analytic_close_to_numeric_params1():
+    m = Model(dx=.005, dt=.01, T_dur=2,
+              mu=MuConstant(mu=0),
+              sigma=SigmaConstant(sigma=1),
+              bound=BoundConstant(B=1))
+    _modeltest_numerical_vs_analytical(m)
 
-# def test_verify_ddm_analytic_close_to_numeric_params2():
-#     m = Model(dx=.005, dt=.01, T_dur=2,
-#               mu=MuConstant(mu=1),
-#               sigma=SigmaConstant(sigma=1),
-#               bound=BoundConstant(B=1))
-#     _modeltest_numerical_vs_analytical(m)
+def test_verify_ddm_analytic_close_to_numeric_params2():
+    m = Model(dx=.005, dt=.01, T_dur=2,
+              mu=MuConstant(mu=1),
+              sigma=SigmaConstant(sigma=1),
+              bound=BoundConstant(B=1))
+    _modeltest_numerical_vs_analytical(m)
 
-# def test_verify_ddm_analytic_close_to_numeric_params3():
-#     m = Model(dx=.001, dt=.0005, T_dur=2,
-#               mu=MuConstant(mu=1),
-#               sigma=SigmaConstant(sigma=.05),
-#               bound=BoundConstant(B=1))
-#     _modeltest_numerical_vs_analytical(m, max_diff=1)
+def test_verify_ddm_analytic_close_to_numeric_params3():
+    m = Model(dx=.001, dt=.0005, T_dur=2,
+              mu=MuConstant(mu=1),
+              sigma=SigmaConstant(sigma=.05),
+              bound=BoundConstant(B=1))
+    _modeltest_numerical_vs_analytical(m, max_diff=1)
 
-# def test_verify_ddm_analytic_close_to_numeric_params4():
-#     m = Model(dx=.005, dt=.01, T_dur=2,
-#               mu=MuConstant(mu=.1),
-#               sigma=SigmaConstant(sigma=1),
-#               bound=BoundConstant(B=.6))
-#     _modeltest_numerical_vs_analytical(m, max_diff=1)
+def test_verify_ddm_analytic_close_to_numeric_params4():
+    m = Model(dx=.005, dt=.01, T_dur=2,
+              mu=MuConstant(mu=.1),
+              sigma=SigmaConstant(sigma=1),
+              bound=BoundConstant(B=.6))
+    _modeltest_numerical_vs_analytical(m, max_diff=1)
 
 
 
