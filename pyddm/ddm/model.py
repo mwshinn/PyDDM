@@ -7,8 +7,6 @@ import scipy.sparse.linalg
 import itertools
 
 # TODO:
-# - Clean up mu_base to return the value of mu at time t
-# - Use mu_base as a default mu diffusion matrix implementation
 # - Fix documentation
 
 # This describes how a variable is dependent on other variables.
@@ -179,11 +177,7 @@ class Mu(Dependence):
         most relevant for tasks which modify `mu` over time.
         """
         return 0.5*dt/dx * np.sign(x_bound) * (self.get_mu(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs) + adj)
-    def mu_base(self, conditions={}):
-        """Return the value of mu at the beginning of the simulation."""
-        assert "mu" in self.required_parameters, "Mu must be a required parameter"
-        return self.mu
-    def get_mu(self, conditions={}, **kwargs):
+    def get_mu(self, t, conditions={}, **kwargs):
         raise NotImplementedError
 
 class MuConstant(Mu):
@@ -581,12 +575,12 @@ class Model(object):
     def bound_base(self, conditions={}):
         """The boundary at the beginning of the simulation."""
         return self._bounddep.B_base(conditions=conditions)
-    def mu_base(self, conditions={}):
+    def get_mu(self, t, conditions={}):
         """The drift rate at the beginning of the simulation."""
-        return self._mudep.mu_base(conditions=conditions)
-    def sigma_base(self, conditions={}):
+        return self._mudep.get_mu(t=t, conditions=conditions)
+    def get_sigma(self, t, conditions={}):
         """The noise at the beginning of the simulation."""
-        return self._sigmadep.sigma_base(conditions=conditions)
+        return self._sigmadep.get_sigma(t=t, conditions=conditions)
     def x_domain(self):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         B = self.bound_base()
@@ -596,12 +590,10 @@ class Model(object):
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
     def mu_task_adj(self, t, conditions={}):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_mu(self.mu_base(conditions=conditions), t, conditions=conditions)
+        return self._task.adjust_mu(self.get_mu(t=t, conditions=conditions), t, conditions=conditions)
     def sigma_task_adj(self, t, conditions={}):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_sigma(self.sigma_base(conditions=conditions), t, conditions=conditions)
-    # TODO: This, as well as mu_matrix and sigma_matrix, are
-    # bottlenecks.  Maybe we could cache or pre-allocate memory?
+        return self._task.adjust_sigma(self.get_sigma(t=t, conditions=conditions), t, conditions=conditions)
     def diffusion_matrix(self, x, t, conditions={}):
         """The matrix for the implicit method of solving the diffusion equation.
 
@@ -664,12 +656,12 @@ class Model(object):
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
         # The analytic_ddm function does the heavy lifting.
         if type(self._bounddep) == BoundConstant: # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(conditions=conditions),
-                                                       self.sigma_base(conditions=conditions),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_mu(t=0, conditions=conditions),
+                                                       self.get_sigma(t=0, conditions=conditions),
                                                        self.bound_base(conditions=conditions), self.t_domain())
         elif type(self._bounddep) == BoundCollapsingLinear: # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.mu_base(conditions=conditions),
-                                                       self.sigma_base(conditions=conditions),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_mu(t=0, conditions=conditions),
+                                                       self.get_sigma(t=0, conditions=conditions),
                                                        self.bound_base(conditions=conditions),
                                                        self.t_domain(), -self._bounddep.t) # TODO why must this be negative? -MS
 
