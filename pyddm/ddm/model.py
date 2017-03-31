@@ -8,6 +8,7 @@ import itertools
 
 # TODO:
 # - Fix documentation
+# - new dependence type: overlay
 
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
@@ -400,10 +401,32 @@ class BoundCollapsingExponential(Bound):
         return (self.B + adj) * np.exp(-self.tau*t)
     
 class Task(Dependence):
+    """Subclass this to describe how experimental conditions change.
+
+    Task objects sit on top of the rest of the simulation, and allow
+    changing the mu or sigma of the simulation at any time for any
+    reason.
+    """
     depname = "Task"
     def adjust_mu(self, mu, t, conditions={}):
+        """Change mu during the simulation.
+
+        `mu` is the current value of mu at that timepoint in the
+        simulation before any changes.  `t` is the time, and
+        `conditions` are the conditions of the simulation.  This
+        describes the adjustment that should be applied to mu.  So to
+        set mu to zero, this should return -`mu`.
+        """
         return 0
     def adjust_sigma(self, sigma, t, conditions={}):
+        """Change sigma during the simulation.
+
+        `sigma` is the current value of sigma at that timepoint in the
+        simulation before any changes.  `t` is the time, and
+        `conditions` are the conditions of the simulation.  This
+        describes the adjustment that should be applied to sigma.  So
+        to set sigma to zero, this should return -`sigma`.
+        """
         return 0
 
 class TaskFixedDuration(Task):
@@ -537,25 +560,34 @@ class Model(object):
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
-    # Get an ordered list of all model parameters.  Guaranteed to be
-    # in the same order as set_model_parameters().
     def get_model_parameters(self):
+    """Get an ordered list of all model parameters.
+    
+    Returns a list of each model parameter which can be varied during
+    a fitting procedure.  The ordering is arbitrary but is guaranteed
+    to be in the same order as set_model_parameters().
+    """
         params = []
         for d in self.dependencies:
             for p in d.required_parameters:
                 params.append(getattr(d, p))
         return params
-    # Accepts a list of parameters in the same order as
-    # get_model_parameters.
     def set_model_parameters(self, params):
+        """Set the parameters of the model from an ordered list.
+
+        Takes as an argument a list of parameters in the same order as
+        those from get_model_parameters().  Sets the associated
+        parameters.
+        """
         assert len(params) == len(self.get_model_parameters()), "Invalid params"
         i = 0
-        for d in [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]:
+        for d in self.dependencies:
             for p in d.required_parameters:
                 setattr(d, p, params[i])
                 i += 1
 
     def get_dependence(self, name):
+        """Return the dependence object given by the string `name`."""
         if name.lower() in ["mu", "mudep", "_mudep"]:
             return self._mudep
         elif name.lower() in ["sigma", "sigmadep", "_sigmadep"]:
@@ -735,7 +767,6 @@ class Model(object):
                 if x_index_inner == x_index_outer:
                     pdf_inner = copy.copy(pdf_outer)
                 else:
-                    # TODO this solve call is a bottleneck... can it be optimized?
                     pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
                 # Pdfs out of bound is consideered decisions made.
@@ -776,6 +807,16 @@ class Model(object):
         return Solution(pdf_corr, pdf_err, self, conditions=conditions)
 
 class _Sample_Iter_Wraper(object):
+    """Provide an iterator for sample objects.
+
+    `sample_obj` is the Sample which we plan to iterate.  `correct`
+    should be either True (to iterate through correct responses) or
+    False (to iterate through error responses).
+
+    Each step of the iteration returns a two-tuple, where the first
+    element is the reaction time, and the second element is a
+    dictionary of conditions.
+    """
     def __init__(self, sample_obj, correct=None):
         self.sample = sample_obj
         self.i = 0
@@ -816,7 +857,16 @@ class Sample(object):
 
     Optionally, additional data can be associated with each
     independent data point.  These should be passed as keyword
-    arguments, where the keyword name is the propertyp and the
+    arguments, where the keyword name is the property and the value is
+    a tuple.  The tuple should have either two or three elements: the
+    first two should be lists of properties for the correct and error
+    reaction times, where the properties correspond to reaction times
+    in the correct or error lists.  Optionally, a third list of length
+    equal to the number of non-decision trials gives a list of
+    conditions for these trials.  If multiple properties are passed as
+    keyword arguments, the ordering of the non-decision time
+    properties (in addition to those of the correct and error
+    distributions) will correspond to one another.
     """
     def __init__(self, sample_corr, sample_err, non_decision=0, **kwargs):
         self.corr = sample_corr
@@ -835,12 +885,38 @@ class Sample(object):
                 assert non_decision == 0
         self.conditions = kwargs
     def __len__(self):
+        """The number of samples"""
         return len(self.corr) + len(self.err) + self.non_decision
     def __iter__(self):
+        """Iterate through each reaction time, with no regard to whether it was a correct or error trial."""
         return np.concatenate([self.corr, self.err]).__iter__()
     def items(self, correct):
+        """Iterate through the reaction times.
+
+        This takes only one argument: a boolean `correct`, true if we
+        want to iterate through the correct trials, and false if we
+        want to iterate through the error trials.  
+
+        For each iteration, a two-tuple is returned.  The first
+        element is the reaction time, the second is a dictionary
+        containing the conditions associated with that reaction time.
+        """
         return _Sample_Iter_Wraper(self, correct=correct)
     def subset(self, **kwargs):
+        """Subset the data by filtering based on specified properties.
+
+        Each keyword argument should be the name of a property.  These
+        keyword arguments may have one of three values:
+
+        - A list: For each element in the returned subset, the
+          specified property is in this list of values.
+        - A function: For each element in the returned subset, the
+          specified property causes the function to evaluate to True.
+        - Anything else: Each element in the returned subset must have
+          this value for the specified property.
+
+        Return a sample object representing the filtered sample.
+        """
         mask_corr = np.ones(len(self.corr)).astype(bool)
         mask_err = np.ones(len(self.err)).astype(bool)
         mask_non = np.ones(self.non_decision).astype(bool)
@@ -867,8 +943,20 @@ class Sample(object):
                       **filtered_conditions)
                       
     def condition_names(self):
+        """The names of conditions which hold some non-zero value in this sample."""
         return list(self.conditions.keys())
     def condition_combinations(self, required_conditions=None):
+        """Get all values for set conditions and return every combination of them.
+
+        Since PDFs of solved models in general depend on all of the
+        conditions, this returns a list of dictionaries.  The keys of
+        each dictionary are the names of conditions, and the value is
+        a particular value held by at least one element in the sample.
+        Each list contains all possible combinations of condition values.
+
+        If `required_conditions` is iterable, only the conditions with
+        names found within `required_conditions` will be included.
+        """
         cs = self.conditions
         conditions = []
         names = self.condition_names()
@@ -1071,16 +1159,58 @@ class Fittable:
                 raise ValueError("Error with the maximum or minimum bounds")
 
 class LossFunction(object):
+    """An abstract class for a function to assess goodness of fit.
+
+    This is an abstract class for describing how well data fits a model.
+
+    When subclasses are initialized, they will be initialized with the
+    Sample object to which the model should be fit.  Because the data
+    will not change but the model will change, this is specified with
+    initialization.  
+
+    The optional `required_conditions` argument limits the
+    stratification of `sample` by conditions to only the conditions
+    mentioned in `required_conditions`.  This decreases computation
+    time by only solving the model for the condition names listed in
+    `required_conditions`.  For example, a simple DDM with no drift
+    and constant variaince would mean `required_conditions` is an
+    empty list.
+    """
     def __init__(self, sample, required_conditions=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
         self.required_conditions = required_conditions
         self.setup(**kwargs)
     def setup(self, **kwargs):
+        """Initialize the loss function.
+
+        The optional `setup` function is executed at the end of the
+        initializaiton.  It is executed only once at the beginning of
+        the fitting procedure.
+        """
         pass
     def loss(self, model):
+        """Compute the value of the loss function for the given model.
+
+        `model` should be a Model object.  This should return a
+        floating point value, where smaller values mean a better fit
+        of the model to the data.
+        """
         raise NotImplementedError
     def cache_by_conditions(self, model):
+        """Solve the model for all relevant conditions.
+
+        If `required_conditions` isn't None, solve `model` for each
+        combination of conditions found within the dataset.  For
+        example, if `required_conditions` is ["hand", "color"], and
+        hand can be left or right and color can be blue or green,
+        solves the model for: hand=left and color=blue; hand=right and
+        color=blue; hand=left and color=green, hand=right and
+        color=green.
+
+        If `required_conditions` is None, use all of the conditions
+        found within the sample.
+        """
         cache = {}
         for c in self.sample.condition_combinations(required_conditions=self.required_conditions):
             cache[frozenset(c.items())] = model.solve(conditions=c)
@@ -1154,3 +1284,4 @@ class LossMLEMixture(LossMLE):
             if sols[k].prob_undecided() > 0:
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
+
