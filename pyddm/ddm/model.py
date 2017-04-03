@@ -512,20 +512,18 @@ class OverlayNone(Overlay):
 
 # NOTE: This class is likely to break if any changes are made to the
 # Dependence constructor.  In theory, no changes should be made to the
-# Dependence constructor though...
+# Dependence constructor, but just in case...
 class OverlayChain(Overlay):
     name = "Chain overlay"
     required_parameters = ["overlays"]
     def __init__(self, **kwargs):
         Overlay.__init__(self, **kwargs)
-        self.required_parameters = []
-        self.required_conditions = []
+        object.__setattr__(self, "required_parameters", [])
+        object.__setattr__(self, "required_conditions", [])
         for o in self.overlays:
             self.required_parameters.extend(o.required_parameters)
             self.required_conditions.extend(o.required_conditions)
     def __setattr__(self, name, value):
-        if name in ["required_parameters", "required_conditions"]:
-            return object.__setattr__(self, name, value)
         if "required_parameters" in self.__dict__:
             if name in self.required_parameters:
                 for o in self.overlays:
@@ -1323,8 +1321,8 @@ class LossSquaredError(LossFunction):
 
 SquaredErrorLoss = LossSquaredError # Named this incorrectly on the first go... lecacy
     
-class LossMLE(LossFunction):
-    name = "MLE"
+class LossLikelihood(LossFunction):
+    name = "Likelihood"
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -1354,8 +1352,8 @@ class LossMLE(LossFunction):
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
-class LossMLEMixture(LossMLE):
-    name = "MLE with 2% uniform noise"
+class LossLikelihoodMixture(LossLikelihood):
+    name = "Likelihood with 2% uniform noise"
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
@@ -1373,3 +1371,5 @@ class LossMLEMixture(LossMLE):
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
+LossMLE = LossLikelihood # Better naming... legacy
+LossMLEMixture = LossLikelihoodMixture
