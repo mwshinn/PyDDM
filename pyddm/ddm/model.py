@@ -481,6 +481,88 @@ class TaskIndependentDelays(Task):
             return 0
     
 
+class Overlay(Dependence):
+    """Subclasses can modify distributions after they have been generated.
+
+    This abstract class provides the methods which define how a
+    distribution should be modified after solving the model, for
+    example for a mixture model.  To subclass it, implement apply.
+
+    Also, since it inherits from Dependence, subclasses must also
+    assign a `name` and `required_parameters` (see documentation for
+    Dependence.)
+    """
+    depname = "Overlay"
+    def apply(self, solution):
+        """Apply the overlay to a solution.
+
+        `solution` should be a Solution object.  Return a new solution
+        object.
+        """
+        raise NotImplementedError
+
+    def get_solution_components(self, solution):
+        return (solution._pdf_corr, solution._pdf_err, solution.model, solution.conditions)
+
+class OverlayNone(Overlay):
+    name = "None"
+    required_parameters = []
+    def apply(self, solution):
+        return solution
+
+# NOTE: This class is likely to break if any changes are made to the
+# Dependence constructor.  In theory, no changes should be made to the
+# Dependence constructor though...
+class OverlayChain(Overlay):
+    name = "Chain overlay"
+    required_parameters = ["overlays"]
+    def __init__(self, **kwargs):
+        Overlay.__init__(self, **kwargs)
+        self.required_parameters = []
+        self.required_conditions = []
+        for o in self.overlays:
+            self.required_parameters.extend(o.required_parameters)
+            self.required_conditions.extend(o.required_conditions)
+    def __setattr__(self, name, value):
+        if name in ["required_parameters", "required_conditions"]:
+            return object.__setattr__(self, name, value)
+        if "required_parameters" in self.__dict__:
+            if name in self.required_parameters:
+                for o in self.overlays:
+                    if name in o.required_parameters:
+                        return setattr(o, name, value)
+        return Overlay.__setattr__(self, name, value)
+    def __getattr__(self, name):
+        if name in self.required_parameters:
+            for o in self.overlays:
+                if name in o.required_parameters:
+                    return getattr(o, name)
+        else:
+            return Overlay.__getattribute__(self, name)
+    def __repr__(self):
+        overlayreprs = list(map(repr, self.overlays))
+        return "OverlayChain(overlays=[" + ", ".join(overlayreprs) + "])"
+    def apply(self, solution):
+        newsol = solution
+        for o in self.overlays:
+            newsol = o.apply(newsol)
+        return newsol
+
+class OverlayUniformMixture(Overlay):
+    name = "Uniform distribution mixture model"
+    required_parameters = ["mixturecoef"]
+    def apply(self, solution):
+        assert self.mixturecoef >= 0 and self.mixturecoef <= 1
+        corr, err, m, cond = self.get_solution_components(solution)
+        # These aren't real pdfs since they don't sum to 1, they sum
+        # to 1/self.model.dt.  We can't just sum the correct and error
+        # distributions to find this number because that would exclude
+        # the non-decision trials.
+        pdfsum = 1/m.dt
+        corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
+        err = err*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur
+        return Solution(corr, err, m, cond)
+
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
     """A full simulation of a single DDM-style model.
@@ -501,7 +583,8 @@ class Model(object):
                  sigma=SigmaConstant(sigma=1),
                  bound=BoundConstant(B=1),
                  IC=ICPointSourceCenter(),
-                 task=TaskFixedDuration(), name="",
+                 task=TaskFixedDuration(),
+                 overlay=OverlayNone(), name="",
                  dx=param.dx, dt=param.dt, T_dur=param.T_dur):
         """Construct a Model object from the 5 key components.
 
@@ -537,7 +620,9 @@ class Model(object):
         self._task = task
         assert isinstance(IC, InitialCondition)
         self._IC = IC
-        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]
+        assert isinstance(overlay, Overlay)
+        self._overlay = overlay
+        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC, self._overlay]
         self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
         self.dx = dx
         self.dt = dt
@@ -548,7 +633,8 @@ class Model(object):
         allobjects = [("name", self.name), ("mu", self._mudep),
                       ("sigma", self._sigmadep), ("bound", self._bounddep),
                       ("task", self._task), ("IC", self._IC),
-                      ("dx", self.dx), ("dt", self.dt), ("T_dur", self.T_dur)]
+                      ("overlay", self._overlay), ("dx", self.dx),
+                      ("dt", self.dt), ("T_dur", self.T_dur)]
         params = ""
         for n,o in allobjects:
             params += n + "=" + o.__repr__()
@@ -561,12 +647,12 @@ class Model(object):
     def __str__(self):
         return self.__repr__(pretty=True)
     def get_model_parameters(self):
-    """Get an ordered list of all model parameters.
-    
-    Returns a list of each model parameter which can be varied during
-    a fitting procedure.  The ordering is arbitrary but is guaranteed
-    to be in the same order as set_model_parameters().
-    """
+        """Get an ordered list of all model parameters.
+        
+        Returns a list of each model parameter which can be varied during
+        a fitting procedure.  The ordering is arbitrary but is guaranteed
+        to be in the same order as set_model_parameters().
+        """
         params = []
         for d in self.dependencies:
             for p in d.required_parameters:
@@ -598,12 +684,14 @@ class Model(object):
             return self._IC
         elif name.lower() in ["task", "_task"]:
             return self._task
+        elif name.lower() in ["overlay", "_overlay"]:
+            return self._overlay
         raise NameError("Invalid dependence name")
 
     def get_model_type(self):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
-        return dict(map(tt, [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC]))
+        return dict(map(tt, self.dependencies))
     def bound_base(self, conditions={}):
         """The boundary at the beginning of the simulation."""
         return self._bounddep.B_base(conditions=conditions)
@@ -702,7 +790,7 @@ class Model(object):
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
-        return Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self)
+        return self._overlay.apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
     def solve_numerical(self, conditions={}):
         """Solve the DDM model numerically.
@@ -804,7 +892,7 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        return Solution(pdf_corr, pdf_err, self, conditions=conditions)
+        return self._overlay.apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
 class _Sample_Iter_Wraper(object):
     """Provide an iterator for sample objects.
