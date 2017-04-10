@@ -163,3 +163,81 @@ def test_fit_constant_mu_constant_sigma():
 #     assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
 #     assert abs(m._mudep.t - mfit._mudep.t) < 0.1 * m._mudep.t
     
+# ============ Testing specific features =================
+
+# Make sure we can fit different parameters in the same (or a
+# different) model using a single Fittable object
+class SigmaDouble(ddm.Sigma):
+    name = "time-varying sigma"
+    required_parameters = ["sigma1", "sigma2"]
+    def get_sigma(self, t, conditions, **kwargs):
+        if numpy.random.rand() > .5:
+            return self.sigma1
+        else:
+            return self.sigma2
+
+class SigmaConstantButNot(ddm.Sigma):
+    name = "almost sigma constant"
+    required_parameters = ["sigma"]
+    def get_sigma(self, t, conditions, **kwargs):
+        return self.sigma
+
+def test_shared_parameter_fitting_samemodel():
+    # Generate data
+    m = Model(name="DDM", 
+              mu=MuConstant(mu=1),
+              sigma=SigmaConstant(sigma=1.7))
+    s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
+    sample = s.resample(10000)
+    mone = fit_model(sample, mu=MuConstant(mu=1),
+                     sigma=SigmaConstantButNot(sigma=Fittable(minval=.5, maxval=3)))
+    sigs = Fittable(minval=.5, maxval=3)
+    msam = fit_model(sample, mu=MuConstant(mu=1), 
+                     sigma=SigmaDouble(sigma1=sigs,
+                                       sigma2=sigs))
+    print(msam._sigmadep)
+    print(mone._sigmadep)
+    assert msam._sigmadep.sigma1 == msam._sigmadep.sigma2, "Fitting to be the same failed"
+    assert abs(msam._sigmadep.sigma1 - mone._sigmadep.sigma) < 0.1 * mone._sigmadep.sigma
+
+
+class MuPowerTime(ddm.Mu):
+    name = "mu power with time"
+    required_parameters = ["mu", "power"]
+    def get_mu(self, t, conditions, **kwargs):
+        return t**self.power * self.mu
+
+class SigmaPowerTime(ddm.Sigma):
+    name = "sigma power with time"
+    required_parameters = ["sigma", "power"]
+    def get_sigma(self, t, conditions, **kwargs):
+        return t**self.power * self.sigma
+
+def test_shared_parameter_fitting_diffmodel():
+    # Generate data
+    m = Model(name="DDM", 
+              mu=MuPowerTime(mu=1, power=1.3),
+              sigma=SigmaPowerTime(sigma=1, power=1.3))
+    s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
+    sample = s.resample(10000)
+    powers = Fittable(minval=1, maxval=2)
+    msam = fit_model(sample, mu=MuPowerTime(mu=1, power=powers), 
+                     sigma=SigmaPowerTime(sigma=1, power=powers))
+    print(msam)
+    assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
+    assert abs(msam._sigmadep.power - m._sigmadep.power) < 0.1 * m._sigmadep.power
+
+def test_shared_parameter_fitting_diffmodel_thirdvar():
+    # Generate data
+    m = Model(name="DDM", 
+              mu=MuPowerTime(mu=1.1, power=1.3),
+              sigma=SigmaPowerTime(sigma=1, power=1.3))
+    s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
+    sample = s.resample(10000)
+    powers = Fittable(minval=1, maxval=2)
+    msam = fit_model(sample, mu=MuPowerTime(mu=Fittable(minval=.5, maxval=2), power=powers), 
+                     sigma=SigmaPowerTime(sigma=1, power=powers))
+    print(msam)
+    assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
+    assert abs(msam._sigmadep.power - m._sigmadep.power) < 0.1 * m._sigmadep.power
+    assert abs(msam._mudep.mu - m._mudep.mu) < 0.1 * m._mudep.mu

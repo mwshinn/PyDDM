@@ -71,6 +71,7 @@ def fit_model(sample,
               task=TaskFixedDuration(),
               dt=dt, dx=dx, fitparams={},
               method="differential_evolution",
+              overlay=OverlayNone(),
               lossfunction=SquaredErrorLoss):
     """Fit a model to reaction time data.
     
@@ -97,14 +98,20 @@ def fit_model(sample,
     `fitparams` is a dictionary of kwargs to be passed directly to the
     minimization routine for fine-grained low-level control over the
     optimization.  Normally this should not be needed.  
+
+    `lossfunction` is a subclass of LossFunction representing the
+    method to use when calculating the goodness-of-fit.  Pass the
+    subclass itself, NOT an instance of the subclass.
     
     Returns a "Model()" object with the specified `mu`, `sigma`,
     `bound`, `IC`, and `task`.
     """
     
     # Loop through the different components of the model and get the
-    # parameters that are fittable.  
-    components_list = [mu, sigma, bound, IC, task]
+    # parameters that are fittable.  Save the "Fittable" objects in
+    # "params".  Create a list of functions to set the value of these
+    # parameters, named "setters".
+    components_list = [mu, sigma, bound, IC, task, overlay]
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
@@ -112,7 +119,7 @@ def fit_model(sample,
         for param_name in component.required_parameters:
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fittable):
-                params.append(getattr(component, param_name))
+                param = pv
                 # Create a function which sets each parameter in the
                 # list to some value `a` for model `x`.  Note the
                 # default arguments to the lambda function are
@@ -120,7 +127,20 @@ def fit_model(sample,
                 # these variables would be interpreted in the local
                 # scope, so they would be equal to the last value
                 # encountered in the loop.
-                setters.append(lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a))
+                setter = lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a)
+                # If we have the same Fittable object in two different
+                # components inside the model, we only want the Fittable
+                # object in the list "params" once, but we want the setter
+                # to update both.
+                if param in params:
+                    pind = params.index(param)
+                    oldsetter = setters[pind]
+                    newsetter = lambda x,a : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    setters[pind] = newsetter
+                else: # This setter is unique (so far)
+                    params.append(param)
+                    setters.append(setter)
+                
     # Use the reaction time data (a list of reaction times) to
     # construct a reaction time distribution.  
     T_dur = np.ceil(max(sample)/dt)*dt
@@ -130,7 +150,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
     # And now get rid of the Fittables, replacing them with the
     # default values.  Simultaneously, create a list to pass to the
     # solver.

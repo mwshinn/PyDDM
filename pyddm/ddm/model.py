@@ -7,8 +7,7 @@ import scipy.sparse.linalg
 import itertools
 
 # TODO:
-# - Fix documentation
-# - new dependence type: overlay
+# - Ensure that OverlayChain doesn't have two parameters with the same name
 
 # This describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
