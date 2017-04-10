@@ -135,7 +135,7 @@ def fit_model(sample,
                 if param in params:
                     pind = params.index(param)
                     oldsetter = setters[pind]
-                    newsetter = lambda x,a : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
                     setters[pind] = newsetter
                 else: # This setter is unique (so far)
                     params.append(param)
