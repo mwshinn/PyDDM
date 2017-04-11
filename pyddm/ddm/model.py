@@ -1260,11 +1260,18 @@ class LossFunction(object):
     `required_conditions`.  For example, a simple DDM with no drift
     and constant variaince would mean `required_conditions` is an
     empty list.
+
+    If `pool` is None, then solve normally.  If `pool` is a Pool
+    object from pathos.multiprocessing, then parallelize the loop.
+    Note that `pool` must be pathos.multiprocessing.Pool, not
+    multiprocessing.Pool, since the latter does not support pickling
+    functions, whereas the former does.
     """
-    def __init__(self, sample, required_conditions=None, **kwargs):
+    def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
         self.required_conditions = required_conditions
+        self.pool = pool
         self.setup(**kwargs)
     def setup(self, **kwargs):
         """Initialize the loss function.
@@ -1280,6 +1287,7 @@ class LossFunction(object):
         `model` should be a Model object.  This should return a
         floating point value, where smaller values mean a better fit
         of the model to the data.
+
         """
         raise NotImplementedError
     def cache_by_conditions(self, model):
@@ -1297,10 +1305,17 @@ class LossFunction(object):
         found within the sample.
         """
         cache = {}
-        for c in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            cache[frozenset(c.items())] = model.solve(conditions=c)
-        return cache
-
+        conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
+        if self.pool == None: # No parallelization
+            for c in conditions:
+                cache[frozenset(c.items())] = model.solve(conditions=c)
+            return cache
+        else: # Parallelize across Pool
+            sols = self.pool.map(lambda x : model.solve(conditions=x), conditions)
+            for c,s in zip(conditions,sols):
+                cache[frozenset(c.items())] = s
+            return cache
+                
 class LossSquaredError(LossFunction):
     name = "Squared Difference"
     def setup(self, dt, T_dur, **kwargs):

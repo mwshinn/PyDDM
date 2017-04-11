@@ -72,7 +72,8 @@ def fit_model(sample,
               dt=dt, dx=dx, fitparams={},
               method="differential_evolution",
               overlay=OverlayNone(),
-              lossfunction=SquaredErrorLoss):
+              lossfunction=SquaredErrorLoss,
+              pool=None):
     """Fit a model to reaction time data.
     
     The data `sample` should be a Sample object of the reaction times
@@ -103,6 +104,12 @@ def fit_model(sample,
     method to use when calculating the goodness-of-fit.  Pass the
     subclass itself, NOT an instance of the subclass.
     
+    If `pool` is None, then solve normally.  If `pool` is a Pool
+    object from pathos.multiprocessing, then parallelize the loss
+    function.  Note that `pool` must be pathos.multiprocessing.Pool,
+    not multiprocessing.Pool, since the latter does not support
+    pickling functions, whereas the former does.
+
     Returns a "Model()" object with the specified `mu`, `sigma`,
     `bound`, `IC`, and `task`.
     """
@@ -164,21 +171,24 @@ def fit_model(sample,
         constraints.append((minval, maxval))
         x_0.append(default)
     # Set up a loss function
-    lf = lossfunction(sample, required_conditions=required_conditions, T_dur=T_dur, dt=dt)
+    lf = lossfunction(sample, required_conditions=required_conditions, pool=pool, T_dur=T_dur, dt=dt)
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
     def _fit_model(xs):
-        print(xs)
         for x,s in zip(xs, setters):
             s(m, x)
         #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
-        return lf.loss(m)
+        lossf = lf.loss(m)
+        print(xs, "loss="+str(lossf))
+        return lossf
     # Run the solver
     print(x_0)
     if method == "simple":
         x_fit = minimize(_fit_model, x_0, bounds=constraints)
         assert x_fit.success == True, "Fit failed: %s" % x_fit.message
+    elif method == "simplex":
+        x_fit = minimize(_fit_model, x_0, method='Nelder-Mead')
     elif method == "basin":
         x_fit = basinhopping(_fit_model, x_0, minimizer_kwargs={"bounds" : constraints, "method" : "TNC"}, disp=True, **fitparams)
     elif method == "differential_evolution":
