@@ -1366,6 +1366,16 @@ class LossLikelihood(LossFunction):
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
+class LossBIC(LossLikelihood):
+    name = "Use BIC loss function, functionally equivalent to LossLikelihood"
+    def setup(self, nparams, samplesize, **kwargs):
+        self.nparams = nparams
+        self.samplesize = samplesize
+        LossLikelihood.setup(self, **kwargs)
+    def loss(self, model):
+        loglikelihood = -LossLikelihood.loss(self, model)
+        return np.log(self.samplesize)*self.nparams - 2*loglikelihood
+
 class LossLikelihoodMixture(LossLikelihood):
     name = "Likelihood with 2% uniform noise"
     def loss(self, model):

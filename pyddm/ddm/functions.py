@@ -72,7 +72,7 @@ def fit_model(sample,
               dt=dt, dx=dx, fitparams={},
               method="differential_evolution",
               overlay=OverlayNone(),
-              lossfunction=SquaredErrorLoss,
+              lossfunction=LossLikelihood,
               pool=None):
     """Fit a model to reaction time data.
     
@@ -171,7 +171,9 @@ def fit_model(sample,
         constraints.append((minval, maxval))
         x_0.append(default)
     # Set up a loss function
-    lf = lossfunction(sample, required_conditions=required_conditions, pool=pool, T_dur=T_dur, dt=dt)
+    lf = lossfunction(sample, required_conditions=required_conditions,
+                      pool=pool, T_dur=T_dur, dt=dt,
+                      nparams=len(params), samplesize=len(sample))
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
@@ -195,9 +197,8 @@ def fit_model(sample,
         x_fit = differential_evolution(_fit_model, constraints, disp=True, **fitparams)
     else:
         raise NotImplementedError("Invalid method")
+    m._fitfunval = x_fit.fun # Save the value of the objective function
     print("Params", x_fit.x, "gave", x_fit.fun)
-    m._fitfunval = x_fit.fun
     for x,s in zip(x_fit.x, setters):
         s(m, x)
     return m
-    

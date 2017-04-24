@@ -15,6 +15,8 @@
 #   getting into a local maximum, but I have not investigated further.
 
 import numpy as np
+import numpy
+import ddm
 from ddm import *
 from ddm.plot import *
 
