@@ -298,3 +298,28 @@ def test_parameter_sensitivity_poisson():
     _verify_param_match("mu", "mu", m, f)
     _verify_param_match("overlay", "mixturecoef", m, f)
     _verify_param_match("overlay", "rate", m, f)
+
+
+# In the following tests, we set mu to be high enough such that as
+# little fraction as possible goes past T-dur, i.e. then we get fewer
+# undecided trials, which bring the probability down from 1.
+
+def test_overlay_uniform_distribution_integrates_to_1():
+    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(mixturecoef=.2))
+    s = m.solve_numerical()
+    distsum = s.prob_correct() + s.prob_error()
+    assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
+
+def test_overlay_poisson_distribution_integrates_to_1():
+    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayPoissonMixture(mixturecoef=.2, rate=2))
+    s = m.solve_numerical()
+    distsum = s.prob_correct() + s.prob_error()
+    assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
+
+def test_overlay_chain_distribution_integrates_to_1():
+    m = Model(name="Overlay_test", mu=MuConstant(mu=2),
+              overlay=OverlayChain(overlays=[OverlayPoissonMixture(mixturecoef=.2, rate=2),
+                                             OverlayUniformMixture(mixturecoef=.2)]))
+    s = m.solve_numerical()
+    distsum = s.prob_correct() + s.prob_error()
+    assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
