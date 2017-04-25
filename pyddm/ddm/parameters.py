@@ -8,6 +8,6 @@ from __future__ import print_function, unicode_literals, absolute_import, divisi
 # code on a per-model basis.
 
 # Parameters.
-dx = .05#0.008 # grid size
+dx = .005#0.008 # grid size
 T_dur = 2. # [s] Duration of simulation
-dt = .003#0.005 # [s] Time-step.
+dt = .002#0.005 # [s] Time-step.

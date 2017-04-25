@@ -20,7 +20,7 @@ import ddm
 from ddm import *
 from ddm.plot import *
 
-SHOW_PLOTS = True
+SHOW_PLOTS = False
 
 if SHOW_PLOTS:
     import matplotlib.pyplot as plt
@@ -48,8 +48,10 @@ def _modeltest_numerical_vs_analytical(m, max_diff=.1, mean_diff=.05, prob_diff=
     assert abs(a.prob_undecided() - n.prob_undecided()) < prob_diff, "Undecided probability was too different"
 
 
-
-
+def _verify_param_match(dependence, parameter, m1, m2, tol=.1):
+    p1 = getattr(m1.get_dependence(dependence), parameter)
+    p2 = getattr(m2.get_dependence(dependence), parameter)
+    assert abs(p1 - p2) < 0.1 * p1, "%s param from %s dependence doesn't match: %.4f != %.4f" % (parameter, dependence, p1, p2)
 
 # ============ Actual tests =================
 
@@ -101,12 +103,12 @@ def test_fit_simple_ddm():
         plot_compare_solutions(s, sfit)
         plt.show()
 
-    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
+    _verify_param_match("mu", "mu", m, mfit)
 
 def test_fit_constant_mu_constant_sigma():
-    m = Model(name="DDM", dt=.01,
-              mu=MuConstant(mu=.1),
-              sigma=SigmaConstant(sigma=1.1),
+    m = Model(name="DDM",
+              mu=MuConstant(mu=1.1),
+              sigma=SigmaConstant(sigma=.3),
               bound=BoundConstant(B=1))
     s = m.solve()
     sample = s.resample(10000)
@@ -119,9 +121,9 @@ def test_fit_constant_mu_constant_sigma():
         sfit = mfit.solve()
         plot_compare_solutions(s, sfit)
         plt.show()
-
-    assert abs(m._mudep.mu - mfit._mudep.mu) < 0.1 * m._mudep.mu
-    assert abs(m._sigmadep.sigma - mfit._sigmadep.sigma) < 0.1 * m._sigmadep.sigma
+    
+    _verify_param_match("mu", "mu", mfit, m)
+    _verify_param_match("sigma", "sigma", m, mfit)
 
 
 # def test_fit_linear_mu_constant_sigma():
@@ -186,7 +188,7 @@ class SigmaConstantButNot(ddm.Sigma):
 
 def test_shared_parameter_fitting_samemodel():
     # Generate data
-    m = Model(name="DDM", 
+    m = Model(name="DDM",
               mu=MuConstant(mu=1),
               sigma=SigmaConstant(sigma=1.7))
     s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
@@ -194,7 +196,7 @@ def test_shared_parameter_fitting_samemodel():
     mone = fit_model(sample, mu=MuConstant(mu=1),
                      sigma=SigmaConstantButNot(sigma=Fittable(minval=.5, maxval=3)))
     sigs = Fittable(minval=.5, maxval=3)
-    msam = fit_model(sample, mu=MuConstant(mu=1), 
+    msam = fit_model(sample, mu=MuConstant(mu=1),
                      sigma=SigmaDouble(sigma1=sigs,
                                        sigma2=sigs))
     print(msam._sigmadep)
@@ -227,7 +229,7 @@ def test_shared_parameter_fitting_diffmodel():
                      sigma=SigmaPowerTime(sigma=1, power=powers))
     print(msam)
     assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
-    assert abs(msam._sigmadep.power - m._sigmadep.power) < 0.1 * m._sigmadep.power
+    _verify_param_match("sigma", "power", m, msam)
 
 def test_shared_parameter_fitting_diffmodel_thirdvar():
     # Generate data
@@ -241,5 +243,58 @@ def test_shared_parameter_fitting_diffmodel_thirdvar():
                      sigma=SigmaPowerTime(sigma=1, power=powers))
     print(msam)
     assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
-    assert abs(msam._sigmadep.power - m._sigmadep.power) < 0.1 * m._sigmadep.power
-    assert abs(msam._mudep.mu - m._mudep.mu) < 0.1 * m._mudep.mu
+    _verify_param_match("sigma", "power", msam, m)
+    _verify_param_match("mu", "mu", m, msam)
+
+# Test the overlays
+
+def test_poisson_overlay():
+    m = Model(name="Poisson_test", mu=MuConstant(mu=1),
+              overlay=OverlayPoissonMixture(mixturecoef=.1, rate=.3), dt=.004)
+    s = m.solve_numerical()
+    sample = s.resample(10000)
+    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
+                  overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.2),
+                                                rate=Fittable(minval=.1, maxval=1)))
+    plot.plot_compare_solutions(s, f.solve_numerical())
+    print(f)
+    _verify_param_match("mu", "mu", m, f)
+    _verify_param_match("overlay", "mixturecoef", m, f)
+    _verify_param_match("overlay", "rate", m, f)
+
+def test_no_overlay():
+    m = Model(name="Overlay", mu=MuConstant(mu=2), overlay=OverlayNone())
+    s = m.solve_numerical()
+    sample = s.resample(10000)
+    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)))
+    plot.plot_compare_solutions(s, f.solve_numerical())
+    print(f)
+    _verify_param_match("mu", "mu", m, f)
+
+def test_uniform_overlay():
+    m = Model(name="Overlay", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(mixturecoef=.1))
+    s = m.solve_numerical()
+    sample = s.resample(10000)
+    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
+                  overlay=OverlayUniformMixture(mixturecoef=Fittable(minval=.001, maxval=.5)))
+    plot.plot_compare_solutions(s, f.solve_numerical())
+    print(f)
+    _verify_param_match("mu", "mu", m, f)
+    _verify_param_match("overlay", "mixturecoef", m, f)
+
+# See how sensitive a fitting method is to a single outlier.  Here, we
+# add one outlier to the error trials near the end of the time window.
+def test_parameter_sensitivity_poisson():
+    m = Model(name="Poisson_test", mu=MuConstant(mu=4), sigma=SigmaConstant(sigma=.5),
+              overlay=OverlayPoissonMixture(mixturecoef=.2, rate=.2), dt=.001, dx=.001)
+    s = m.solve_numerical()
+    sample = s.resample(10000)
+    sample.err[0] = 1.9
+    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=6)), sigma=SigmaConstant(sigma=.5),
+                  overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.5),
+                                                rate=Fittable(minval=.1, maxval=10)), lossfunction=LossBIC, dt=.001, dx=.001)
+    plot.plot_compare_solutions(s, f.solve_numerical())
+    print(f)
+    _verify_param_match("mu", "mu", m, f)
+    _verify_param_match("overlay", "mixturecoef", m, f)
+    _verify_param_match("overlay", "rate", m, f)

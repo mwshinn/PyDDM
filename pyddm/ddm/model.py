@@ -558,6 +558,32 @@ class OverlayUniformMixture(Overlay):
         pdfsum = 1/m.dt
         corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
         err = err*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur
+        corr[0] = 0
+        err[0] = 0
+        return Solution(corr, err, m, cond)
+
+class OverlayPoissonMixture(Overlay):
+    name = "Poisson distribution mixture model (lapse rate)"
+    required_parameters = ["mixturecoef", "rate"]
+    def apply(self, solution):
+        assert self.mixturecoef >= 0 and self.mixturecoef <= 1
+        corr, err, m, cond = self.get_solution_components(solution)
+        # These aren't real pdfs since they don't sum to 1, they sum
+        # to 1/self.model.dt.  We can't just sum the correct and error
+        # distributions to find this number because that would exclude
+        # the non-decision trials.
+        pdfsum = 1/m.dt
+        # Pr = lambda ru, rr, P, t : (rr*P)/((rr+ru))*(1-numpy.exp(-1*(rr+ru)*t))
+        # P0 = lambda ru, rr, P, t : P*numpy.exp(-(rr+ru)*t) # Nondecision
+        # Pr' = lambda ru, rr, P, t : (rr*P)*numpy.exp(-1*(rr+ru)*t)
+        # lapses_cdf = lambda t : 1-np.exp(-(2*self.rate)*t)
+        lapses = lambda t : 2*self.rate*np.exp(-2*self.rate*t) if t != 0 else 0
+        X = [i*m.dt for i in range(0, len(corr))]
+        Y = np.asarray(list(map(lapses, X)))*m.dt
+        corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef*Y # Assume numpy ndarrays, not lists
+        err = err*(1-self.mixturecoef) + .5*self.mixturecoef*Y
+        #print(corr)
+        #print(err)
         return Solution(corr, err, m, cond)
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
@@ -1334,7 +1360,7 @@ class LossSquaredError(LossFunction):
         return np.sum((this-self.target)**2)
 
 SquaredErrorLoss = LossSquaredError # Named this incorrectly on the first go... lecacy
-    
+
 class LossLikelihood(LossFunction):
     name = "Likelihood"
     def setup(self, dt, T_dur, **kwargs):
@@ -1351,8 +1377,14 @@ class LossLikelihood(LossFunction):
         self.hist_indexes = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
-            corr = [int(round(e/dt)) for e in s.corr]
-            err = [int(round(e/dt)) for e in s.err]
+            # Find the integers which correspond to the timepoints in
+            # the pdfs.  Exclude all data points where this index
+            # rounds to 0 because this is always 0 in the pdf (no
+            # diffusion has happened yet) and you can't take the log
+            # of 0.  Also don't group them into the first bin because
+            # this creates bias.
+            corr = [int(round(e/dt)) for e in s.corr if int(round(e/dt)) > 0]
+            err = [int(round(e/dt)) for e in s.err if int(round(e/dt)) > 0]
             nondec = self.sample.non_decision
             self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
     def loss(self, model):
