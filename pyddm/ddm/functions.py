@@ -73,7 +73,8 @@ def fit_model(sample,
               method="differential_evolution",
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
-              pool=None):
+              pool=None,
+              name="fit_model"):
     """Fit a model to reaction time data.
     
     The data `sample` should be a Sample object of the reaction times
@@ -109,6 +110,8 @@ def fit_model(sample,
     function.  Note that `pool` must be pathos.multiprocessing.Pool,
     not multiprocessing.Pool, since the latter does not support
     pickling functions, whereas the former does.
+
+    `name` gives the name of the model after it is fit.
 
     Returns a "Model()" object with the specified `mu`, `sigma`,
     `bound`, `IC`, and `task`.
@@ -157,7 +160,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
     # And now get rid of the Fittables, replacing them with the
     # default values.  Simultaneously, create a list to pass to the
     # solver.
