@@ -1,5 +1,8 @@
 from .model import *
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.widgets import Slider, Button, RadioButtons
+from .parameters import *
 
 def plot_solution_pdf(sol, ax=None, correct=True):
     """Plot the PDF of the solution.
@@ -91,3 +94,154 @@ def plot_compare_solutions(s1, s2):
     plt.subplot(2, 1, 2)
     plot_solution_pdf(s1, correct=False)
     plot_solution_pdf(s2, correct=False)
+
+# TODO this is very messy and needs some serious cleanup
+def play_with_model(sample=None,
+                    show_loss=False,
+                    synchronous=False,
+                    conditions={},
+                    mu=MuConstant(mu=0),
+                    sigma=SigmaConstant(sigma=1),
+                    bound=BoundConstant(B=1),
+                    IC=ICPointSourceCenter(),
+                    task=TaskFixedDuration(),
+                    dt=dt, dx=dx, fitparams={},
+                    method="differential_evolution",
+                    overlay=OverlayNone(),
+                    lossfunction=LossLikelihood,
+                    pool=None,
+                    name="fit_model"):
+    """Mess around with model parameters visually.
+
+    This allows you to see how a model would be affected by various
+    changes in parameter values.  Its arguments are exactly the same
+    as `fit_model`, with a few exceptions:
+
+    First, the sample is optional.  If provided, it will be displayed
+    in the background.
+
+    Second, if a sample is given, the parameter `show_loss` will show
+    the value of the loss function when plotting.  Note that this is
+    very slow because it resolves the model.
+
+    Third, `synchronous` specifies whether the user is required to
+    push the `update` button after making changes to the model.
+
+    Finally, perhaps most importantly, `conditions` specifies the
+    conditions to use for this model.  You can't (currently) toggle
+    between conditions, so it is necessary to specify them beforehand.
+
+    Most of this code is taken from `fit_model`.
+    """
+    # Loop through the different components of the model and get the
+    # parameters that are fittable.  Save the "Fittable" objects in
+    # "params".  Create a list of functions to set the value of these
+    # parameters, named "setters".
+    components_list = [mu, sigma, bound, IC, task, overlay]
+    required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+    params = [] # A list of all of the Fittables that were passed.
+    setters = [] # A list of functions which set the value of the corresponding parameter in `params`
+    paramnames = [] # The names of the parameters
+    for component in components_list:
+        for param_name in component.required_parameters:
+            pv = getattr(component, param_name) # Parameter value in the object
+            if isinstance(pv, Fittable):
+                param = pv
+                # Create a function which sets each parameter in the
+                # list to some value `a` for model `x`.  Note the
+                # default arguments to the lambda function are
+                # necessary here to preserve scope.  Without them,
+                # these variables would be interpreted in the local
+                # scope, so they would be equal to the last value
+                # encountered in the loop.
+                setter = lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a)
+                # If we have the same Fittable object in two different
+                # components inside the model, we only want the Fittable
+                # object in the list "params" once, but we want the setter
+                # to update both.
+                if param in params:
+                    pind = params.index(param)
+                    oldsetter = setters[pind]
+                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    setters[pind] = newsetter
+                    paramnames[pind] += "/"+param_name
+                else: # This setter is unique (so far)
+                    params.append(param)
+                    setters.append(setter)
+                    paramnames.append(param_name)
+                
+    # Use the reaction time data (a list of reaction times) to
+    # construct a reaction time distribution.
+    if sample:
+        T_dur = np.ceil(max(sample)/dt)*dt
+    else:
+        T_dur = 2
+    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
+    # For optimization purposes, create a base model, and then use
+    # that base model in the optimization routine.  First, set up the
+    # model with all of the Fittables inside.  Deep copy on the entire
+    # model is a shortcut for deep copying each individual component
+    # of the model.
+    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(right=.75)
+
+    #s = m.solve()
+    use_correct = True
+    if sample:
+        lf = lossfunction(sample, required_conditions=required_conditions,
+                          pool=pool, T_dur=T_dur, dt=dt,
+                          nparams=len(params), samplesize=len(sample))
+        sample_cond = sample.subset(**conditions)
+        data_hist = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        total_samples = len(sample)
+        histl, = plt.plot(m.t_domain(), np.asarray(data_hist)/total_samples/dt, label="Data", alpha=.5)
+    l, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
+    plt.axis([0, m.T_dur, 0, 10])
+    pt = fig.suptitle("")
+
+    height = .7/(len(setters)+3)
+    if height > .2:
+        height = .2
+
+    rax = plt.axes([0.025, 0.5, 0.15, 0.15])
+    radio_corr = RadioButtons(rax, ('Correct', 'Error'), active=0)
+
+    axupdate = plt.axes([0.8, 1-1/(len(setters)+3), 0.15, height])
+    button = Button(axupdate, 'Update', hovercolor='0.975')
+    def update(event):
+        s = m.solve()
+        if show_loss and sample:
+            pt.set_text("loss="+str(lf.loss(m)))
+        if radio_corr.value_selected == "Correct":
+            l.set_ydata(s.pdf_corr())
+            histl.set_ydata(np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+        else:
+            l.set_ydata(s.pdf_err())
+            histl.set_ydata(np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+        fig.canvas.draw_idle()
+    button.on_clicked(update)
+    radio_corr.on_clicked(update)
+
+    
+    # And now get rid of the Fittables, replacing them with the
+    # default values.  
+    x_0 = []
+    constraints = [] # List of (min, max) tuples.  min/max=None if no constraint.
+    axes = [] # We don't need the axes or widgets variables, but if we don't save them garbage collection screws things up
+    widgets = []
+    for p,s,i,name in zip(params, setters, range(0, len(setters)), paramnames):
+        default = p.default()
+        s(m, default)
+        minval = p.minval if p.minval > -np.inf else None
+        maxval = p.maxval if p.maxval < np.inf else None
+        constraints.append((minval, maxval))
+        x_0.append(default)
+        ypos = 1-(i+2)/(len(setters)+3)
+        axes.append(plt.axes([0.8, ypos, 0.15, height]))
+        widgets.append(Slider(axes[-1], name, p.minval, p.maxval, valinit=p.default()))
+        widgets[-1].on_changed(lambda val, s=s, m=m : [s(m, val), update(None) if synchronous else None])
+
+    update(None)
+    plt.show()
