@@ -129,26 +129,38 @@ def fit_model(sample,
         for param_name in component.required_parameters:
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fittable):
-                param = pv
                 # Create a function which sets each parameter in the
                 # list to some value `a` for model `x`.  Note the
-                # default arguments to the lambda function are
-                # necessary here to preserve scope.  Without them,
-                # these variables would be interpreted in the local
-                # scope, so they would be equal to the last value
-                # encountered in the loop.
-                setter = lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a)
+                # default arguments to the function are necessary here
+                # to preserve scope.  Without them, these variables
+                # would be interpreted in the local scope, so they
+                # would be equal to the last value encountered in the
+                # loop.
+                def setter(x,a,pv=pv,component=component,param_name=param_name):
+                    if not isinstance(a, Fittable):
+                        a = pv.make_fitted(a)
+                    setattr(x.get_dependence(component.depname), param_name, a)
+                    # Return the fitted instance so we can chain it.
+                    # This way, if the same Fittable object is passed,
+                    # the same Fitted object will be in both places in
+                    # the solution.
+                    return a 
+                
                 # If we have the same Fittable object in two different
                 # components inside the model, we only want the Fittable
                 # object in the list "params" once, but we want the setter
                 # to update both.
-                if param in params:
-                    pind = params.index(param)
+                if id(pv) in map(id, params):
+                    pind = list(map(id, params)).index(id(pv))
                     oldsetter = setters[pind]
-                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    # This is a hack way of executing two functions in
+                    # a single function call while passing forward the
+                    # same argument object (not just the same argument
+                    # value)
+                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : oldsetter(x,setter(x,a)) 
                     setters[pind] = newsetter
                 else: # This setter is unique (so far)
-                    params.append(param)
+                    params.append(pv)
                     setters.append(setter)
                 
     # Use the reaction time data (a list of reaction times) to

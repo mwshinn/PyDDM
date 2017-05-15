@@ -180,7 +180,7 @@ class SigmaDouble(ddm.Sigma):
         else:
             return self.sigma2
 
-class SigmaConstantButNot(ddm.Sigma):
+class SigmaConstantButNot(ddm.Sigma): # To avoid the numerical simulations
     name = "almost sigma constant"
     required_parameters = ["sigma"]
     def get_sigma(self, t, conditions, **kwargs):

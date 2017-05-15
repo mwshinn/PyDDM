@@ -1225,7 +1225,7 @@ class Solution(object):
         conditions = {k : ([v]*len(corr_sample), [v]*len(err_sample), [v]*non_decision) for k,v in self.conditions.items()}
         return Sample(corr_sample, err_sample, non_decision, **conditions)
 
-class Fittable:
+class Fittable(float):
     """For parameters that should be adjusted when fitting a model to data.
         
     Each Fittable object does not need any parameters, however several
@@ -1234,19 +1234,35 @@ class Fittable:
     invalid parameter value.  `default` is the value to start with
     when fitting; if it is not given, it will be selected at random.
     """
-    def __init__(self, minval=-np.inf, maxval=np.inf, default=None):
-        self.minval = minval
-        self.maxval = maxval
-        self.default_value = default
+    def __new__(cls, val=np.nan, **kwargs):
+        if not np.isnan(val):
+            print(val)
+            raise ValueError("No positional arguments for Fittables")
+        return float.__new__(cls, np.nan)
+    def __init__(self, **kwargs):
+        minval = kwargs['minval'] if "minval" in kwargs else -np.inf
+        maxval = kwargs['maxval'] if "maxval" in kwargs else np.inf
+        default_value = kwargs['default'] if 'default' in kwargs else None
+        object.__setattr__(self, 'minval', minval)
+        object.__setattr__(self, 'maxval', maxval)
+        object.__setattr__(self, 'default_value', default_value)
+    def __setattr__(self, name, val):
+        """No changing the state."""
+        raise AttributeError
+    def __delattr__(self, name):
+        """No deletions of existing parameters."""
+        raise AttributeError
     def __repr__(self):
-        reprstr = "Fittable("
+        components = []
+        if not np.isnan(self):
+            components.append(str(float(self)))
         if self.minval != -np.inf:
-            reprstr += "minval=" + self.minval.__repr__() + ", "
+            components.append("minval=" + self.minval.__repr__())
         if self.maxval != np.inf:
-            reprstr += "maxval=" + self.maxval.__repr__() + ", "
-        reprstr += "default=" + self.default_value.__repr__()
-        reprstr += ")"
-        return reprstr
+            components.append("maxval=" + self.maxval.__repr__())
+        if self.default_value is not None:
+            components.append("default=" + self.default_value.__repr__())
+        return type(self).__name__ + "(" + ", ".join(components) + ")"
     def default(self):
         """Choose a default value.
 
@@ -1268,6 +1284,16 @@ class Fittable:
                 return np.random.standard_cauchy()
             else:
                 raise ValueError("Error with the maximum or minimum bounds")
+    def make_fitted(self, val):
+        return Fitted(float(val), maxval=self.maxval, minval=self.minval)
+
+class Fitted(Fittable):
+    def __new__(cls, val, **kwargs):
+        return float.__new__(cls, val)
+    def __init__(self, val, **kwargs):
+        Fittable.__init__(self, **kwargs)
+    def default(self):
+        return float(self)
 
 class LossFunction(object):
     """An abstract class for a function to assess goodness of fit.
