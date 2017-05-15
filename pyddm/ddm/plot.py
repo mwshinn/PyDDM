@@ -97,8 +97,9 @@ def plot_compare_solutions(s1, s2):
 
 # TODO this is very messy and needs some serious cleanup
 def play_with_model(sample=None,
-                    show_loss=False,
+                    show_loss=None,
                     synchronous=False,
+                    default_model=None,
                     conditions={},
                     mu=MuConstant(mu=0),
                     sigma=SigmaConstant(sigma=1),
@@ -106,9 +107,7 @@ def play_with_model(sample=None,
                     IC=ICPointSourceCenter(),
                     task=TaskFixedDuration(),
                     dt=dt, dx=dx, fitparams={},
-                    method="differential_evolution",
                     overlay=OverlayNone(),
-                    lossfunction=LossLikelihood,
                     pool=None,
                     name="fit_model"):
     """Mess around with model parameters visually.
@@ -120,9 +119,10 @@ def play_with_model(sample=None,
     First, the sample is optional.  If provided, it will be displayed
     in the background.
 
-    Second, if a sample is given, the parameter `show_loss` will show
-    the value of the loss function when plotting.  Note that this is
-    very slow because it resolves the model.
+    Second, if a sample is given, and if `show_loss` is set to a Loss
+    object, the plot will show the value of the loss function when
+    plotting.  Note that this is very slow because it resolves the
+    model.
 
     Third, `synchronous` specifies whether the user is required to
     push the `update` button after making changes to the model.
@@ -141,6 +141,7 @@ def play_with_model(sample=None,
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
+    getters = [] # A list of functions which get the value of the corresponding parameter in `params`
     paramnames = [] # The names of the parameters
     for component in components_list:
         for param_name in component.required_parameters:
@@ -155,6 +156,7 @@ def play_with_model(sample=None,
                 # scope, so they would be equal to the last value
                 # encountered in the loop.
                 setter = lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a)
+                getter = lambda x,component=component,param_name=param_name : getattr(x.get_dependence(component.depname), param_name)
                 # If we have the same Fittable object in two different
                 # components inside the model, we only want the Fittable
                 # object in the list "params" once, but we want the setter
@@ -164,10 +166,14 @@ def play_with_model(sample=None,
                     oldsetter = setters[pind]
                     newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
                     setters[pind] = newsetter
+                    oldgetter = getters[pind]
+                    newgetter = lambda x,a,getter=getter,oldgetter=oldgetter : [getter(x,a), oldgetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    getters[pind] = newgetter
                     paramnames[pind] += "/"+param_name
                 else: # This setter is unique (so far)
                     params.append(param)
                     setters.append(setter)
+                    getters.append(getter)
                     paramnames.append(param_name)
                 
     # Use the reaction time data (a list of reaction times) to
@@ -190,15 +196,16 @@ def play_with_model(sample=None,
     #s = m.solve()
     use_correct = True
     if sample:
-        lf = lossfunction(sample, required_conditions=required_conditions,
-                          pool=pool, T_dur=T_dur, dt=dt,
-                          nparams=len(params), samplesize=len(sample))
+        if show_loss:
+            lf = show_loss(sample, required_conditions=required_conditions,
+                              pool=pool, T_dur=T_dur, dt=dt,
+                              nparams=len(params), samplesize=len(sample))
         sample_cond = sample.subset(**conditions)
-        data_hist = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-        total_samples = len(sample)
+        data_hist = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        total_samples = len(sample_cond)
         histl, = plt.plot(m.t_domain(), np.asarray(data_hist)/total_samples/dt, label="Data", alpha=.5)
     l, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
-    plt.axis([0, m.T_dur, 0, 10])
+    plt.axis([0, m.T_dur, 0, None])
     pt = fig.suptitle("")
 
     height = .7/(len(setters)+3)
@@ -211,15 +218,16 @@ def play_with_model(sample=None,
     axupdate = plt.axes([0.8, 1-1/(len(setters)+3), 0.15, height])
     button = Button(axupdate, 'Update', hovercolor='0.975')
     def update(event):
-        s = m.solve()
+        s = m.solve(conditions=conditions)
         if show_loss and sample:
+            print("Computing loss")
             pt.set_text("loss="+str(lf.loss(m)))
         if radio_corr.value_selected == "Correct":
             l.set_ydata(s.pdf_corr())
-            histl.set_ydata(np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+            histl.set_ydata(np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
         else:
             l.set_ydata(s.pdf_err())
-            histl.set_ydata(np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+            histl.set_ydata(np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
         fig.canvas.draw_idle()
     button.on_clicked(update)
     radio_corr.on_clicked(update)
@@ -231,8 +239,13 @@ def play_with_model(sample=None,
     constraints = [] # List of (min, max) tuples.  min/max=None if no constraint.
     axes = [] # We don't need the axes or widgets variables, but if we don't save them garbage collection screws things up
     widgets = []
-    for p,s,i,name in zip(params, setters, range(0, len(setters)), paramnames):
-        default = p.default()
+    for p,s,g,i,name in zip(params, setters, getters, range(0, len(setters)), paramnames):
+        print("Setting default")
+        if default_model:
+            default = g(default_model)
+        else:
+            default = p.default()
+        print("Set default")
         s(m, default)
         minval = p.minval if p.minval > -np.inf else None
         maxval = p.maxval if p.maxval < np.inf else None
@@ -240,8 +253,9 @@ def play_with_model(sample=None,
         x_0.append(default)
         ypos = 1-(i+2)/(len(setters)+3)
         axes.append(plt.axes([0.8, ypos, 0.15, height]))
-        widgets.append(Slider(axes[-1], name, p.minval, p.maxval, valinit=p.default()))
+        widgets.append(Slider(axes[-1], name, p.minval, p.maxval, valinit=default))
         widgets[-1].on_changed(lambda val, s=s, m=m : [s(m, val), update(None) if synchronous else None])
 
     update(None)
     plt.show()
+    return m
