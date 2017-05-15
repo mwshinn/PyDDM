@@ -117,11 +117,31 @@ def fit_model(sample,
     `bound`, `IC`, and `task`.
     """
     
+    # Use the reaction time data (a list of reaction times) to
+    # construct a reaction time distribution.  
+    T_dur = np.ceil(max(sample)/dt)*dt
+    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
+    # For optimization purposes, create a base model, and then use
+    # that base model in the optimization routine.  First, set up the
+    # model with all of the Fittables inside.  Deep copy on the entire
+    # model is a shortcut for deep copying each individual component
+    # of the model.
+    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
+
+
+def fit_adjust_model(sample, m, fitparams={}, method="differential_evolution",
+                     lossfunction=LossLikelihood, pool=None):
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
     # parameters, named "setters".
-    components_list = [mu, sigma, bound, IC, task, overlay]
+    components_list = [m.get_dependence("mu"),
+                       m.get_dependence("sigma"),
+                       m.get_dependence("bound"),
+                       m.get_dependence("IC"),
+                       m.get_dependence("task"),
+                       m.get_dependence("overlay")]
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
@@ -163,16 +183,6 @@ def fit_model(sample,
                     params.append(pv)
                     setters.append(setter)
                 
-    # Use the reaction time data (a list of reaction times) to
-    # construct a reaction time distribution.  
-    T_dur = np.ceil(max(sample)/dt)*dt
-    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    # For optimization purposes, create a base model, and then use
-    # that base model in the optimization routine.  First, set up the
-    # model with all of the Fittables inside.  Deep copy on the entire
-    # model is a shortcut for deep copying each individual component
-    # of the model.
-    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
     # And now get rid of the Fittables, replacing them with the
     # default values.  Simultaneously, create a list to pass to the
     # solver.
@@ -187,7 +197,7 @@ def fit_model(sample,
         x_0.append(default)
     # Set up a loss function
     lf = lossfunction(sample, required_conditions=required_conditions,
-                      pool=pool, T_dur=T_dur, dt=dt,
+                      pool=pool, T_dur=m.T_dur, dt=m.dt,
                       nparams=len(params), samplesize=len(sample))
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
