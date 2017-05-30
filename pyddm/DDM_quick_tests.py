@@ -319,7 +319,7 @@ def test_overlay_poisson_distribution_integrates_to_1():
 def test_overlay_chain_distribution_integrates_to_1():
     m = Model(name="Overlay_test", mu=MuConstant(mu=2),
               overlay=OverlayChain(overlays=[OverlayPoissonMixture(mixturecoef=.2, rate=2),
-                                             OverlayUniformMixture(mixturecoef=.2)]))
+                                             OverlayUniformMixture(umixturecoef=.2)]))
     s = m.solve_numerical()
     distsum = s.prob_correct() + s.prob_error()
     assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"

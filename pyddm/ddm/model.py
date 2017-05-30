@@ -522,6 +522,8 @@ class OverlayChain(Overlay):
         for o in self.overlays:
             self.required_parameters.extend(o.required_parameters)
             self.required_conditions.extend(o.required_conditions)
+        assert len(self.required_parameters) == len(set(self.required_parameters)), "Two overlays in chain cannot have the same parameter names"
+        object.__setattr__(self, "required_conditions", list(set(self.required_conditions))) # Avoid duplicates
     def __setattr__(self, name, value):
         if "required_parameters" in self.__dict__:
             if name in self.required_parameters:
@@ -547,17 +549,17 @@ class OverlayChain(Overlay):
 
 class OverlayUniformMixture(Overlay):
     name = "Uniform distribution mixture model"
-    required_parameters = ["mixturecoef"]
+    required_parameters = ["umixturecoef"]
     def apply(self, solution):
-        assert self.mixturecoef >= 0 and self.mixturecoef <= 1
+        assert self.umixturecoef >= 0 and self.umixturecoef <= 1
         corr, err, m, cond = self.get_solution_components(solution)
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
         # distributions to find this number because that would exclude
         # the non-decision trials.
         pdfsum = 1/m.dt
-        corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
-        err = err*(1-self.mixturecoef) + .5*self.mixturecoef/pdfsum/m.T_dur
+        corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
+        err = err*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur
         corr[0] = 0
         err[0] = 0
         return Solution(corr, err, m, cond)
@@ -1288,6 +1290,12 @@ class Fittable(float):
         return Fitted(float(val), maxval=self.maxval, minval=self.minval)
 
 class Fitted(Fittable):
+    """Parameters which used to be Fittable but now hold a value.
+
+    This extends float so that the parameters for the Fittable can be
+    saved in the final model, even though there are no more Fittable
+    objects in the final model.
+    """
     def __new__(cls, val, **kwargs):
         return float.__new__(cls, val)
     def __init__(self, val, **kwargs):

@@ -30,39 +30,6 @@ def models_close(m1, m2, tol=.1):
             return False
     return True
 
-def fit_model_stable(sample,
-                     mu=MuConstant(mu=0),
-                     sigma=SigmaConstant(sigma=1),
-                     bound=BoundConstant(B=1),
-                     IC=ICPointSourceCenter(),
-                     task=TaskFixedDuration(),
-                     dt=dt):
-    """A more stable version of fit_model.
-
-    The purpose of this function is to avoid local minima when fitting
-    models.  This calls `fit_model` multiple times, saving the best
-    model.  Once a second model is found which matches the best model,
-    it returns this model.
-
-    For documentation of the parameters, see "fit_model".
-    """
-
-    models = []
-    min_fit_val = np.inf
-    best_model = None
-    while True:
-        m = fit_model(sample,
-                      mu=mu, sigma=sigma,
-                      bound=bound, IC=IC, task=task, dt=dt)
-        if (not best_model is None) and models_close(best_model, m):
-            if m._fitfunval < min_fit_val:
-                return m
-            else:
-                return best_model
-        elif m._fitfunval < min_fit_val:
-            best_model = m
-            min_fit_val = m._fitfunval
-
 def fit_model(sample,
               mu=MuConstant(mu=0),
               sigma=SigmaConstant(sigma=1),
@@ -132,6 +99,44 @@ def fit_model(sample,
 
 def fit_adjust_model(sample, m, fitparams={}, method="differential_evolution",
                      lossfunction=LossLikelihood, pool=None):
+    """Modify parameters of a model which has already been fit.
+    
+    The data `sample` should be a Sample object of the reaction times
+    to fit in seconds (NOT milliseconds).  At least one of the
+    parameters for one of the components in the model should be a
+    "Fitted()" instance, as these will be the parameters to fit.
+    
+    `method` specifies how the model should be fit.
+    "differential_evolution" is the default, which seems to be able to
+    accurately locate the global maximum without using a
+    derivative. "simple" uses a derivative-based method to minimize,
+    and just uses randomly initialized parameters and gradient
+    descent.  "basin" uses "scipy.optimize.basinhopping" to find an
+    optimal solution, which is much slower but also gives better
+    results than "simple".  It does not appear to give better results
+    than "differential_evolution".
+
+    `fitparams` is a dictionary of kwargs to be passed directly to the
+    minimization routine for fine-grained low-level control over the
+    optimization.  Normally this should not be needed.  
+
+    `lossfunction` is a subclass of LossFunction representing the
+    method to use when calculating the goodness-of-fit.  Pass the
+    subclass itself, NOT an instance of the subclass.
+    
+    If `pool` is None, then solve normally.  If `pool` is a Pool
+    object from pathos.multiprocessing, then parallelize the loss
+    function.  Note that `pool` must be pathos.multiprocessing.Pool,
+    not multiprocessing.Pool, since the latter does not support
+    pickling functions, whereas the former does.
+
+    `name` gives the name of the model after it is fit.
+
+    Returns the same model object that was passed to it as an
+    argument.  However, the parameters will be modified.  The model is
+    modified in place, so a reference is returned to it for
+    convenience only.
+    """
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
