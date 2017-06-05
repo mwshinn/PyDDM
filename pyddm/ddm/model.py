@@ -542,6 +542,7 @@ class OverlayChain(Overlay):
         overlayreprs = list(map(repr, self.overlays))
         return "OverlayChain(overlays=[" + ", ".join(overlayreprs) + "])"
     def apply(self, solution):
+        assert isinstance(solution, Solution)
         newsol = solution
         for o in self.overlays:
             newsol = o.apply(newsol)
@@ -569,6 +570,7 @@ class OverlayPoissonMixture(Overlay):
     required_parameters = ["mixturecoef", "rate"]
     def apply(self, solution):
         assert self.mixturecoef >= 0 and self.mixturecoef <= 1
+        assert isinstance(solution, Solution)
         corr, err, m, cond = self.get_solution_components(solution)
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
@@ -811,7 +813,7 @@ class Model(object):
                                                        self.t_domain(), -self._bounddep.t) # TODO why must this be negative? -MS
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
-        anal_pdf_corr[anal_pdf_corr==np.NaN] = 0.
+        anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
@@ -1430,6 +1432,17 @@ class LossLikelihood(LossFunction):
             loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
             if sols[k].prob_undecided() > 0:
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+            # nans come from negative values in the pdfs, which in
+            # turn come from the dx parameter being set too low.  This
+            # comes up when fitting, because sometimes the algorithm
+            # will "explore" and look at extreme parameter values.
+            # For example, this arrises when variance is very close to
+            # 0.  We will issue a warning now, but throwing an
+            # exception may be the better way to handle this to make
+            # sure it doesn't go unnoticed.
+            if np.isnan(loglikelihood):
+                print("Warning: parameter values too extreme for dx.")
+                return np.inf
         return -loglikelihood
 
 class LossBIC(LossLikelihood):
