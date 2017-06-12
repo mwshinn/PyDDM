@@ -1060,6 +1060,14 @@ class Sample(object):
     def condition_names(self):
         """The names of conditions which hold some non-zero value in this sample."""
         return list(self.conditions.keys())
+    def condition_values(self, cond):
+        """The values of a condition that have at least one element in the sample.
+
+        `cond` is the name of the condition from which to get the
+        observed values.  Returns a list of these values.
+        """
+        cs = self.conditions
+        return sorted(list(set(cs[cond][0]).union(set(cs[cond][1]))))
     def condition_combinations(self, required_conditions=None):
         """Get all values for set conditions and return every combination of them.
 

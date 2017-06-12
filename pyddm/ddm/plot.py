@@ -48,11 +48,14 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     ax.set_xlabel('time (s)')
     ax.set_ylabel('CDF (normalized)')
     
-def plot_fit_diagnostics(model, sample):
+def plot_fit_diagnostics(model, sample, samescale=False):
     """Compare actual data to the best fit model of the data.
 
     - `model` should be the Model object fit from `rt_data`.
     - `sample` should be a Sample object describing the data
+    - `samescale` should be set to True if the error trials
+      distribution should have the same axis as the correct trials
+      distribution
     """
     T_dur = model.T_dur
     dt = model.dt
@@ -75,11 +78,13 @@ def plot_fit_diagnostics(model, sample):
     plt.subplot(2, 1, 1)
     plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt, label="Data") # Divide by samples and dt to scale to same size as solution pdf
     plt.plot(model.t_domain(), model_corr, label="Fit")
+    axis_corr = plt.axis()
     print(sum(data_hist_corr/total_samples/dt)+sum(data_hist_err/total_samples/dt))
     plt.legend()
     plt.subplot(2, 1, 2)
     plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt, label="Data")
     plt.plot(model.t_domain(), model_err, label="Fit")
+    plt.axis(axis_corr)
 
 def plot_compare_solutions(s1, s2):
     """Compare two model solutions to each other.
@@ -191,7 +196,7 @@ def play_with_model(sample=None,
     m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
 
     fig, ax = plt.subplots()
-    plt.subplots_adjust(right=.75)
+    plt.subplots_adjust(right=.75, left=.28)
 
     #s = m.solve()
     use_correct = True
@@ -201,10 +206,18 @@ def play_with_model(sample=None,
                               pool=pool, T_dur=T_dur, dt=dt,
                               nparams=len(params), samplesize=len(sample))
         sample_cond = sample.subset(**conditions)
-        data_hist = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
-        histl, = plt.plot(m.t_domain(), np.asarray(data_hist)/total_samples/dt, label="Data", alpha=.5)
-    l, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
+
+        plt.subplot(211)
+        histl_top, = plt.plot(m.t_domain(), np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
+        plt.subplot(212)
+        histl_bot, = plt.plot(m.t_domain(), np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
+    plt.subplot(211)
+    l_top, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
+    plt.subplot(212)
+    l_bot, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
     plt.axis([0, m.T_dur, 0, None])
     pt = fig.suptitle("")
 
@@ -212,25 +225,39 @@ def play_with_model(sample=None,
     if height > .2:
         height = .2
 
-    rax = plt.axes([0.025, 0.5, 0.15, 0.15])
-    radio_corr = RadioButtons(rax, ('Correct', 'Error'), active=0)
+    # Make a set of radio buttons for each condition
+    condition_axes = [] # Matplotlib axis objects for condition radio buttons
+    condition_radios = [] # Matplotlib RadioButtons objects for condition radio buttons
+    condition_names = sample.condition_names()
+    if required_conditions is not None:
+        condition_names = [n for n in condition_names if n in required_conditions]
+    for i, cond in enumerate(condition_names):
+        cax = plt.axes([0.025, 0.5-.1*len(condition_names)+.2*i, 0.23, 0.15])
+        labels = [str(cond)+"="+str(cv) for cv in sample.condition_values(cond)]
+        radio_cond = RadioButtons(cax, tuple(labels), active=0)
+        condition_axes.append(cax)
+        condition_radios.append(radio_cond)
 
+    def radio_val(val): # Strips the "xxx=" part off and gives a numeric value
+        return eval(val.split("=")[1])
     axupdate = plt.axes([0.8, 1-1/(len(setters)+3), 0.15, height])
     button = Button(axupdate, 'Update', hovercolor='0.975')
     def update(event):
-        s = m.solve(conditions=conditions)
+        current_conditions = {c : radio_val(condition_radios[i].value_selected) for i,c in enumerate(condition_names)}
+        print(current_conditions)
+        sample_cond = sample.subset(**current_conditions)
+        s = m.solve(conditions=current_conditions)
         if show_loss and sample:
             print("Computing loss")
             pt.set_text("loss="+str(lf.loss(m)))
-        if radio_corr.value_selected == "Correct":
-            l.set_ydata(s.pdf_corr())
-            histl.set_ydata(np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
-        else:
-            l.set_ydata(s.pdf_err())
-            histl.set_ydata(np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+        l_top.set_ydata(s.pdf_corr())
+        l_bot.set_ydata(s.pdf_err())
+        histl_top.set_ydata(np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+        histl_bot.set_ydata(np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
         fig.canvas.draw_idle()
     button.on_clicked(update)
-    radio_corr.on_clicked(update)
+    for radio in condition_radios:
+        radio.on_clicked(update)
 
     
     # And now get rid of the Fittables, replacing them with the
