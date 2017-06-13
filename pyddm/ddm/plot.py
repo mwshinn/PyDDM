@@ -114,7 +114,8 @@ def play_with_model(sample=None,
                     dt=dt, dx=dx, fitparams={},
                     overlay=OverlayNone(),
                     pool=None,
-                    name="fit_model"):
+                    name="fit_model",
+                    samescale=True):
     """Mess around with model parameters visually.
 
     This allows you to see how a model would be affected by various
@@ -252,8 +253,19 @@ def play_with_model(sample=None,
             pt.set_text("loss="+str(lf.loss(m)))
         l_top.set_ydata(s.pdf_corr())
         l_bot.set_ydata(s.pdf_err())
-        histl_top.set_ydata(np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
-        histl_bot.set_ydata(np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt)
+        corrhist = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
+        errhist = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
+        histl_top.set_ydata(corrhist)
+        histl_bot.set_ydata(errhist)
+        topmax = max(max(s.pdf_corr()), max(corrhist))
+        botmax = max(max(s.pdf_err()), max(errhist))
+        plt.subplot(211)
+        plt.ylim(0, topmax*1.1)
+        plt.subplot(212)
+        if samescale:
+            plt.ylim(0, topmax*1.1)
+        else:
+            plt.ylim(0, botmax*1.1)
         fig.canvas.draw_idle()
     button.on_clicked(update)
     for radio in condition_radios:
