@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider, Button, RadioButtons
 from .parameters import *
+from .functions import solve_partial_conditions
 
 def plot_solution_pdf(sol, ax=None, correct=True):
     """Plot the PDF of the solution.
@@ -76,6 +77,7 @@ def plot_fit_diagnostics(model, sample, samescale=False):
         model_err += len(subset)/len(sample)*sol.pdf_err()
         print(sum(model_corr)+sum(model_err))
     plt.subplot(2, 1, 1)
+    print(model_corr)
     plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt, label="Data") # Divide by samples and dt to scale to same size as solution pdf
     plt.plot(model.t_domain(), model_corr, label="Fit")
     axis_corr = plt.axis()
@@ -101,6 +103,9 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s2, correct=False)
 
 # TODO this is very messy and needs some serious cleanup
+
+# This is a wrapper to fit the old interface.  For compatibility
+# purposes only.  Depreciated.
 def play_with_model(sample=None,
                     show_loss=None,
                     synchronous=False,
@@ -111,11 +116,34 @@ def play_with_model(sample=None,
                     bound=BoundConstant(B=1),
                     IC=ICPointSourceCenter(),
                     task=TaskFixedDuration(),
-                    dt=dt, dx=dx, fitparams={},
+                    dt=dt, dx=dx, 
                     overlay=OverlayNone(),
                     pool=None,
                     name="fit_model",
                     samescale=True):
+    if default_model:
+        return model_gui(default_model)
+    
+    if sample:
+        T_dur = np.ceil(max(sample)/dt)*dt
+    else:
+        T_dur = 2
+    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
+    # For optimization purposes, create a base model, and then use
+    # that base model in the optimization routine.  First, set up the
+    # model with all of the Fittables inside.  Deep copy on the entire
+    # model is a shortcut for deep copying each individual component
+    # of the model.
+    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    return model_gui(m, sample=sample, pool=pool, show_loss=show_loss, samescale=samescale, synchronous=synchronous, dt=dt)
+
+
+def model_gui(model,
+              sample=None,
+              show_loss=None,
+              synchronous=False,
+              pool=None,
+              samescale=True):
     """Mess around with model parameters visually.
 
     This allows you to see how a model would be affected by various
@@ -139,12 +167,19 @@ def play_with_model(sample=None,
 
     Most of this code is taken from `fit_model`.
     """
+    dt = model.dt
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
     # parameters, named "setters".
-    components_list = [mu, sigma, bound, IC, task, overlay]
+    components_list = [model.get_dependence("mu"),
+                       model.get_dependence("sigma"),
+                       model.get_dependence("bound"),
+                       model.get_dependence("IC"),
+                       model.get_dependence("task"),
+                       model.get_dependence("overlay")]
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
     getters = [] # A list of functions which get the value of the corresponding parameter in `params`
@@ -153,52 +188,55 @@ def play_with_model(sample=None,
         for param_name in component.required_parameters:
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fittable):
-                param = pv
                 # Create a function which sets each parameter in the
                 # list to some value `a` for model `x`.  Note the
-                # default arguments to the lambda function are
-                # necessary here to preserve scope.  Without them,
-                # these variables would be interpreted in the local
-                # scope, so they would be equal to the last value
-                # encountered in the loop.
-                setter = lambda x,a,component=component,param_name=param_name : setattr(x.get_dependence(component.depname), param_name, a)
+                # default arguments to the function are necessary here
+                # to preserve scope.  Without them, these variables
+                # would be interpreted in the local scope, so they
+                # would be equal to the last value encountered in the
+                # loop.
+                def setter(x,a,pv=pv,component=component,param_name=param_name):
+                    if not isinstance(a, Fittable):
+                        a = pv.make_fitted(a)
+                    setattr(x.get_dependence(component.depname), param_name, a)
+                    # Return the fitted instance so we can chain it.
+                    # This way, if the same Fittable object is passed,
+                    # the same Fitted object will be in both places in
+                    # the solution.
+                    return a 
+                
                 getter = lambda x,component=component,param_name=param_name : getattr(x.get_dependence(component.depname), param_name)
                 # If we have the same Fittable object in two different
                 # components inside the model, we only want the Fittable
                 # object in the list "params" once, but we want the setter
                 # to update both.
-                if param in params:
-                    pind = params.index(param)
+                if id(pv) in map(id, params):
+                    pind = list(map(id, params)).index(id(pv))
                     oldsetter = setters[pind]
-                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : [setter(x,a), oldsetter(x,a)] # Hack way of making a lambda to run two other lambdas
+                    # This is a hack way of executing two functions in
+                    # a single function call while passing forward the
+                    # same argument object (not just the same argument
+                    # value)
+                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : oldsetter(x,setter(x,a)) 
                     setters[pind] = newsetter
-                    oldgetter = getters[pind]
-                    newgetter = lambda x,a,getter=getter,oldgetter=oldgetter : [getter(x,a), oldgetter(x,a)] # Hack way of making a lambda to run two other lambdas
-                    getters[pind] = newgetter
                     paramnames[pind] += "/"+param_name
                 else: # This setter is unique (so far)
-                    params.append(param)
+                    params.append(pv)
                     setters.append(setter)
-                    getters.append(getter)
                     paramnames.append(param_name)
-                
-    # Use the reaction time data (a list of reaction times) to
-    # construct a reaction time distribution.
-    if sample:
-        T_dur = np.ceil(max(sample)/dt)*dt
-    else:
-        T_dur = 2
-    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
+                    getters.append(getter)
+
     # For optimization purposes, create a base model, and then use
     # that base model in the optimization routine.  First, set up the
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(model)
 
     fig, ax = plt.subplots()
     plt.subplots_adjust(right=.75, left=.28)
 
+    T_dur = model.T_dur
     #s = m.solve()
     use_correct = True
     if sample:
@@ -206,7 +244,7 @@ def play_with_model(sample=None,
             lf = show_loss(sample, required_conditions=required_conditions,
                               pool=pool, T_dur=T_dur, dt=dt,
                               nparams=len(params), samplesize=len(sample))
-        sample_cond = sample.subset(**conditions)
+        sample_cond = sample
         data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
         data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
@@ -235,30 +273,37 @@ def play_with_model(sample=None,
     for i, cond in enumerate(condition_names):
         cax = plt.axes([0.025, 0.5-.1*len(condition_names)+.2*i, 0.23, 0.15])
         labels = [str(cond)+"="+str(cv) for cv in sample.condition_values(cond)]
-        radio_cond = RadioButtons(cax, tuple(labels), active=0)
+        labels.append("All")
+        radio_cond = RadioButtons(cax, tuple(labels), active=len(labels)-1)
         condition_axes.append(cax)
         condition_radios.append(radio_cond)
 
     def radio_val(val): # Strips the "xxx=" part off and gives a numeric value
-        return eval(val.split("=")[1])
-    axupdate = plt.axes([0.8, 1-1/(len(setters)+3), 0.15, height])
-    button = Button(axupdate, 'Update', hovercolor='0.975')
-    def update(event):
-        current_conditions = {c : radio_val(condition_radios[i].value_selected) for i,c in enumerate(condition_names)}
+        return eval(val.split("=")[1]) if "=" in val else None
+    axupdate = plt.axes([0.8, 1-1/(len(setters)+4), 0.15, height])
+    buttonupdate = Button(axupdate, 'Update', hovercolor='0.975')
+    axreset = plt.axes([0.8, 1-2/(len(setters)+4), 0.15, height])
+    buttonreset = Button(axreset, 'Reset', hovercolor='0.975')
+    def update(event=None):
+        print(condition_names)
+        current_conditions = {c : radio_val(condition_radios[i].value_selected) for i,c in enumerate(condition_names) if condition_radios[i].value_selected != "All"}
         print(current_conditions)
         sample_cond = sample.subset(**current_conditions)
-        s = m.solve(conditions=current_conditions)
+        s = solve_partial_conditions(m, sample_cond, conditions=current_conditions)
+        scale_fact = len(sample_cond)/len(sample)
+        print(s.pdf_corr())
         if show_loss and sample:
             print("Computing loss")
             pt.set_text("loss="+str(lf.loss(m)))
-        l_top.set_ydata(s.pdf_corr())
-        l_bot.set_ydata(s.pdf_err())
+        l_top.set_ydata(s.pdf_corr()*scale_fact)
+        l_bot.set_ydata(s.pdf_err()*scale_fact)
         corrhist = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
+        print(corrhist)
         errhist = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
         histl_top.set_ydata(corrhist)
         histl_bot.set_ydata(errhist)
-        topmax = max(max(s.pdf_corr()), max(corrhist))
-        botmax = max(max(s.pdf_err()), max(errhist))
+        topmax = max(max(s.pdf_corr()*scale_fact), max(corrhist))
+        botmax = max(max(s.pdf_err()*scale_fact), max(errhist))
         plt.subplot(211)
         plt.ylim(0, topmax*1.1)
         plt.subplot(212)
@@ -267,7 +312,7 @@ def play_with_model(sample=None,
         else:
             plt.ylim(0, botmax*1.1)
         fig.canvas.draw_idle()
-    button.on_clicked(update)
+    buttonupdate.on_clicked(update)
     for radio in condition_radios:
         radio.on_clicked(update)
 
@@ -279,22 +324,27 @@ def play_with_model(sample=None,
     axes = [] # We don't need the axes or widgets variables, but if we don't save them garbage collection screws things up
     widgets = []
     for p,s,g,i,name in zip(params, setters, getters, range(0, len(setters)), paramnames):
-        print("Setting default")
-        if default_model:
-            default = g(default_model)
-        else:
-            default = p.default()
-        print("Set default")
+        default = p.default()
         s(m, default)
         minval = p.minval if p.minval > -np.inf else None
         maxval = p.maxval if p.maxval < np.inf else None
         constraints.append((minval, maxval))
         x_0.append(default)
-        ypos = 1-(i+2)/(len(setters)+3)
+        ypos = 1-(i+3)/(len(setters)+4)
         axes.append(plt.axes([0.8, ypos, 0.15, height]))
         widgets.append(Slider(axes[-1], name, p.minval, p.maxval, valinit=default))
         widgets[-1].on_changed(lambda val, s=s, m=m : [s(m, val), update(None) if synchronous else None])
 
+    def set_defaults(event=None):
+        nonlocal synchronous
+        oldsync = synchronous
+        synchronous = False
+        for w in widgets:
+            w.reset()
+        synchronous = oldsync
+        update(None)
+
+    buttonreset.on_clicked(set_defaults)
     update(None)
     plt.show()
     return m

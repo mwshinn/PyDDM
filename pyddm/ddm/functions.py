@@ -295,3 +295,20 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                     best = (new, fit)
                 P.append((new, fit))
     return scipy.optimize.OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
+
+def solve_partial_conditions(model, sample, conditions={}):
+    T_dur = model.T_dur
+    dt = model.dt
+    model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
+    model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    for conds in sample.condition_combinations(): # TODO make None the default in the API
+        for k, v in conditions.items():
+            assert k in conds.keys()
+            if conds[k] != v:
+                continue
+        subset = sample.subset(**conds)
+        sol = model.solve(conditions=conds)
+        model_corr += len(subset)/len(sample)*sol.pdf_corr()
+        model_err += len(subset)/len(sample)*sol.pdf_err()
+        print(sum(model_corr)+sum(model_err))
+    return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
