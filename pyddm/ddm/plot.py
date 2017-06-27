@@ -135,7 +135,7 @@ def play_with_model(sample=None,
     # model is a shortcut for deep copying each individual component
     # of the model.
     m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return model_gui(m, sample=sample, pool=pool, show_loss=show_loss, samescale=samescale, synchronous=synchronous, dt=dt)
+    return model_gui(m, sample=sample, pool=pool, show_loss=show_loss, samescale=samescale, synchronous=synchronous)
 
 
 def model_gui(model,

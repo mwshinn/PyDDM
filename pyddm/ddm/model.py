@@ -590,6 +590,25 @@ class OverlayPoissonMixture(Overlay):
         #print(err)
         return Solution(corr, err, m, cond)
 
+class OverlayDelay(Overlay):
+    name = "Add a delay by shifting the histogram"
+    required_parameters = ["delaytime"]
+    def apply(self, solution):
+        corr, err, m, cond = self.get_solution_components(solution)
+        shifts = int(self.delaytime/m.dt) # round
+        newcorr = np.zeros(corr.shape)
+        newerr = np.zeros(err.shape)
+        if shifts > 0:
+            newcorr[shifts:] = corr[:-shifts]
+            newerr[shifts:] = err[:-shifts]
+        elif shifts < 0:
+            newcorr[:shifts] = corr[-shifts:]
+            newerr[:shifts] = err[-shifts:]
+        else:
+            newcorr = corr
+            newerr = err
+        return Solution(newcorr, newerr, m, cond)
+
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
     """A full simulation of a single DDM-style model.

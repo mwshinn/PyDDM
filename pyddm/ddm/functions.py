@@ -312,3 +312,23 @@ def solve_partial_conditions(model, sample, conditions={}):
         model_err += len(subset)/len(sample)*sol.pdf_err()
         print(sum(model_corr)+sum(model_err))
     return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
+
+def hit_boundary(model):
+    components_list = [m.get_dependence("mu"),
+                       m.get_dependence("sigma"),
+                       m.get_dependence("bound"),
+                       m.get_dependence("IC"),
+                       m.get_dependence("task"),
+                       m.get_dependence("overlay")]
+    hit = False
+    for component in components_list:
+        for param_name in component.required_parameters:
+            pv = getattr(component, param_name) # Parameter value in the object
+            if isinstance(pv, Fitted):
+                if (pv - pv.minval)/(pv.maxval-pv.minval) < .01: # No abs because pv always > pv.minval
+                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))
+                    hit = True
+                if (pv.maxval-pv)/(pv.maxval-pv.minval) < .01: # No abs because pv.maxval always > pv
+                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
+                    hit = True
+    return hit
