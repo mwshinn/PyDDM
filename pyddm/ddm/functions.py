@@ -332,3 +332,62 @@ def hit_boundary(model):
                     print("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
                     hit = True
     return hit
+
+def dependence_hit_boundary(pv):
+    """Returns True if a Fitted instance has hit the boundary.
+
+    Fitted instances may have minimum or maximum values attached to
+    them.  If it does, and if it has gotten close to this min/max
+    while fitting, return True.  Otherwise, or if the value is not a
+    Fitted object, return False.
+    """
+    if isinstance(pv, Fitted):
+        if (pv - pv.minval)/(pv.maxval-pv.minval) < .01: # No abs because pv always > pv.minval
+            return True
+        if (pv.maxval-pv)/(pv.maxval-pv.minval) < .01: # No abs because pv.maxval always > pv
+            return True
+    return False
+
+def display_model(m):
+    """A readable way to display models.
+
+    `m` should be any Model object.  Prints a description of the
+    model, and does not return anything.
+    """
+    assert isinstance(m, Model), "Invalid model"
+    # Separate the code to display a single component so we can reuse
+    # it to display the components of chains (e.g. OverlayChain).
+    def display_component(component, prefix=""):
+        print(prefix+"%s" % component.name)
+        fixed = []
+        fitted = []
+        fittable = []
+        if len(component.required_parameters) == 0:
+            print(prefix+"(No parameters)")
+        for param_name in component.required_parameters:
+            pv = getattr(component, param_name) # Parameter value in the object
+            if isinstance(pv, Fitted):
+                if dependence_hit_boundary(pv):
+                    fitted.append(prefix+"- %s: %f (WARNING: AT BOUNDARY)" % (param_name, pv))
+                else:
+                    fitted.append(prefix+"- %s: %f" % (param_name, pv))
+            elif isinstance(pv, Fittable):
+                fittable.append(prefix+"- %s: Fittable (default %f)" % (param_name, pv.default()))
+            else:
+                fixed.append(prefix+"- %s: %f" % (param_name, pv))
+        for t,vs in [("Fixed", fixed), ("Fitted", fitted), ("Fittable", fittable)]:
+            if len(vs) > 0:
+                print(prefix+t+" parameters:")
+                for v in vs:
+                    print(v)
+    # Start displaying the model information
+    print(("Model %s information:" % m.name) if m.name != "" else "Model information:")
+    for component in m.dependencies:
+        print("%s component %s:" % (component.depname, type(component).__name__))
+        if type(component) == OverlayChain:
+            for o in component.overlays:
+                print("    %s component %s:" % (o.depname, type(o).__name__))
+                display_component(o, prefix="        ")
+        else:
+            display_component(component, prefix="    ")
+            
