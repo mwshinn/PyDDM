@@ -1112,6 +1112,52 @@ class Sample(object):
         if len(combs) == 0:
             return [{}]
         return combs
+
+    def t_domain(self, dt=.01, T_dur=2):
+        """The times that corresponds with pdf/cdf_corr/err parameters (their support)."""
+        return np.linspace(0, T_dur, T_dur/dt+1)
+
+    def pdf_corr(self, dt=.01, T_dur=2):
+        """The correct component of the joint PDF."""
+        return np.histogram(self.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self)/dt # dt/2 terms are for continuity correction
+
+    def pdf_err(self, dt=.01, T_dur=2):
+        """The error (incorrect) component of the joint PDF."""
+        return np.histogram(self.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self)/dt # dt/2 terms are for continuity correction
+
+    def cdf_corr(self, dt=.01, T_dur=2):
+        """The correct component of the joint CDF."""
+        return np.cumsum(self.pdf_corr(dt=dt, T_dur=T_dur))*dt
+
+    def cdf_err(self, dt=.01, T_dur=2):
+        """The error (incorrect) component of the joint CDF."""
+        return np.cumsum(self.pdf_err(dt=dt, T_dur=T_dur))*dt
+
+    def prob_correct(self):
+        """The probability of selecting the right response."""
+        return len(self.corr)/len(self)
+
+    def prob_error(self):
+        """The probability of selecting the incorrect (error) response."""
+        return len(self.err)/len(self)
+
+    def prob_undecided(self):
+        """The probability of selecting neither response (undecided)."""
+        return self.non_decision/len(self)
+
+    def prob_correct_forced(self):
+        """The probability of selecting the correct response if a response is forced."""
+        return self.prob_correct() + self.prob_undecided()/2.
+
+    def prob_error_forced(self):
+        """The probability of selecting the incorrect response if a response is forced."""
+        return self.prob_error() + self.prob_undecided()/2.
+
+    def mean_decision_time(self):
+        """The mean decision time in the correct trials (excluding undecided trials)."""
+        return np.mean(self.corr)
+
+
     
 
 class Solution(object):
