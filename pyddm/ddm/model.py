@@ -5,7 +5,11 @@ from .analytic import analytic_ddm, analytic_ddm_linbound
 from scipy import sparse
 import scipy.sparse.linalg
 import itertools
+import functools
 
+# This speeds up the code by about 10%.
+sparse.csr_matrix.check_format = lambda self, full_check=True : True
+    
 # TODO:
 # - Ensure that OverlayChain doesn't have two parameters with the same name
 
@@ -152,6 +156,20 @@ class Mu(Dependence):
     Dependence.)
     """
     depname = "Mu"
+    def _cached_sparse_diags(self, *args, **kwargs):
+        """Cache sparse.diags to save 15% runtime."""
+        if "_last_diag_args" not in self.__dict__:
+            object.__setattr__(self, "_last_diag_args", [])
+            object.__setattr__(self, "_last_diag_kwargs", {})
+            object.__setattr__(self, "_last_diag_val", None)
+        if object.__getattribute__(self, "_last_diag_args") == args and \
+           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
+            return object.__getattribute__(self, "_last_diag_val")
+
+        object.__setattr__(self, "_last_diag_args", args)
+        object.__setattr__(self, "_last_diag_kwargs", kwargs)
+        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
+        return object.__getattribute__(self, "_last_diag_val")
     def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
@@ -162,9 +180,9 @@ class Mu(Dependence):
         Returns a sparse numpy matrix.
         """
         mu = self.get_mu(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return sparse.diags([ 0.5*dt/dx * (mu + adj),
-                             -0.5*dt/dx * (mu + adj)],
-                            [1, -1], shape=(len(x), len(x)), format="csr")
+        return self._cached_sparse_diags([ 0.5*dt/dx * (mu + adj),
+                                           -0.5*dt/dx * (mu + adj)],
+                                         [1, -1], shape=(len(x), len(x)), format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
     def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
@@ -250,6 +268,20 @@ class Sigma(Dependence):
     Dependence.)
     """
     depname = "Sigma"
+    def _cached_sparse_diags(self, *args, **kwargs):
+        """Cache sparse.diags to save 15% runtime."""
+        if "_last_diag_val" not in self.__dict__:
+            object.__setattr__(self, "_last_diag_args", [])
+            object.__setattr__(self, "_last_diag_kwargs", {})
+            object.__setattr__(self, "_last_diag_val", None)
+        if object.__getattribute__(self, "_last_diag_args") == args and \
+           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
+            return object.__getattribute__(self, "_last_diag_val")
+
+        object.__setattr__(self, "_last_diag_args", args)
+        object.__setattr__(self, "_last_diag_kwargs", kwargs)
+        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
+        return object.__getattribute__(self, "_last_diag_val")
     def get_matrix(self, x, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
@@ -259,10 +291,10 @@ class Sigma(Dependence):
         is most relevant for tasks which modify `sigma` over time.
         """
         sigma = self.get_sigma(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return sparse.diags([1.0*(sigma + adj)**2 * dt/dx**2,
-                             -0.5*(sigma + adj)**2 * dt/dx**2,
-                             -0.5*(sigma + adj)**2 * dt/dx**2],
-                            [0, 1, -1], shape=(len(x), len(x)), format="csr")
+        return self._cached_sparse_diags([1.0*(sigma + adj)**2 * dt/dx**2,
+                                          -0.5*(sigma + adj)**2 * dt/dx**2,
+                                          -0.5*(sigma + adj)**2 * dt/dx**2],
+                                         [0, 1, -1], shape=(len(x), len(x)), format="csr")
     def get_flux(self, x_bound, t, dx, dt, adj=0, conditions={}, **kwargs):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
@@ -760,6 +792,10 @@ class Model(object):
     def sigma_task_adj(self, t, conditions={}):
         """The amount by which we should adjust the drift rate at time `t` for the current task."""
         return self._task.adjust_sigma(self.get_sigma(t=t, conditions=conditions), t, conditions=conditions)
+    @functools.lru_cache(maxsize=4)
+    def _cache_eye(self, m, format="csr"):
+        """Cache the call to sparse.eye since this decreases runtime by 5%."""
+        return sparse.eye(m, format=format)
     def diffusion_matrix(self, x, t, conditions={}):
         """The matrix for the implicit method of solving the diffusion equation.
 
@@ -772,7 +808,7 @@ class Model(object):
         """
         mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions), conditions=conditions)
         sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions), conditions=conditions)
-        return sparse.eye(len(x), format="csr") + mu_matrix + sigma_matrix
+        return self._cache_eye(len(x), format="csr") + mu_matrix + sigma_matrix
     def flux(self, x, t, conditions={}):
         """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
