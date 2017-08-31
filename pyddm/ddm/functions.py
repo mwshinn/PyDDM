@@ -301,7 +301,7 @@ def solve_partial_conditions(model, sample, conditions={}):
     dt = model.dt
     model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
     model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
-    for conds in sample.condition_combinations(): # TODO make None the default in the API
+    for conds in sample.condition_combinations(required_conditions=model.required_conditions):
         for k, v in conditions.items():
             assert k in conds.keys()
             if conds[k] != v:
@@ -348,22 +348,24 @@ def dependence_hit_boundary(pv):
             return True
     return False
 
-def display_model(m):
+def display_model(m, print_output=True):
     """A readable way to display models.
 
     `m` should be any Model object.  Prints a description of the
     model, and does not return anything.
     """
+    OUT = ""
     assert isinstance(m, Model), "Invalid model"
     # Separate the code to display a single component so we can reuse
     # it to display the components of chains (e.g. OverlayChain).
     def display_component(component, prefix=""):
-        print(prefix+"%s" % component.name)
+        OUT = ""
+        OUT += prefix+"%s" % component.name + "\n"
         fixed = []
         fitted = []
         fittable = []
         if len(component.required_parameters) == 0:
-            print(prefix+"(No parameters)")
+            OUT += prefix+"(No parameters)" + "\n"
         for param_name in component.required_parameters:
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fitted):
@@ -377,17 +379,21 @@ def display_model(m):
                 fixed.append(prefix+"- %s: %f" % (param_name, pv))
         for t,vs in [("Fixed", fixed), ("Fitted", fitted), ("Fittable", fittable)]:
             if len(vs) > 0:
-                print(prefix+t+" parameters:")
+                OUT += prefix+t+" parameters:" + "\n"
                 for v in vs:
-                    print(v)
+                    OUT += v + "\n"
+        return OUT
     # Start displaying the model information
-    print(("Model %s information:" % m.name) if m.name != "" else "Model information:")
+    OUT += ("Model %s information:" % m.name) if m.name != "" else "Model information:" + "\n"
     for component in m.dependencies:
-        print("%s component %s:" % (component.depname, type(component).__name__))
+        OUT += "%s component %s:" % (component.depname, type(component).__name__) + "\n"
         if type(component) == OverlayChain:
             for o in component.overlays:
-                print("    %s component %s:" % (o.depname, type(o).__name__))
-                display_component(o, prefix="        ")
+                OUT += "    %s component %s:" % (o.depname, type(o).__name__) + "\n"
+                OUT += display_component(o, prefix="        ")
         else:
-            display_component(component, prefix="    ")
-            
+            OUT += display_component(component, prefix="    ")
+    if print_output == False:
+        return OUT
+    else:
+        print(OUT)
