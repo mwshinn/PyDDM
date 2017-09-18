@@ -2,7 +2,7 @@ from .model import *
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Slider, Button, RadioButtons
-from .parameters import *
+from .parameters import dt as default_dt, dx as default_dx
 from .functions import solve_partial_conditions
 
 def plot_solution_pdf(sol, ax=None, correct=True):
@@ -15,7 +15,7 @@ def plot_solution_pdf(sol, ax=None, correct=True):
     This does not return anything, but it plots the PDF.  It does not
     show it, and thus requires a call to plt.show() to see.
     """
-    if ax == None:
+    if ax is None:
         ax = plt.gca()
 
     if correct == True:
@@ -37,7 +37,7 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     This does not return anything, but it plots the CDF.  It does not
     show it, and thus requires a call to plt.show() to see.
     """
-    if ax == None:
+    if ax is None:
         ax = plt.gca()
 
     if correct == True:
@@ -116,7 +116,7 @@ def play_with_model(sample=None,
                     bound=BoundConstant(B=1),
                     IC=ICPointSourceCenter(),
                     task=TaskFixedDuration(),
-                    dt=dt, dx=dx, 
+                    dt=default_dt, dx=default_dx, 
                     overlay=OverlayNone(),
                     pool=None,
                     name="fit_model",
@@ -242,8 +242,8 @@ def model_gui(model,
     if sample:
         if show_loss:
             lf = show_loss(sample, required_conditions=required_conditions,
-                              pool=pool, T_dur=T_dur, dt=dt,
-                              nparams=len(params), samplesize=len(sample))
+                           pool=pool, T_dur=T_dur, dt=dt,
+                           nparams=len(params), samplesize=len(sample))
         sample_cond = sample
         data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
         data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]

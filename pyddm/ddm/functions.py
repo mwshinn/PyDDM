@@ -4,11 +4,13 @@ Author: Norman Lam (norman.lam@yale.edu)
 '''
 
 from __future__ import print_function, unicode_literals, absolute_import, division
-import numpy as np
-from scipy.optimize import minimize, basinhopping, differential_evolution
+
 import copy
 
-from .parameters import *
+import numpy as np
+from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
+
+from .parameters import dx as default_dx, dt as default_dt
 from .model import *
 
 ########################################################################################################################
@@ -36,7 +38,7 @@ def fit_model(sample,
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               task=TaskFixedDuration(),
-              dt=dt, dx=dx, fitparams={},
+              dt=default_dt, dx=default_dx, fitparams=None,
               method="differential_evolution",
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
@@ -97,7 +99,7 @@ def fit_model(sample,
     return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
 
 
-def fit_adjust_model(sample, m, fitparams={}, method="differential_evolution",
+def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
                      lossfunction=LossLikelihood, pool=None):
     """Modify parameters of a model which has already been fit.
     
@@ -214,11 +216,14 @@ def fit_adjust_model(sample, m, fitparams={}, method="differential_evolution",
         lossf = lf.loss(m)
         print(xs, "loss="+str(lossf))
         return lossf
+    # Cast to a dictionary if necessary
+    if fitparams is None:
+        fitparams = {}
     # Run the solver
     print(x_0)
     if method == "simple":
         x_fit = minimize(_fit_model, x_0, bounds=constraints)
-        assert x_fit.success == True, "Fit failed: %s" % x_fit.message
+        assert x_fit.success, "Fit failed: %s" % x_fit.message
     elif method == "simplex":
         x_fit = minimize(_fit_model, x_0, method='Nelder-Mead')
     elif method == "basin":
@@ -229,7 +234,7 @@ def fit_adjust_model(sample, m, fitparams={}, method="differential_evolution",
         x_fit = evolution_strategy(_fit_model, x_0, **fitparams)
     else:
         raise NotImplementedError("Invalid method")
-    m._fitfunval = x_fit.fun # Save the value of the objective function
+    m._fitfunval = x_fit.fun # Save the value of the objective function # TODO make this not private
     print("Params", x_fit.x, "gave", x_fit.fun)
     for x,s in zip(x_fit.x, setters):
         s(m, x)
@@ -274,29 +279,29 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     # good for exploitative search.
     P = [(x_0, fitness(x_0))]
     best = P[0]
-    for i in range(0, lmbda-1):
+    for _ in range(0, lmbda-1):
         new = mutate(x_0)
         fit = fitness(new)
         if fit < best[1]:
             best = (new, fit)
         P.append((new, fit))
-    for i in range(0, it):
+    for _ in range(0, it):
         # Find the `mu` best individuals
         P.sort(key=lambda e : e[1])
         Q = P[0:mu]
         # Copy the parents if we're supposed to
-        P = Q.copy() if copyparents == True else []
+        P = Q.copy() if copyparents else []
         # Create the next generation population
         for q in Q:
-            for j in range(0, lmbda//mu):
+            for _ in range(0, lmbda//mu):
                 new = mutate(q[0])
                 fit = fitness(new)
                 if fit < best[1]:
                     best = (new, fit)
                 P.append((new, fit))
-    return scipy.optimize.OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
+    return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
-def solve_partial_conditions(model, sample, conditions={}):
+def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
     model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
@@ -314,12 +319,12 @@ def solve_partial_conditions(model, sample, conditions={}):
     return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
 
 def hit_boundary(model):
-    components_list = [m.get_dependence("mu"),
-                       m.get_dependence("sigma"),
-                       m.get_dependence("bound"),
-                       m.get_dependence("IC"),
-                       m.get_dependence("task"),
-                       m.get_dependence("overlay")]
+    components_list = [model.get_dependence("mu"),
+                       model.get_dependence("sigma"),
+                       model.get_dependence("bound"),
+                       model.get_dependence("IC"),
+                       model.get_dependence("task"),
+                       model.get_dependence("overlay")]
     hit = False
     for component in components_list:
         for param_name in component.required_parameters:
@@ -384,16 +389,16 @@ def display_model(m, print_output=True):
                     OUT += v + "\n"
         return OUT
     # Start displaying the model information
-    OUT += ("Model %s information:" % m.name) if m.name != "" else "Model information:" + "\n"
+    OUT += ("Model %s information:\n" % m.name) if m.name != "" else "Model information:" + "\n"
     for component in m.dependencies:
         OUT += "%s component %s:" % (component.depname, type(component).__name__) + "\n"
-        if type(component) == OverlayChain:
+        if isinstance(component, OverlayChain):
             for o in component.overlays:
                 OUT += "    %s component %s:" % (o.depname, type(o).__name__) + "\n"
                 OUT += display_component(o, prefix="        ")
         else:
             OUT += display_component(component, prefix="    ")
-    if print_output == False:
+    if not print_output:
         return OUT
     else:
         print(OUT)

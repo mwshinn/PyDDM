@@ -272,15 +272,15 @@ def test_no_overlay():
     _verify_param_match("mu", "mu", m, f)
 
 def test_uniform_overlay():
-    m = Model(name="Overlay", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(mixturecoef=.1))
+    m = Model(name="Overlay", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(umixturecoef=.1))
     s = m.solve_numerical()
     sample = s.resample(10000)
     f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
-                  overlay=OverlayUniformMixture(mixturecoef=Fittable(minval=.001, maxval=.5)))
+                  overlay=OverlayUniformMixture(umixturecoef=Fittable(minval=.001, maxval=.5)))
     plot.plot_compare_solutions(s, f.solve_numerical())
     print(f)
     _verify_param_match("mu", "mu", m, f)
-    _verify_param_match("overlay", "mixturecoef", m, f)
+    _verify_param_match("overlay", "umixturecoef", m, f)
 
 # See how sensitive a fitting method is to a single outlier.  Here, we
 # add one outlier to the error trials near the end of the time window.
@@ -305,7 +305,7 @@ def test_parameter_sensitivity_poisson():
 # undecided trials, which bring the probability down from 1.
 
 def test_overlay_uniform_distribution_integrates_to_1():
-    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(mixturecoef=.2))
+    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayUniformMixture(umixturecoef=.2))
     s = m.solve_numerical()
     distsum = s.prob_correct() + s.prob_error()
     assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
