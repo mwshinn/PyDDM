@@ -1,7 +1,10 @@
-from .model import *
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.widgets import Slider, Button, RadioButtons
+import matplotlib.pyplot as plt
+import tkinter as tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+
+from .model import *
 from .parameters import dt as default_dt, dx as default_dx
 from .functions import solve_partial_conditions
 
@@ -49,44 +52,6 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     ax.set_xlabel('time (s)')
     ax.set_ylabel('CDF (normalized)')
     
-def plot_fit_diagnostics(model, sample, samescale=False):
-    """Compare actual data to the best fit model of the data.
-
-    - `model` should be the Model object fit from `rt_data`.
-    - `sample` should be a Sample object describing the data
-    - `samescale` should be set to True if the error trials
-      distribution should have the same axis as the correct trials
-      distribution
-    """
-    T_dur = model.T_dur
-    dt = model.dt
-    total_samples = len(sample)
-    print(T_dur, dt, total_samples, len(sample.corr), len(sample.err))
-    data_hist_corr = np.histogram(sample.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0] # dt/2 terms are for continuity correction
-    data_hist_err = np.histogram(sample.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-    # First create an empty array the same length as the histogram.
-    # Then, for each type of model in the sample, add it to the plot
-    # weighted by its frequency of occuring.
-    model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
-    model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
-    for conds in sample.condition_combinations(): # TODO make None the default in the API
-        print(conds)
-        subset = sample.subset(**conds)
-        sol = model.solve(conditions=conds)
-        model_corr += len(subset)/len(sample)*sol.pdf_corr()
-        model_err += len(subset)/len(sample)*sol.pdf_err()
-        print(sum(model_corr)+sum(model_err))
-    plt.subplot(2, 1, 1)
-    print(model_corr)
-    plt.plot(model.t_domain(), np.asarray(data_hist_corr)/total_samples/dt, label="Data") # Divide by samples and dt to scale to same size as solution pdf
-    plt.plot(model.t_domain(), model_corr, label="Fit")
-    axis_corr = plt.axis()
-    print(sum(data_hist_corr/total_samples/dt)+sum(data_hist_err/total_samples/dt))
-    plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(model.t_domain(), np.asarray(data_hist_err)/total_samples/dt, label="Data")
-    plt.plot(model.t_domain(), model_err, label="Fit")
-    plt.axis(axis_corr)
 
 def plot_compare_solutions(s1, s2):
     """Compare two model solutions to each other.
@@ -102,13 +67,42 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s1, correct=False)
     plot_solution_pdf(s2, correct=False)
 
-# TODO this is very messy and needs some serious cleanup
+def plot_fit_diagnostics(model, sample=None, fig=None, conditions=None):
+    # Avoid stupid errors with mutable objects
+    if conditions is None:
+        conditions = {}
+    # Create a figure if one is not given
+    if fig is None:
+        fig = plt.gcf()
+    
+    # We use these a lot, hence the shorthand
+    dt = model.dt
+    T_dur = model.T_dur
+    # If a sample is given, plot it behind the model.
+    sample_cond = sample.subset(**conditions)
+    if sample:
+        data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        total_samples = len(sample_cond)
+        
+        ax = fig.add_subplot(211)
+        ax.plot(model.t_domain(), np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
+        ax = fig.add_subplot(212)
+        ax.plot(model.t_domain(), np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
+    s = solve_partial_conditions(model, sample_cond, conditions=conditions)
+    ax = fig.add_subplot(211)
+    ax.plot(model.t_domain(), s.pdf_corr(), lw=2, color='red')
+    ax.axis([0, model.T_dur, 0, None])
+    ax = fig.add_subplot(212)
+    ax.plot(model.t_domain(), s.pdf_err(), lw=2, color='red')
+    ax.axis([0, model.T_dur, 0, None])
+    pt = fig.suptitle("")
+    
+
 
 # This is a wrapper to fit the old interface.  For compatibility
 # purposes only.  Depreciated.
 def play_with_model(sample=None,
-                    show_loss=None,
-                    synchronous=False,
                     default_model=None,
                     conditions={},
                     mu=MuConstant(mu=0),
@@ -119,8 +113,7 @@ def play_with_model(sample=None,
                     dt=default_dt, dx=default_dx, 
                     overlay=OverlayNone(),
                     pool=None,
-                    name="fit_model",
-                    samescale=True):
+                    name="fit_model"):
     if default_model:
         return model_gui(default_model)
     
@@ -129,48 +122,42 @@ def play_with_model(sample=None,
     else:
         T_dur = 2
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    # For optimization purposes, create a base model, and then use
-    # that base model in the optimization routine.  First, set up the
-    # model with all of the Fittables inside.  Deep copy on the entire
-    # model is a shortcut for deep copying each individual component
-    # of the model.
-    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return model_gui(m, sample=sample, pool=pool, show_loss=show_loss, samescale=samescale, synchronous=synchronous)
+    m = Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx)
+    return model_gui(m, sample=sample, pool=pool)
 
 
+# TODO sample is not optional
+# TODO sliders don't expand when the window does
 def model_gui(model,
               sample=None,
-              show_loss=None,
-              synchronous=False,
               pool=None,
-              samescale=True):
+              plot=plot_fit_diagnostics):
     """Mess around with model parameters visually.
 
-    This allows you to see how a model would be affected by various
-    changes in parameter values.  Its arguments are exactly the same
-    as `fit_model`, with a few exceptions:
+    This allows you to see how the model `model` would be affected by
+    various changes in parameter values.
 
     First, the sample is optional.  If provided, it will be displayed
     in the background.
 
-    Second, if a sample is given, and if `show_loss` is set to a Loss
-    object, the plot will show the value of the loss function when
-    plotting.  Note that this is very slow because it resolves the
-    model.
+    Second, the function `plot` allows you to change what is plotted.
+    By default, it is plot_fit_diagnostics.  If you would like to
+    define your own custom function, it must take four keyword
+    arguments: "model", the model to plot, "sample", an optional
+    (defaulting to None) Sample object to potentially compare to the
+    model, "fig", an optional (defaulting to None) matplotlib figure
+    to plot on, and "conditions", the conditions selected for
+    plotting.  It should not return anything, but it should draw the
+    figure on "fig".
 
-    Third, `synchronous` specifies whether the user is required to
-    push the `update` button after making changes to the model.
-
-    Finally, perhaps most importantly, `conditions` specifies the
-    conditions to use for this model.  You can't (currently) toggle
-    between conditions, so it is necessary to specify them beforehand.
-
-    Most of this code is taken from `fit_model`.
+    Some of this code is taken from `fit_model`.
     """
-    dt = model.dt
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
-    # "params".  Create a list of functions to set the value of these
+    # "params".  Since the name is not saved in the parameter object,
+    # save them in a list of the same size called "paramnames".  (We
+    # can't use a dictonary because some parameters have the same
+    # name.)  Create a list of functions to set the value of these
     # parameters, named "setters".
     components_list = [model.get_dependence("mu"),
                        model.get_dependence("sigma"),
@@ -178,16 +165,18 @@ def model_gui(model,
                        model.get_dependence("IC"),
                        model.get_dependence("task"),
                        model.get_dependence("overlay")]
+    # All of the conditions required by at least one of the model
+    # components.
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
-
+    
+    
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
-    getters = [] # A list of functions which get the value of the corresponding parameter in `params`
     paramnames = [] # The names of the parameters
     for component in components_list:
-        for param_name in component.required_parameters:
+        for param_name in component.required_parameters: # For each parameter in the model
             pv = getattr(component, param_name) # Parameter value in the object
-            if isinstance(pv, Fittable):
+            if isinstance(pv, Fittable): # If this was fit (or can be fit) via optimization
                 # Create a function which sets each parameter in the
                 # list to some value `a` for model `x`.  Note the
                 # default arguments to the function are necessary here
@@ -205,11 +194,12 @@ def model_gui(model,
                     # the solution.
                     return a 
                 
-                getter = lambda x,component=component,param_name=param_name : getattr(x.get_dependence(component.depname), param_name)
                 # If we have the same Fittable object in two different
-                # components inside the model, we only want the Fittable
-                # object in the list "params" once, but we want the setter
-                # to update both.
+                # components inside the model, we only want the
+                # Fittable object in the list "params" once, but we
+                # want the setter to update both.  We use 'id' because
+                # we only want this to be the case with an identical
+                # parameter object, not just an identical name/value.
                 if id(pv) in map(id, params):
                     pind = list(map(id, params)).index(id(pv))
                     oldsetter = setters[pind]
@@ -217,134 +207,111 @@ def model_gui(model,
                     # a single function call while passing forward the
                     # same argument object (not just the same argument
                     # value)
-                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : oldsetter(x,setter(x,a)) 
+                    newsetter = lambda x,a,setter=setter,oldsetter=oldsetter : oldsetter(x,setter(x,a))
                     setters[pind] = newsetter
-                    paramnames[pind] += "/"+param_name
+                    paramnames[pind] += "/"+param_name # "/" for cosmetics for multiple parameters
                 else: # This setter is unique (so far)
                     params.append(pv)
                     setters.append(setter)
                     paramnames.append(param_name)
-                    getters.append(getter)
-
-    # For optimization purposes, create a base model, and then use
-    # that base model in the optimization routine.  First, set up the
-    # model with all of the Fittables inside.  Deep copy on the entire
-    # model is a shortcut for deep copying each individual component
-    # of the model.
+    
+    # Since we don't want to modify the original model, duplicate it,
+    # and then use that base model in the optimization routine.  (We
+    # can't duplicate it earlier in this function or else duplicated
+    # parameters will have separate setters since they will no
+    # longer have the same id.
     m = copy.deepcopy(model)
-
-    fig, ax = plt.subplots()
-    plt.subplots_adjust(right=.75, left=.28)
-
-    T_dur = model.T_dur
-    #s = m.solve()
-    use_correct = True
-    if sample:
-        if show_loss:
-            lf = show_loss(sample, required_conditions=required_conditions,
-                           pool=pool, T_dur=T_dur, dt=dt,
-                           nparams=len(params), samplesize=len(sample))
-        sample_cond = sample
-        data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-        data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-        total_samples = len(sample_cond)
-
-        plt.subplot(211)
-        histl_top, = plt.plot(m.t_domain(), np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
-        plt.subplot(212)
-        histl_bot, = plt.plot(m.t_domain(), np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
-    plt.subplot(211)
-    l_top, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
-    plt.subplot(212)
-    l_bot, = plt.plot(m.t_domain(), np.zeros(m.t_domain().shape), lw=2, color='red')
-    plt.axis([0, m.T_dur, 0, None])
-    pt = fig.suptitle("")
-
-    height = .7/(len(setters)+3)
-    if height > .2:
-        height = .2
-
-    # Make a set of radio buttons for each condition
-    condition_axes = [] # Matplotlib axis objects for condition radio buttons
-    condition_radios = [] # Matplotlib RadioButtons objects for condition radio buttons
-    condition_names = sample.condition_names()
+    
+    # Grid of the Fittables, replacing them with the default values.
+    x_0 = [] # Default parameter values
+    for p,s in zip(params, setters):
+        # Save the default
+        default = p.default()
+        x_0.append(default)
+        # Set the default
+        s(m, default)
+    
+    # Initialize the TK (tkinter) subsystem.
+    root = tk.Tk()    
+    root.wm_title("Test")
+    root.grid_columnconfigure(1, weight=2)
+    root.grid_columnconfigure(4, weight=1)
+    root.grid_rowconfigure(0, weight=1)
+    
+    # Creates a widget for a matplotlib figure.  Anything drawn to
+    # this figure can be displayed by calling canvas.draw().
+    fig = Figure()
+    canvas = FigureCanvasTkAgg(fig, master=root)
+    canvas.get_tk_widget().grid(row=0, column=1, sticky="nswe")
+    canvas.show()
+    canvas.draw()
+    
+    def update():
+        """Redraws the plot according to the current parameters of the model
+        and the selected conditions."""
+        current_conditions = {c : int(condition_vars[i].get()) for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
+        fig.clear()
+        plot(model=m, fig=fig, sample=sample, conditions=current_conditions)
+        canvas.draw()
+    
+    def value_changed():
+        """Calls update() if the real time checkbox is checked.  Triggers when a value changes on the sliders or the condition radio buttons"""
+        if real_time.get() == True:
+            update()
+    
+    # Draw the radio buttons allowing the user to select conditions
+    frame = tk.Frame(master=root)
+    frame.grid(row=0, column=0, sticky="nw")
+    condition_names = required_conditions
     if required_conditions is not None:
         condition_names = [n for n in condition_names if n in required_conditions]
-    for i, cond in enumerate(condition_names):
-        cax = plt.axes([0.025, 0.5-.1*len(condition_names)+.2*i, 0.23, 0.15])
-        labels = [str(cond)+"="+str(cv) for cv in sample.condition_values(cond)]
-        labels.append("All")
-        radio_cond = RadioButtons(cax, tuple(labels), active=len(labels)-1)
-        condition_axes.append(cax)
-        condition_radios.append(radio_cond)
-
-    def radio_val(val): # Strips the "xxx=" part off and gives a numeric value
-        return eval(val.split("=")[1]) if "=" in val else None
-    axupdate = plt.axes([0.8, 1-1/(len(setters)+4), 0.15, height])
-    buttonupdate = Button(axupdate, 'Update', hovercolor='0.975')
-    axreset = plt.axes([0.8, 1-2/(len(setters)+4), 0.15, height])
-    buttonreset = Button(axreset, 'Reset', hovercolor='0.975')
-    def update(event=None):
-        print(condition_names)
-        current_conditions = {c : radio_val(condition_radios[i].value_selected) for i,c in enumerate(condition_names) if condition_radios[i].value_selected != "All"}
-        print(current_conditions)
-        sample_cond = sample.subset(**current_conditions)
-        s = solve_partial_conditions(m, sample_cond, conditions=current_conditions)
-        scale_fact = len(sample_cond)/len(sample)
-        print(s.pdf_corr())
-        if show_loss and sample:
-            print("Computing loss")
-            pt.set_text("loss="+str(lf.loss(m)))
-        l_top.set_ydata(s.pdf_corr()*scale_fact)
-        l_bot.set_ydata(s.pdf_err()*scale_fact)
-        corrhist = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
-        print(corrhist)
-        errhist = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/total_samples/dt
-        histl_top.set_ydata(corrhist)
-        histl_bot.set_ydata(errhist)
-        topmax = max(max(s.pdf_corr()*scale_fact), max(corrhist))
-        botmax = max(max(s.pdf_err()*scale_fact), max(errhist))
-        plt.subplot(211)
-        plt.ylim(0, topmax*1.1)
-        plt.subplot(212)
-        if samescale:
-            plt.ylim(0, topmax*1.1)
-        else:
-            plt.ylim(0, botmax*1.1)
-        fig.canvas.draw_idle()
-    buttonupdate.on_clicked(update)
-    for radio in condition_radios:
-        radio.on_clicked(update)
-
+    condition_vars = [] # Tk variables for condition values (set by radio buttons)
+    for i,cond in enumerate(condition_names):
+        lframe = tk.LabelFrame(master=frame, text=cond, width=100, height=100)
+        lframe.pack()
+        thisvar = tk.StringVar()
+        condition_vars.append(thisvar)
+        b = tk.Radiobutton(master=lframe, text="All", variable=thisvar, value="All", command=value_changed)
+        b.pack(anchor=tk.W)
+        for cv in sample.condition_values(cond):
+            b = tk.Radiobutton(master=lframe, text=cv, variable=thisvar, value=cv, command=value_changed)
+            b.pack(anchor=tk.W)
+            thisvar.set(cv)
     
-    # And now get rid of the Fittables, replacing them with the
-    # default values.  
-    x_0 = []
-    constraints = [] # List of (min, max) tuples.  min/max=None if no constraint.
-    axes = [] # We don't need the axes or widgets variables, but if we don't save them garbage collection screws things up
-    widgets = []
-    for p,s,g,i,name in zip(params, setters, getters, range(0, len(setters)), paramnames):
-        default = p.default()
-        s(m, default)
+    # And now create the sliders.  While we're at it, get rid of the
+    # Fittables, replacing them with the default values.
+    frame_sliders = tk.Frame(master=root)
+    frame_sliders.grid(row=0, column=2, sticky="ne")
+    widgets = [] # To set the value programmatically in, e.g., set_defaults
+    for p,s,name in zip(params, setters, paramnames):
+        # Calculate slider constraints
         minval = p.minval if p.minval > -np.inf else None
         maxval = p.maxval if p.maxval < np.inf else None
-        constraints.append((minval, maxval))
-        x_0.append(default)
-        ypos = 1-(i+3)/(len(setters)+4)
-        axes.append(plt.axes([0.8, ypos, 0.15, height]))
-        widgets.append(Slider(axes[-1], name, p.minval, p.maxval, valinit=default))
-        widgets[-1].on_changed(lambda val, s=s, m=m : [s(m, val), update(None) if synchronous else None])
-
-    def set_defaults(event=None):
-        nonlocal synchronous
-        oldsync = synchronous
-        synchronous = False
-        for w in widgets:
-            w.reset()
-        synchronous = oldsync
-        update(None)
-
-    buttonreset.on_clicked(set_defaults)
-    update(None)
-    plt.show()
-    return m
+        slidestep = (maxval-minval)/200 if maxval and minval else .01
+        # Function for the slider change.  A hack to execute both the
+        # value changed function and set the value in the model.
+        onchange = lambda x : [s(m, float(x)), value_changed()]
+        # Create the slider and set its value
+        slider = tk.Scale(master=frame_sliders, label=name, from_=minval, to=maxval, resolution=slidestep, orient=tk.HORIZONTAL, command=onchange)
+        slider.set(default)
+        slider.pack(expand=True, fill="both")
+        widgets.append(slider)
+        
+    def set_defaults():
+        """Set default slider (model parameter) values"""
+        for w,default,s in zip(widgets,x_0,setters):
+            w.set(default)
+            s(m, default)
+        update()
+    
+    # Draw the buttons and the real-time checkbox
+    real_time = tk.IntVar()
+    c = tk.Checkbutton(master=frame, text="Real-time", variable=real_time)
+    c.pack(expand=True, fill="both")
+    b = tk.Button(master=frame, text="Update", command=update)
+    b.pack(expand=True, fill="both")
+    b = tk.Button(master=frame, text="Reset", command=set_defaults)
+    b.pack(expand=True, fill="both")
+    
+    update()
+    tk.mainloop()

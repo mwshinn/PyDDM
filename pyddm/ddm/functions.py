@@ -301,6 +301,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                 P.append((new, fit))
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
+# TODO get rid of "conditions" stipulation?
 def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
