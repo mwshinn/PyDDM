@@ -127,7 +127,6 @@ def play_with_model(sample=None,
 
 
 # TODO sample is not optional
-# TODO sliders don't expand when the window does
 def model_gui(model,
               sample=None,
               pool=None,
@@ -233,9 +232,9 @@ def model_gui(model,
     
     # Initialize the TK (tkinter) subsystem.
     root = tk.Tk()    
-    root.wm_title("Test")
+    root.wm_title("Model: %s" % model.name)
     root.grid_columnconfigure(1, weight=2)
-    root.grid_columnconfigure(4, weight=1)
+    root.grid_columnconfigure(2, weight=1)
     root.grid_rowconfigure(0, weight=1)
     
     # Creates a widget for a matplotlib figure.  Anything drawn to
@@ -280,8 +279,8 @@ def model_gui(model,
     
     # And now create the sliders.  While we're at it, get rid of the
     # Fittables, replacing them with the default values.
-    frame_sliders = tk.Frame(master=root)
-    frame_sliders.grid(row=0, column=2, sticky="ne")
+    frame_sliders = tk.LabelFrame(master=root, text="Parameters")
+    frame_sliders.grid(row=0, column=2, sticky="nwe")
     widgets = [] # To set the value programmatically in, e.g., set_defaults
     for p,s,name in zip(params, setters, paramnames):
         # Calculate slider constraints
