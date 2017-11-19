@@ -213,7 +213,6 @@ def model_gui(model,
                     params.append(pv)
                     setters.append(setter)
                     paramnames.append(param_name)
-    
     # Since we don't want to modify the original model, duplicate it,
     # and then use that base model in the optimization routine.  (We
     # can't duplicate it earlier in this function or else duplicated
@@ -232,7 +231,7 @@ def model_gui(model,
     
     # Initialize the TK (tkinter) subsystem.
     root = tk.Tk()    
-    root.wm_title("Model: %s" % model.name)
+    root.wm_title("Model: %s" % m.name)
     root.grid_columnconfigure(1, weight=2)
     root.grid_columnconfigure(2, weight=1)
     root.grid_rowconfigure(0, weight=1)
@@ -242,6 +241,7 @@ def model_gui(model,
     fig = Figure()
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().grid(row=0, column=1, sticky="nswe")
+    fig.text(.5, .5, "Loading...")
     canvas.show()
     canvas.draw()
     
@@ -275,7 +275,7 @@ def model_gui(model,
         for cv in sample.condition_values(cond):
             b = tk.Radiobutton(master=lframe, text=cv, variable=thisvar, value=cv, command=value_changed)
             b.pack(anchor=tk.W)
-            thisvar.set(cv)
+        thisvar.set("All")
     
     # And now create the sliders.  While we're at it, get rid of the
     # Fittables, replacing them with the default values.
@@ -289,7 +289,7 @@ def model_gui(model,
         slidestep = (maxval-minval)/200 if maxval and minval else .01
         # Function for the slider change.  A hack to execute both the
         # value changed function and set the value in the model.
-        onchange = lambda x : [s(m, float(x)), value_changed()]
+        onchange = lambda x,s=s : [s(m, float(x)), value_changed()]
         # Create the slider and set its value
         slider = tk.Scale(master=frame_sliders, label=name, from_=minval, to=maxval, resolution=slidestep, orient=tk.HORIZONTAL, command=onchange)
         slider.set(default)
@@ -312,5 +312,6 @@ def model_gui(model,
     b = tk.Button(master=frame, text="Reset", command=set_defaults)
     b.pack(expand=True, fill="both")
     
-    update()
+    root.update()
+    set_defaults()
     tk.mainloop()

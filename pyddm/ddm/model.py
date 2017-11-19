@@ -3,11 +3,13 @@ import itertools
 import functools
 
 import numpy as np
-from scipy import sparse
+from scipy import sparse, randn
 import scipy.sparse.linalg
 
 from . import parameters as param
 from .analytic import analytic_ddm
+
+# TODO remove task support
 
 # This speeds up the code by about 10%.
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
@@ -59,7 +61,12 @@ class Dependence(object): # TODO Base this on ABC
     ensuring extra parameters were not assigned.
     """
     def __init__(self, **kwargs):
-        """Create a new Dependence object with parameters specified in **kwargs."""
+        """Create a new Dependence object with parameters specified in **kwargs.
+
+        This function will only be called by classes which have been
+        inherited from this one.  Errors here are caused by invalid
+        subclass declarations.
+        """
         assert hasattr(self, "depname"), "Dependence needs a parameter name"
         assert hasattr(self, "name"), "Dependence classes need a name"
         assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
@@ -769,6 +776,58 @@ class Model(object):
         """
         return self._IC.get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
+    def simulate_trial(self, conditions=None):
+        """Simulate the decision variable for one trial.
+
+        Given conditions `conditions`, this function will simulate the
+        decision variable for a single trial.  It will *not* cut the
+        simulation off when it goes beyond the boundary.  This returns
+        a trajectory of the simulated trial over time as a numpy
+        array.
+        """
+
+        # TODO this doesn't support OU models since it doesn't take X.
+        T = self.t_domain()
+        if conditions is None:
+            conditions = {}
+        mu = np.asarray([self.get_dependence("mu").get_mu(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
+        sigma = np.asarray([self.get_dependence("sigma").get_sigma(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
+        randnorm = randn(len(T))
+        pos = np.cumsum(mu*self.dt + sigma*randnorm*np.sqrt(self.dt))
+        return pos
+
+    def simulated_solution(self, conditions=None, size=1000):
+        """Simulate individual trials to obtain a distribution.
+
+        Given conditions `conditions` and the number `size` of trials
+        to simulate, this will run the function "simulate_trial"
+        `size` times, and use the result to find a histogram analogous
+        to solve.  Returns a sample object.
+        """
+
+        # TODO this doesn't support OU models.  It could also be made
+        # more efficient by stopping the simulation once it has
+        # crossed threshold.
+        if conditions is None:
+            conditions = {}
+        corr_times = []
+        err_times = []
+        undec_count = 0
+        for _ in range(0, size):
+            timecourse = self.simulate_trial(conditions=conditions)
+            bound = np.asarray([self.get_dependence("bound").get_bound(t, conditions=conditions) for t in self.t_domain()])
+            cross_corr = [i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]]
+            cross_err = [i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]]
+            if (cross_corr and cross_err and cross_corr[0] < cross_err[0]) or (cross_corr and not cross_err):
+                corr_times.append(self.t_domain()[cross_corr[0]])
+            elif (cross_err and cross_corr and cross_err[0] < cross_corr[0]) or (cross_err and not cross_corr):
+                err_times.append(self.t_domain()[cross_err[0]])
+            elif (not cross_corr) and (not cross_err):
+                undec_count += 1
+            else:
+                raise ValueError("Internal error")
+        return Sample(corr_times, err_times, undec_count)
+
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
         mt = self.get_model_type()
@@ -957,7 +1016,7 @@ class _Sample_Iter_Wraper(object):
             ind = 1
         return (rt[self.i-1], {k : self.sample.conditions[k][ind][self.i-1] for k in self.sample.conditions.keys()})
         
-
+# TODO require passing non-decision trials
 class Sample(object):
     """Describes a sample from some (empirical or simulated) distribution.
 
@@ -1012,6 +1071,21 @@ class Sample(object):
     def __iter__(self):
         """Iterate through each reaction time, with no regard to whether it was a correct or error trial."""
         return np.concatenate([self.corr, self.err]).__iter__()
+    def __add__(self, other):
+        assert sorted(self.conditions.keys()) == sorted(other.conditions.keys()), "Canot add with unlike conditions"
+        corr = self.corr + other.corr
+        err = self.err + other.err
+        non_decision = self.non_decision + other.non_decision
+        conditions = {}
+        for k in self.conditions.keys():
+            sc = self.conditions
+            oc = other.conditions
+            if len(sc) == 3 or len(oc) == 3:
+            conditions[k] = (sc[k][0]+oc[k][0], sc[k][1]+oc[k][1],
+                             sc[k][2] if len(sc[k]) == 3 else []
+                             + oc[k][2] if len(oc[k]) == 3 else [])
+        return Sample(corr, err, non_decision, **conditions)
+        
     def items(self, correct):
         """Iterate through the reaction times.
 
@@ -1478,6 +1552,7 @@ class LossLikelihood(LossFunction):
         self.hist_indexes = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
+            assert max(s.corr) < self.T_dur and max(s.err) < self.T_dur, "Simulation time T_dur not long enough for these data"
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Exclude all data points where this index
             # rounds to 0 because this is always 0 in the pdf (no
