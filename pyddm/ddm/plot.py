@@ -81,8 +81,8 @@ def plot_fit_diagnostics(model, sample=None, fig=None, conditions=None):
     # If a sample is given, plot it behind the model.
     sample_cond = sample.subset(**conditions)
     if sample:
-        data_hist_top = np.histogram(sample_cond.corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
-        data_hist_bot = np.histogram(sample_cond.err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]
+        data_hist_top = np.histogram(sample_cond.corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
+        data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
         
         ax = fig.add_subplot(211)

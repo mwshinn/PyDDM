@@ -482,8 +482,8 @@ class Overlay(Dependence):
         """
         raise NotImplementedError
 
-    def get_solution_components(self, solution): # TODO move to Solution object
-        return (solution._pdf_corr, solution._pdf_err, solution.model, solution.conditions)
+    def get_solution_components(self, solution): # DEPRECIATED TODO delete this
+        return (solution.corr, solution.err, solution.model, solution.conditions)
 
 class OverlayNone(Overlay):
     name = "None"
@@ -1080,12 +1080,38 @@ class Sample(object):
         for k in self.conditions.keys():
             sc = self.conditions
             oc = other.conditions
-            if len(sc) == 3 or len(oc) == 3:
             conditions[k] = (sc[k][0]+oc[k][0], sc[k][1]+oc[k][1],
-                             sc[k][2] if len(sc[k]) == 3 else []
-                             + oc[k][2] if len(oc[k]) == 3 else [])
+                             (sc[k][2] if len(sc[k]) == 3 else [])
+                             + (oc[k][2] if len(oc[k]) == 3 else []))
         return Sample(corr, err, non_decision, **conditions)
+    @staticmethod
+    def from_numpy_array(data, column_names):
+        """Generate a Sample object from a numpy array.
         
+        `data` should be an n x m array (n rows, m columns) where
+        m>=2. The first column should be the response times, and the
+        second column should be whether the trial was correct or an
+        error (1 == correct, 0 == error).  Any remaining columns
+        should be conditions.  `column_names` should be a list of
+        strings of length m indicating the names of the conditions.
+        The first two values can be anything, since these correspond
+        to special columns as described above.  (However, for the
+        bookkeeping, it might be wise to make them "rt" and "correct"
+        or something of the sort.)  Remaining elements are the
+        condition names corresponding to the columns.  This function
+        does not yet work with no-decision trials.
+        """
+        # TODO this function doesn't do validity checks yet
+        c = data[:,1].astype(bool)
+        nc = (1-data[:,1]).astype(bool)
+        def pt(x): # Pythonic types
+            arr = np.asarray(x)
+            if np.all(arr == np.round(arr)):
+                arr = arr.astype(int)
+            return arr.tolist()
+
+        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), []) for i,k in enumerate(column_names[2:])}
+        return Sample(pt(data[c,0]), pt(data[nc,0]), 0, **conditions)
     def items(self, correct):
         """Iterate through the reaction times.
 
@@ -1253,33 +1279,35 @@ class Solution(object):
             - `pdf_err` - a size N numpy ndarray describing the error portion of the joint pdf
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
-        self._pdf_corr = pdf_corr
-        self._pdf_err = pdf_err
+        self.corr = pdf_corr
+        self._pdf_corr = pdf_corr # for backward compatibility
+        self.err = pdf_err
+        self._pdf_err = pdf_err # for backward compatibility
         self.conditions = conditions
 
     def pdf_corr(self):
         """The correct component of the joint PDF."""
-        return self._pdf_corr/self.model.dt
+        return self.corr/self.model.dt
 
     def pdf_err(self):
         """The error (incorrect) component of the joint PDF."""
-        return self._pdf_err/self.model.dt
+        return self.err/self.model.dt
 
     def cdf_corr(self):
         """The correct component of the joint CDF."""
-        return np.cumsum(self._pdf_corr)
+        return np.cumsum(self.corr)
 
     def cdf_err(self):
         """The error (incorrect) component of the joint CDF."""
-        return np.cumsum(self._pdf_err)
+        return np.cumsum(self.err)
 
     def prob_correct(self):
         """The probability of selecting the right response."""
-        return np.sum(self._pdf_corr)
+        return np.sum(self.corr)
 
     def prob_error(self):
         """The probability of selecting the incorrect (error) response."""
-        return np.sum(self._pdf_err)
+        return np.sum(self.err)
 
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
@@ -1295,7 +1323,7 @@ class Solution(object):
 
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
-        return np.sum((self._pdf_corr)*self.model.t_domain()) / self.prob_correct()
+        return np.sum((self.corr)*self.model.t_domain()) / self.prob_correct()
 
     @staticmethod
     def _sample_from_histogram(hist, hist_bins, k, seed=0):
@@ -1317,7 +1345,7 @@ class Solution(object):
         rng = np.random.RandomState(seed)
         sample = []
         h = hist
-        norm = np.round(np.sum(h), 5)
+        norm = np.round(np.sum(h), 2)
         assert norm <= 1 or int(norm) == norm, "Invalid histogram of size %f" % norm
         if norm >= 1:
             h = h/norm

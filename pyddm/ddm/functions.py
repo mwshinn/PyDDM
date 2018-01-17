@@ -305,8 +305,8 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
-    model_corr = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
-    model_err = np.histogram([], bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    model_corr = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
+    model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
     for conds in sample.condition_combinations(required_conditions=model.required_conditions):
         for k, v in conditions.items():
             assert k in conds.keys()
