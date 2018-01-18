@@ -109,7 +109,6 @@ def play_with_model(sample=None,
                     sigma=SigmaConstant(sigma=1),
                     bound=BoundConstant(B=1),
                     IC=ICPointSourceCenter(),
-                    task=TaskFixedDuration(),
                     dt=default_dt, dx=default_dx, 
                     overlay=OverlayNone(),
                     pool=None,
@@ -122,7 +121,7 @@ def play_with_model(sample=None,
     else:
         T_dur = 2
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    m = Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx)
+    m = Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx)
     return model_gui(m, sample=sample, pool=pool)
 
 
@@ -162,7 +161,6 @@ def model_gui(model,
                        model.get_dependence("sigma"),
                        model.get_dependence("bound"),
                        model.get_dependence("IC"),
-                       model.get_dependence("task"),
                        model.get_dependence("overlay")]
     # All of the conditions required by at least one of the model
     # components.

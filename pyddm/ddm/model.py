@@ -179,31 +179,26 @@ class Mu(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
-    def get_matrix(self, x, t, dx, dt, conditions, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.  
-        `adj` is the optional amount by which to adjust `mu`.  This is
-        most relevant for tasks which modify `mu` over time.
 
         Returns a sparse numpy matrix.
         """
         mu = self.get_mu(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return self._cached_sparse_diags([ 0.5*dt/dx * (mu + adj),
-                                           -0.5*dt/dx * (mu + adj)],
+        return self._cached_sparse_diags([ 0.5*dt/dx * mu,
+                                           -0.5*dt/dx * mu],
                                          [1, -1], shape=(len(x), len(x)), format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
-    def get_flux(self, x_bound, t, dx, dt, conditions, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         """The drift component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
         that is past the boundary point `x_bound`.
-
-        `adj` is the optional amount by which to adjust `mu`.  This is
-        most relevant for tasks which modify `mu` over time.
         """
-        return 0.5*dt/dx * np.sign(x_bound) * (self.get_mu(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs) + adj)
+        return 0.5*dt/dx * np.sign(x_bound) * self.get_mu(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
     def get_mu(self, t, conditions, **kwargs):
         raise NotImplementedError
 
@@ -233,11 +228,11 @@ class MuLinear(Mu):
     # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
     # same x,t with p(x,t) (probability distribution function). Hence
     # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    def get_matrix(self, x, t, dx, dt, conditions, adj=0, **kwargs):
-        return sparse.diags( 0.5*dt/dx * (self.mu + adj + self.x*x[1:]  + self.t*t), 1) \
-             + sparse.diags(-0.5*dt/dx * (self.mu + adj + self.x*x[:-1] + self.t*t),-1)
-    def get_flux(self, x_bound, t, dx, dt, conditions, adj=0, **kwargs):
-        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + adj + self.x*x_bound + self.t*t)
+    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
+        return sparse.diags( 0.5*dt/dx * (self.mu + self.x*x[1:]  + self.t*t), 1) \
+             + sparse.diags(-0.5*dt/dx * (self.mu + self.x*x[:-1] + self.t*t),-1)
+    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
+        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + self.x*x_bound + self.t*t)
     def get_mu(self, x, t, **kwargs):
         return self.mu + self.x*x + self.t*t
 
@@ -269,29 +264,24 @@ class Sigma(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
-    def get_matrix(self, x, t, dx, dt, conditions, adj=0, **kwargs):
+    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray.
         `t` should be a float for the time.
-        `adj` is the optional amount by which to adjust `sigma`.  This
-        is most relevant for tasks which modify `sigma` over time.
         """
         sigma = self.get_sigma(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return self._cached_sparse_diags([1.0*(sigma + adj)**2 * dt/dx**2,
-                                          -0.5*(sigma + adj)**2 * dt/dx**2,
-                                          -0.5*(sigma + adj)**2 * dt/dx**2],
+        return self._cached_sparse_diags([1.0*sigma**2 * dt/dx**2,
+                                          -0.5*sigma**2 * dt/dx**2,
+                                          -0.5*sigma**2 * dt/dx**2],
                                          [0, 1, -1], shape=(len(x), len(x)), format="csr")
-    def get_flux(self, x_bound, t, dx, dt, conditions, adj=0, **kwargs):
+    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
         that is past the boundary point `x_bound` at time `t` (a float).
-
-        `adj` is the optional amount by which to adjust `sigma`.  This
-        is most relevant for tasks which modify `sigma` over time.
         """
-        return 0.5*dt/dx**2 * (self.get_sigma(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs) + adj)**2
+        return 0.5*dt/dx**2 * self.get_sigma(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)**2
     def sigma_base(self, conditions):
         """Return the value of sigma at the beginning of the simulation."""
         assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
@@ -321,14 +311,14 @@ class SigmaLinear(Sigma):
     """
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
-    def get_matrix(self, x, t, dx, dt, conditions, adj=0, **kwargs):
-        diagadj = self.sigma + adj + self.x*x + self.t*t
+    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
+        diagadj = self.sigma + self.x*x + self.t*t
         diagadj[diagadj<0] = 0
         return sparse.diags(1.0*(diagadj)**2 * dt/dx**2, 0) \
              - sparse.diags(0.5*(diagadj[1:])**2 * dt/dx**2, 1) \
              - sparse.diags(0.5*(diagadj[:-1])**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, conditions, adj=0, **kwargs):
-        fluxadj = (self.sigma + adj + self.x*x_bound + self.t*t)
+    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
+        fluxadj = (self.sigma + self.x*x_bound + self.t*t)
         if fluxadj < 0:
             return 0
         return 0.5*dt/dx**2 * fluxadj**2
@@ -394,73 +384,6 @@ class BoundCollapsingExponential(Bound):
     required_parameters = ["B", "tau"]
     def get_bound(self, t, conditions, **kwargs):
         return self.B * np.exp(-self.tau*t)
-    
-class Task(Dependence):
-    """Subclass this to describe how experimental conditions change.
-
-    Task objects sit on top of the rest of the simulation, and allow
-    changing the mu or sigma of the simulation at any time for any
-    reason.
-    """
-    depname = "Task"
-    def adjust_mu(self, mu, t, conditions):
-        """Change mu during the simulation.
-
-        `mu` is the current value of mu at that timepoint in the
-        simulation before any changes.  `t` is the time, and
-        `conditions` are the conditions of the simulation.  This
-        describes the adjustment that should be applied to mu.  So to
-        set mu to zero, this should return -`mu`.
-        """
-        return 0
-    def adjust_sigma(self, sigma, t, conditions):
-        """Change sigma during the simulation.
-
-        `sigma` is the current value of sigma at that timepoint in the
-        simulation before any changes.  `t` is the time, and
-        `conditions` are the conditions of the simulation.  This
-        describes the adjustment that should be applied to sigma.  So
-        to set sigma to zero, this should return -`sigma`.
-        """
-        return 0
-
-class TaskFixedDuration(Task):
-    name = "Fixed_Duration"
-    required_parameters = []
-
-class TaskDurationParadigm(Task):
-    name = "Duration_Paradigm"
-    required_parameters = ["duration"]
-    def adjust_mu(self, mu, t, conditions):
-        if t < self.duration:
-            return 0
-        else:
-            return -mu
-
-class TaskPulseParadigm(Task):
-    name = "Pulse_Paradigm"
-    required_parameters = ["onset", "duration", "adjustment"]
-    default_parameters = {"duration" : .1, "adjustment" : .15}
-    def adjust_mu(self, mu, t, conditions):
-        if (t > self.onset) and (t < (self.onset + self.duration)):
-            return mu * self.adjustment
-        else:
-            return 0
-
-class TaskDelay(Task):
-    name = "Delay"
-    required_parameters = ["delay"]
-    def adjust_mu(self, mu, t, conditions):
-        if t < self.delay:
-            return -mu
-        else:
-            return 0
-    def adjust_sigma(self, sigma, t, conditions):
-        if t < self.delay:
-            return -sigma
-        else:
-            return 0
-    
 
 class Overlay(Dependence):
     """Subclasses can modify distributions after they have been generated.
@@ -611,20 +534,17 @@ class Model(object):
                  sigma=SigmaConstant(sigma=1),
                  bound=BoundConstant(B=1),
                  IC=ICPointSourceCenter(),
-                 task=TaskFixedDuration(),
                  overlay=OverlayNone(), name="",
                  dx=param.dx, dt=param.dt, T_dur=param.T_dur):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
         the drift rate (`mu`), noise (`sigma`), and bounds (`bound`)
-        change over time, the initial conditions (`IC`), and a
-        description of a potential task which could modify the model
-        during the simulation (`task`).
+        change over time, and the initial conditions (`IC`).
 
-        These five components are given by the parameters `mu`, `sigma`,
-        `bound`, `IC`, and `task`, respectively.  They should be types
-        which inherit from the types Mu, Sigma, Bound, Task, and
+        These five components are given by the parameters `mu`,
+        `sigma`, `bound`, and `IC`, respectively.  They should be
+        types which inherit from the types Mu, Sigma, Bound, and
         InitialCondition, respectively.  They default to constant
         unitary values.
 
@@ -644,13 +564,11 @@ class Model(object):
         self._sigmadep = sigma
         assert isinstance(bound, Bound)
         self._bounddep = bound
-        assert isinstance(task, Task)
-        self._task = task
         assert isinstance(IC, InitialCondition)
         self._IC = IC
         assert isinstance(overlay, Overlay)
         self._overlay = overlay
-        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._task, self._IC, self._overlay]
+        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._IC, self._overlay]
         self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
         self.dx = dx
         self.dt = dt
@@ -660,7 +578,7 @@ class Model(object):
         # Use a list so they can be sorted
         allobjects = [("name", self.name), ("mu", self._mudep),
                       ("sigma", self._sigmadep), ("bound", self._bounddep),
-                      ("task", self._task), ("IC", self._IC),
+                      ("IC", self._IC),
                       ("overlay", self._overlay), ("dx", self.dx),
                       ("dt", self.dt), ("T_dur", self.T_dur)]
         params = ""
@@ -710,8 +628,6 @@ class Model(object):
             return self._bounddep
         elif name.lower() in ["ic", "initialcondition", "_ic"]:
             return self._IC
-        elif name.lower() in ["task", "_task"]:
-            return self._task
         elif name.lower() in ["overlay", "_overlay"]:
             return self._overlay
         raise NameError("Invalid dependence name")
@@ -736,12 +652,6 @@ class Model(object):
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
-    def mu_task_adj(self, t, conditions):
-        """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_mu(self.get_mu(t=t, conditions=conditions), t, conditions=conditions)
-    def sigma_task_adj(self, t, conditions):
-        """The amount by which we should adjust the drift rate at time `t` for the current task."""
-        return self._task.adjust_sigma(self.get_sigma(t=t, conditions=conditions), t, conditions=conditions)
     @staticmethod
     @functools.lru_cache(maxsize=4)
     def _cache_eye(m, format="csr"):
@@ -757,13 +667,13 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.mu_task_adj(t, conditions=conditions), conditions=conditions)
-        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, adj=self.sigma_task_adj(t, conditions=conditions), conditions=conditions)
+        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
         return self._cache_eye(len(x), format="csr") + mu_matrix + sigma_matrix
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
-        mu_flux = self._mudep.get_flux(x, t, adj=self.mu_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
-        sigma_flux = self._sigmadep.get_flux(x, t, adj=self.sigma_task_adj(t, conditions=conditions), dx=self.dx, dt=self.dt, conditions=conditions)
+        mu_flux = self._mudep.get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
+        sigma_flux = self._sigmadep.get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
         return mu_flux + sigma_flux
     def bound(self, t, conditions):
         """The upper boundary of the simulation at time `t`."""
@@ -833,7 +743,7 @@ class Model(object):
         mt = self.get_model_type()
         return mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
             (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
-            mt["Task"] == TaskFixedDuration and mt["IC"] == ICPointSourceCenter
+            mt["IC"] == ICPointSourceCenter
         
     def solve(self, conditions=None):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
@@ -1580,7 +1490,8 @@ class LossLikelihood(LossFunction):
         self.hist_indexes = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
-            assert max(s.corr) < self.T_dur and max(s.err) < self.T_dur, "Simulation time T_dur not long enough for these data"
+            maxt = max(max(s.corr) if s.corr else -1, max(s.err) if s.err else -1)
+            assert maxt < self.T_dur, "Simulation time T_dur not long enough for these data"
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Exclude all data points where this index
             # rounds to 0 because this is always 0 in the pdf (no

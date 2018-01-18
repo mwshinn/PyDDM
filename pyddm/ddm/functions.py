@@ -37,7 +37,6 @@ def fit_model(sample,
               sigma=SigmaConstant(sigma=1),
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
-              task=TaskFixedDuration(),
               dt=default_dt, dx=default_dx, fitparams=None,
               method="differential_evolution",
               overlay=OverlayNone(),
@@ -48,7 +47,7 @@ def fit_model(sample,
     
     The data `sample` should be a Sample object of the reaction times
     to fit in seconds (NOT milliseconds).  This function will generate
-    a model using the `mu`, `sigma`, `bound`, `IC`, and `task`
+    a model using the `mu`, `sigma`, `bound`, and `IC`
     parameters to specify the model.  At least one of these should
     have a parameter which is a "Fittable()" instance, as this will be
     the parameter to be fit.
@@ -83,7 +82,7 @@ def fit_model(sample,
     `name` gives the name of the model after it is fit.
 
     Returns a "Model()" object with the specified `mu`, `sigma`,
-    `bound`, `IC`, and `task`.
+    `bound`, and `IC`.
     """
     
     # Use the reaction time data (a list of reaction times) to
@@ -95,7 +94,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, task=task, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
     return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
 
 
@@ -147,7 +146,6 @@ def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
                        m.get_dependence("sigma"),
                        m.get_dependence("bound"),
                        m.get_dependence("IC"),
-                       m.get_dependence("task"),
                        m.get_dependence("overlay")]
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
     params = [] # A list of all of the Fittables that were passed.
@@ -324,7 +322,6 @@ def hit_boundary(model):
                        model.get_dependence("sigma"),
                        model.get_dependence("bound"),
                        model.get_dependence("IC"),
-                       model.get_dependence("task"),
                        model.get_dependence("overlay")]
     hit = False
     for component in components_list:
