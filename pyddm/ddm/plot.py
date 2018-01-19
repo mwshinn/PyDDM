@@ -67,7 +67,7 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s1, correct=False)
     plot_solution_pdf(s2, correct=False)
 
-def plot_fit_diagnostics(model, sample=None, fig=None, conditions=None):
+def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dt=None):
     # Avoid stupid errors with mutable objects
     if conditions is None:
         conditions = {}
@@ -76,8 +76,18 @@ def plot_fit_diagnostics(model, sample=None, fig=None, conditions=None):
         fig = plt.gcf()
     
     # We use these a lot, hence the shorthand
-    dt = model.dt
-    T_dur = model.T_dur
+    if model:
+        dt = model.dt
+        T_dur = model.T_dur
+        t_domain = model.t_domain()
+    elif sample:
+        dt = .01 if not dt else dt
+        T_dur = max(sample)
+        t_domain = np.linspace(0, T_dur, T_dur/dt+1)
+    else:
+        raise ValueError("Must specify non-empty model or sample in arguments")
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
     # If a sample is given, plot it behind the model.
     sample_cond = sample.subset(**conditions)
     if sample:
@@ -85,17 +95,14 @@ def plot_fit_diagnostics(model, sample=None, fig=None, conditions=None):
         data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
         
-        ax = fig.add_subplot(211)
-        ax.plot(model.t_domain(), np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
-        ax = fig.add_subplot(212)
-        ax.plot(model.t_domain(), np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
-    s = solve_partial_conditions(model, sample_cond, conditions=conditions)
-    ax = fig.add_subplot(211)
-    ax.plot(model.t_domain(), s.pdf_corr(), lw=2, color='red')
-    ax.axis([0, model.T_dur, 0, None])
-    ax = fig.add_subplot(212)
-    ax.plot(model.t_domain(), s.pdf_err(), lw=2, color='red')
-    ax.axis([0, model.T_dur, 0, None])
+        ax1.plot(t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
+        ax2.plot(t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
+    if model:
+        s = solve_partial_conditions(model, sample_cond, conditions=conditions)
+        ax1.plot(t_domain, s.pdf_corr(), lw=2, color='red')
+        ax2.plot(t_domain, s.pdf_err(), lw=2, color='red')
+    ax1.axis([0, T_dur, 0, None])
+    ax2.axis([0, T_dur, 0, None])
     pt = fig.suptitle("")
     
 

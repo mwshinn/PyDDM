@@ -636,18 +636,9 @@ class Model(object):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, self.dependencies))
-    def bound_base(self, conditions):
-        """The boundary at the beginning of the simulation."""
-        return self._bounddep.B_base(conditions=conditions)
-    def get_mu(self, t, conditions):
-        """The drift rate at the beginning of the simulation."""
-        return self._mudep.get_mu(t=t, conditions=conditions)
-    def get_sigma(self, t, conditions):
-        """The noise at the beginning of the simulation."""
-        return self._sigmadep.get_sigma(t=t, conditions=conditions)
     def x_domain(self, conditions):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
-        B = self.bound_base(conditions=conditions)
+        B = self.get_dependence("bound").B_base(conditions=conditions)
         return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
@@ -776,14 +767,14 @@ class Model(object):
             conditions = {}
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self._bounddep, BoundConstant): # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_mu(t=0, conditions=conditions),
-                                                       self.get_sigma(t=0, conditions=conditions),
-                                                       self.bound_base(conditions=conditions), self.t_domain())
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
+                                                       self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
+                                                       self.get_dependence("bound").B_base(conditions=conditions), self.t_domain())
         elif isinstance(self._bounddep, BoundCollapsingLinear): # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_mu(t=0, conditions=conditions),
-                                                       self.get_sigma(t=0, conditions=conditions),
-                                                       self.bound_base(conditions=conditions),
-                                                       self.t_domain(), -self._bounddep.t) # TODO why must this be negative? -MS
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
+                                                       self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
+                                                       self.get_dependence("bound").B_base(conditions=conditions),
+                                                       self.t_domain(), -self.get_dependence("bound").t) # TODO why must this be negative? -MS
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
         anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
@@ -828,8 +819,8 @@ class Model(object):
 
                 # Now figure out which x positions are still within
                 # the (collapsing) bound.
-                assert self.bound_base(conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-                bound_shift = self.bound_base(conditions=conditions) - bound
+                assert self.get_dependence("bound").B_base(conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+                bound_shift = self.get_dependence("bound").B_base(conditions=conditions) - bound
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
                 x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
