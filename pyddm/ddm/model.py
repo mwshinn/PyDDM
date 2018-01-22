@@ -1,6 +1,6 @@
 import copy
 import itertools
-import functools
+from functools import lru_cache
 
 import numpy as np
 from scipy import sparse, randn
@@ -8,8 +8,12 @@ import scipy.sparse.linalg
 
 from . import parameters as param
 from .analytic import analytic_ddm
+from .models.mu import MuConstant, Mu
+from .models.sigma import SigmaConstant, Sigma
+from .models.ic import ICPointSourceCenter, InitialCondition
+from .models.bound import BoundConstant, BoundCollapsingLinear, Bound
+from .models.overlay import OverlayNone, Overlay
 
-# TODO remove task support
 
 # This speeds up the code by about 10%.
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
@@ -25,494 +29,7 @@ sparse.csr_matrix.check_format = lambda self, full_check=True : True
 # `name` used to be `f_mu_setting` or `f_sigma_setting` and
 # kwargs now encompassed (e.g.) `param_mu_t_temp`.
 
-class Dependence(object): # TODO Base this on ABC
-    """An abstract class describing how one variable depends on other variables.
 
-    This is an abstract class which is inherrited by other abstract
-    classes only, and has the highest level machinery for describing
-    how one variable depends on others.  For example, an abstract
-    class that inherits from Dependence might describe how the drift
-    rate may change throughout the simulation depending on the value
-    of x and t, and then this class would be inherited by a concrete
-    class describing an implementation.  For example, the relationship
-    between drift rate and x could be linear, exponential, etc., and
-    each of these would be a subsubclass of Dependence.
-
-    In order to subclass Dependence, you must set the (static) class
-    variable `depname`, which gives an alpha-numeric string describing
-    which variable could potentially depend on other variables.
-
-    Each subsubclass of dependence must also define two (static) class
-    variables.  First, it must define `name`, which is an
-    alpha-numeric plus underscores name of what the algorithm is, and
-    also `required_parameters`, a python list of names (strings) for
-    the parameters that must be passed to this algorithm.  (This does
-    not include globally-relevant variables like dt, it only includes
-    variables relevant to a particular instance of the algorithm.)  An
-    optional (static) class variable is `default_parameters`, which is
-    a dictionary indexed by the parameter names from
-    `required_parameters`.  Any parameters referenced here will be
-    given a default value.
-
-    Dependence will check to make sure all of the required parameters
-    have been supplied, with the exception of those which have default
-    versions.  It also provides other convenience and safety features,
-    such as allowing tests for equality of derived algorithms and for
-    ensuring extra parameters were not assigned.
-    """
-    def __init__(self, **kwargs):
-        """Create a new Dependence object with parameters specified in **kwargs.
-
-        This function will only be called by classes which have been
-        inherited from this one.  Errors here are caused by invalid
-        subclass declarations.
-        """
-        assert hasattr(self, "depname"), "Dependence needs a parameter name"
-        assert hasattr(self, "name"), "Dependence classes need a name"
-        assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
-        if hasattr(self, "default_parameters"):
-            args = self.default_parameters
-            args.update(kwargs)
-        else:
-            args = kwargs
-        if not hasattr(self, "required_conditions"):
-            object.__setattr__(self, 'required_conditions', [])
-        passed_args = sorted(args.keys())
-        expected_args = sorted(self.required_parameters)
-        assert passed_args == expected_args, "Provided %s arguments, expected %s" % (str(passed_args), str(expected_args))
-        for key, value in args.items():
-            setattr(self, key, value)
-
-    def __eq__(self, other):
-        """Equality is defined as having the same algorithm type and the same parameters."""
-        if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
-        return False
-
-    def __setattr__(self, name, val):
-        """Only allow the required parameters to be assigned."""
-        if name in self.required_parameters:
-            return object.__setattr__(self, name, val) # No super() for python2 compatibility
-        raise LookupError
-    def __delattr__(self, name):
-        """No not allow a required parameter to be deleted."""
-        raise LookupError
-    def __repr__(self):
-        params = ""
-        # If it is a sub-sub-class, then print the parameters it was
-        # instantiated with
-        if self.name:
-            for p in self.required_parameters:
-                params += str(p) + "=" + getattr(self, p).__repr__()
-                if p != self.required_parameters[-1]:
-                    params += ", "
-        return type(self).__name__ + "(" + params + ")"
-    def __str__(self):
-        return self.__repr__()
-    def __hash__(self):
-        return hash(repr(self))
-
-class InitialCondition(Dependence):
-    """Subclass this to compute the initial conditions of the simulation.
-
-    This abstract class describes initial PDF at the beginning of a
-    simulation.  To subclass it, implement get_IC(x).
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
-    """
-    depname = "IC"
-    def get_IC(self, x, dx, **kwargs):
-        """Get the initial conditions (a PDF) withsupport `x`.
-
-        `x` is a length N ndarray representing the support of the
-        initial condition PDF, i.e. the x-domain.  This returns a
-        length N ndarray describing the distribution.
-        """
-        raise NotImplementedError
-
-class ICPointSourceCenter(InitialCondition):
-    """Initial condition: a dirac delta function in the center of the domain."""
-    name = "point_source_center"
-    required_parameters = []
-    def get_IC(self, x, dx, **kwargs):
-        pdf = np.zeros(len(x))
-        pdf[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
-        return pdf
-
-# Dependence for testing.
-class ICUniform(InitialCondition):
-    """Initial condition: a uniform distribution."""
-    name = "uniform"
-    required_parameters = []
-    def get_IC(self, x, dx, **kwargs):
-        pdf = np.zeros(len(x))
-        pdf = 1/(len(x))*np.ones((len(x)))
-        return pdf
-
-class Mu(Dependence):
-    """Subclass this to specify how drift rate varies with position and time.
-
-    This abstract class provides the methods which define a dependence
-    of mu on x and t.  To subclass it, implement get_matrix and
-    get_flux.  All subclasses must include a parameter mu in
-    required_parameters, which is the drift rate at the start of the
-    simulation.
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
-    """
-    depname = "Mu"
-    def _cached_sparse_diags(self, *args, **kwargs):
-        """Cache sparse.diags to save 15% runtime."""
-        if "_last_diag_args" not in self.__dict__:
-            object.__setattr__(self, "_last_diag_args", [])
-            object.__setattr__(self, "_last_diag_kwargs", {})
-            object.__setattr__(self, "_last_diag_val", None)
-        if object.__getattribute__(self, "_last_diag_args") == args and \
-           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
-            return object.__getattribute__(self, "_last_diag_val")
-
-        object.__setattr__(self, "_last_diag_args", args)
-        object.__setattr__(self, "_last_diag_kwargs", kwargs)
-        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
-        return object.__getattribute__(self, "_last_diag_val")
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
-
-        `x` should be a length N ndarray.  
-
-        Returns a sparse numpy matrix.
-        """
-        mu = self.get_mu(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return self._cached_sparse_diags([ 0.5*dt/dx * mu,
-                                           -0.5*dt/dx * mu],
-                                         [1, -1], shape=(len(x), len(x)), format="csr")
-    # Amount of flux from bound/end points to correct and erred
-    # response probabilities, due to different parameters.
-    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        """The drift component of flux across the boundary at position `x_bound` at time `t`.
-
-        Flux here is essentially the amount of the mass of the PDF
-        that is past the boundary point `x_bound`.
-        """
-        return 0.5*dt/dx * np.sign(x_bound) * self.get_mu(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-    def get_mu(self, t, conditions, **kwargs):
-        raise NotImplementedError
-
-class MuConstant(Mu):
-    """Mu dependence: drift rate is constant throughout the simulation.
-
-    Only take one parameter: mu, the constant drift rate.
-
-    Note that this is a special case of MuLinear."""
-    name = "constant"
-    required_parameters = ["mu"]
-    def get_mu(self, **kwargs):
-        return self.mu
-
-class MuLinear(Mu):
-    """Mu dependence: drift rate varies linearly with position and time.
-
-    Take three parameters:
-
-    - `mu` - The starting drift rate
-    - `x` - The coefficient by which mu varies with x
-    - `t` - The coefficient by which mu varies with t
-    """
-    name = "linear_xt"
-    required_parameters = ["mu", "x", "t"]
-    # Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
-    # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
-    # same x,t with p(x,t) (probability distribution function). Hence
-    # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        return sparse.diags( 0.5*dt/dx * (self.mu + self.x*x[1:]  + self.t*t), 1) \
-             + sparse.diags(-0.5*dt/dx * (self.mu + self.x*x[:-1] + self.t*t),-1)
-    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + self.x*x_bound + self.t*t)
-    def get_mu(self, x, t, **kwargs):
-        return self.mu + self.x*x + self.t*t
-
-class Sigma(Dependence):
-    """Subclass this to specify how diffusion rate/noise varies with position and time.
-
-    This abstract class provides the methods which define a dependence
-    of sigma on x and t.  To subclass it, implement get_matrix and
-    get_flux.  All subclasses must include a parameter sigma in
-    required_parameters, which is the diffusion rate/noise at the
-    start of the simulation.
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
-    """
-    depname = "Sigma"
-    def _cached_sparse_diags(self, *args, **kwargs):
-        """Cache sparse.diags to save 15% runtime."""
-        if "_last_diag_val" not in self.__dict__:
-            object.__setattr__(self, "_last_diag_args", [])
-            object.__setattr__(self, "_last_diag_kwargs", {})
-            object.__setattr__(self, "_last_diag_val", None)
-        if object.__getattribute__(self, "_last_diag_args") == args and \
-           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
-            return object.__getattribute__(self, "_last_diag_val")
-
-        object.__setattr__(self, "_last_diag_args", args)
-        object.__setattr__(self, "_last_diag_kwargs", kwargs)
-        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
-        return object.__getattribute__(self, "_last_diag_val")
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
-
-        `x` should be a length N ndarray.
-        `t` should be a float for the time.
-        """
-        sigma = self.get_sigma(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return self._cached_sparse_diags([1.0*sigma**2 * dt/dx**2,
-                                          -0.5*sigma**2 * dt/dx**2,
-                                          -0.5*sigma**2 * dt/dx**2],
-                                         [0, 1, -1], shape=(len(x), len(x)), format="csr")
-    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
-
-        Flux here is essentially the amount of the mass of the PDF
-        that is past the boundary point `x_bound` at time `t` (a float).
-        """
-        return 0.5*dt/dx**2 * self.get_sigma(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)**2
-    def sigma_base(self, conditions):
-        """Return the value of sigma at the beginning of the simulation."""
-        assert "sigma" in self.required_parameters, "Sigma must be a required parameter"
-        return self.sigma
-    def get_sigma(self, conditions, **kwargs):
-        raise NotImplementedError
-
-class SigmaConstant(Sigma):
-    """Simga dependence: diffusion rate/noise is constant throughout the simulation.
-
-    Only take one parameter: sigma, the diffusion rate.
-
-    Note that this is a special case of SigmaLinear."""
-    name = "constant"
-    required_parameters = ["sigma"]
-    def get_sigma(self, **kwargs):
-        return self.sigma
-
-class SigmaLinear(Sigma):
-    """Sigma dependence: diffusion rate varies linearly with position and time.
-
-    Take three parameters:
-
-    - `sigma` - The starting diffusion rate/noise
-    - `x` - The coefficient by which sigma varies with x
-    - `t` - The coefficient by which sigma varies with t
-    """
-    name = "linear_xt"
-    required_parameters = ["sigma", "x", "t"]
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        diagadj = self.sigma + self.x*x + self.t*t
-        diagadj[diagadj<0] = 0
-        return sparse.diags(1.0*(diagadj)**2 * dt/dx**2, 0) \
-             - sparse.diags(0.5*(diagadj[1:])**2 * dt/dx**2, 1) \
-             - sparse.diags(0.5*(diagadj[:-1])**2 * dt/dx**2,-1)
-    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        fluxadj = (self.sigma + self.x*x_bound + self.t*t)
-        if fluxadj < 0:
-            return 0
-        return 0.5*dt/dx**2 * fluxadj**2
-    def get_sigma(self, x, t, **kwargs):
-        return self.sigma + self.x*x + self.t*t
-
-class Bound(Dependence):
-    """Subclass this to specify how bounds vary with time.
-
-    This abstract class provides the methods which define a dependence
-    of the bounds on t.  To subclass it, implement get_bound.  All
-    subclasses must include a parameter `B` in required_parameters,
-    which is the upper bound at the start of the simulation.  (The
-    lower bound is symmetrically -B.)
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
-    """
-    depname = "Bound"
-    ## Second effect of Collapsing Bounds: Collapsing Center: Positive
-    ## and Negative states are closer to each other over time.
-    def get_bound(self, t, conditions, **kwargs):
-        """Return the bound at time `t`."""
-        raise NotImplementedError
-    def B_base(self, conditions):
-        assert "B" in self.required_parameters, "B must be a required parameter"
-        return self.B
-
-class BoundConstant(Bound):
-    """Bound dependence: bound is constant throuhgout the simulation.
-
-    Takes only one parameter: `B`, the constant bound."""
-    name = "constant"
-    required_parameters = ["B"]
-    def get_bound(self, t, conditions, **kwargs):
-        return self.B
-
-class BoundCollapsingLinear(Bound):
-    """Bound dependence: bound collapses linearly over time.
-
-    Takes two parameters: 
-
-    `B` - the bound at time t = 0.
-    `t` - the slope, i.e. the coefficient of time, should be greater
-    than zero.
-    """
-    name = "collapsing_linear"
-    required_parameters = ["B", "t"]
-    def get_bound(self, t, conditions, **kwargs):
-        return max(self.B - self.t*t, 0.)
-
-class BoundCollapsingExponential(Bound):
-    """Bound dependence: bound collapses exponentially over time.
-
-    Takes two parameters: 
-
-    `B` - the bound at time t = 0.
-    `tau` - the time constant for the collapse, should be greater than
-    zero.
-    """
-    name = "collapsing_exponential"
-    required_parameters = ["B", "tau"]
-    def get_bound(self, t, conditions, **kwargs):
-        return self.B * np.exp(-self.tau*t)
-
-class Overlay(Dependence):
-    """Subclasses can modify distributions after they have been generated.
-
-    This abstract class provides the methods which define how a
-    distribution should be modified after solving the model, for
-    example for a mixture model.  To subclass it, implement apply.
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
-    """
-    depname = "Overlay"
-    def apply(self, solution):
-        """Apply the overlay to a solution.
-
-        `solution` should be a Solution object.  Return a new solution
-        object.
-        """
-        raise NotImplementedError
-
-    def get_solution_components(self, solution): # DEPRECIATED TODO delete this
-        return (solution.corr, solution.err, solution.model, solution.conditions)
-
-class OverlayNone(Overlay):
-    name = "None"
-    required_parameters = []
-    def apply(self, solution):
-        return solution
-
-# NOTE: This class is likely to break if any changes are made to the
-# Dependence constructor.  In theory, no changes should be made to the
-# Dependence constructor, but just in case...
-class OverlayChain(Overlay):
-    name = "Chain overlay"
-    required_parameters = ["overlays"]
-    def __init__(self, **kwargs):
-        Overlay.__init__(self, **kwargs)
-        object.__setattr__(self, "required_parameters", [])
-        object.__setattr__(self, "required_conditions", [])
-        for o in self.overlays:
-            self.required_parameters.extend(o.required_parameters)
-            self.required_conditions.extend(o.required_conditions)
-        assert len(self.required_parameters) == len(set(self.required_parameters)), "Two overlays in chain cannot have the same parameter names"
-        object.__setattr__(self, "required_conditions", list(set(self.required_conditions))) # Avoid duplicates
-    def __setattr__(self, name, value):
-        if "required_parameters" in self.__dict__:
-            if name in self.required_parameters:
-                for o in self.overlays:
-                    if name in o.required_parameters:
-                        return setattr(o, name, value)
-        return Overlay.__setattr__(self, name, value)
-    def __getattr__(self, name):
-        if name in self.required_parameters:
-            for o in self.overlays:
-                if name in o.required_parameters:
-                    return getattr(o, name)
-        else:
-            return Overlay.__getattribute__(self, name)
-    def __repr__(self):
-        overlayreprs = list(map(repr, self.overlays))
-        return "OverlayChain(overlays=[" + ", ".join(overlayreprs) + "])"
-    def apply(self, solution):
-        assert isinstance(solution, Solution)
-        newsol = solution
-        for o in self.overlays:
-            newsol = o.apply(newsol)
-        return newsol
-
-class OverlayUniformMixture(Overlay):
-    name = "Uniform distribution mixture model"
-    required_parameters = ["umixturecoef"]
-    def apply(self, solution):
-        assert self.umixturecoef >= 0 and self.umixturecoef <= 1
-        corr, err, m, cond = self.get_solution_components(solution)
-        # These aren't real pdfs since they don't sum to 1, they sum
-        # to 1/self.model.dt.  We can't just sum the correct and error
-        # distributions to find this number because that would exclude
-        # the non-decision trials.
-        pdfsum = 1/m.dt
-        corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
-        err = err*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur
-        corr[0] = 0
-        err[0] = 0
-        return Solution(corr, err, m, cond)
-
-class OverlayPoissonMixture(Overlay):
-    name = "Poisson distribution mixture model (lapse rate)"
-    required_parameters = ["mixturecoef", "rate"]
-    def apply(self, solution):
-        assert self.mixturecoef >= 0 and self.mixturecoef <= 1
-        assert isinstance(solution, Solution)
-        corr, err, m, cond = self.get_solution_components(solution)
-        # These aren't real pdfs since they don't sum to 1, they sum
-        # to 1/self.model.dt.  We can't just sum the correct and error
-        # distributions to find this number because that would exclude
-        # the non-decision trials.
-        pdfsum = 1/m.dt
-        # Pr = lambda ru, rr, P, t : (rr*P)/((rr+ru))*(1-numpy.exp(-1*(rr+ru)*t))
-        # P0 = lambda ru, rr, P, t : P*numpy.exp(-(rr+ru)*t) # Nondecision
-        # Pr' = lambda ru, rr, P, t : (rr*P)*numpy.exp(-1*(rr+ru)*t)
-        # lapses_cdf = lambda t : 1-np.exp(-(2*self.rate)*t)
-        lapses = lambda t : 2*self.rate*np.exp(-2*self.rate*t) if t != 0 else 0
-        X = [i*m.dt for i in range(0, len(corr))]
-        Y = np.asarray(list(map(lapses, X)))/pdfsum
-        corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef*Y # Assume numpy ndarrays, not lists
-        err = err*(1-self.mixturecoef) + .5*self.mixturecoef*Y
-        #print(corr)
-        #print(err)
-        return Solution(corr, err, m, cond)
-
-class OverlayDelay(Overlay):
-    name = "Add a delay by shifting the histogram"
-    required_parameters = ["delaytime"]
-    def apply(self, solution):
-        corr, err, m, cond = self.get_solution_components(solution)
-        shifts = int(self.delaytime/m.dt) # round
-        newcorr = np.zeros(corr.shape)
-        newerr = np.zeros(err.shape)
-        if shifts > 0:
-            newcorr[shifts:] = corr[:-shifts]
-            newerr[shifts:] = err[:-shifts]
-        elif shifts < 0:
-            newcorr[:shifts] = corr[-shifts:]
-            newerr[:shifts] = err[-shifts:]
-        else:
-            newcorr = corr
-            newerr = err
-        return Solution(newcorr, newerr, m, cond)
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
 class Model(object):
@@ -556,7 +73,7 @@ class Model(object):
         The `name` parameter is exclusively for convenience, and may
         be used in plotting or in debugging.
         """
-        assert name.__str__() == name # TODO crappy way to test type(name) == str for Python2 and Python3
+        assert isinstance(name, str)
         self.name = name
         assert isinstance(mu, Mu)
         self._mudep = mu
@@ -576,10 +93,10 @@ class Model(object):
     # Get a string representation of the model
     def __repr__(self, pretty=False):
         # Use a list so they can be sorted
-        allobjects = [("name", self.name), ("mu", self._mudep),
-                      ("sigma", self._sigmadep), ("bound", self._bounddep),
-                      ("IC", self._IC),
-                      ("overlay", self._overlay), ("dx", self.dx),
+        allobjects = [("name", self.name), ("mu", self.get_dependence('mu')),
+                      ("sigma", self.get_dependence('sigma')), ("bound", self.get_dependence('bound')),
+                      ("IC", self.get_dependence('ic')),
+                      ("overlay", self.get_dependence('overlay')), ("dx", self.dx),
                       ("dt", self.dt), ("T_dur", self.T_dur)]
         params = ""
         for n,o in allobjects:
@@ -644,7 +161,7 @@ class Model(object):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
     @staticmethod
-    @functools.lru_cache(maxsize=4)
+    @lru_cache(maxsize=4)
     def _cache_eye(m, format="csr"):
         """Cache the call to sparse.eye since this decreases runtime by 5%."""
         return sparse.eye(m, format=format)
@@ -658,24 +175,21 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self._mudep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        sigma_matrix = self._sigmadep.get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
         return self._cache_eye(len(x), format="csr") + mu_matrix + sigma_matrix
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
-        mu_flux = self._mudep.get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
-        sigma_flux = self._sigmadep.get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
+        mu_flux = self.get_dependence('mu').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
+        sigma_flux = self.get_dependence('sigma').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
         return mu_flux + sigma_flux
-    def bound(self, t, conditions):
-        """The upper boundary of the simulation at time `t`."""
-        return self._bounddep.get_bound(t, conditions=conditions)
     def IC(self, conditions):
         """The initial distribution at t=0.
 
         Returns a length N ndarray (where N is the size of x_domain())
         which should sum to 1.
         """
-        return self._IC.get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
+        return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
     def simulate_trial(self, conditions=None):
         """Simulate the decision variable for one trial.
@@ -766,11 +280,11 @@ class Model(object):
         if conditions is None:
             conditions = {}
         # The analytic_ddm function does the heavy lifting.
-        if isinstance(self._bounddep, BoundConstant): # Simple DDM
+        if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
                                                        self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
                                                        self.get_dependence("bound").B_base(conditions=conditions), self.t_domain())
-        elif isinstance(self._bounddep, BoundCollapsingLinear): # Linearly Collapsing Bound
+        elif isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
                                                        self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
                                                        self.get_dependence("bound").B_base(conditions=conditions),
@@ -781,7 +295,7 @@ class Model(object):
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
-        return self._overlay.apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
+        return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
     def solve_numerical(self, conditions=None):
         """Solve the DDM model numerically.
@@ -815,7 +329,7 @@ class Model(object):
             # some densities remaining in the channel.
             if sum(pdf_curr[:])>0.0001:
                 ## Define the boundaries at current time.
-                bound = self.bound(t, conditions=conditions) # Boundary at current time-step.
+                bound = self.get_dependence('bound').get_bound(t, conditions=conditions) # Boundary at current time-step.
 
                 # Now figure out which x positions are still within
                 # the (collapsing) bound.
@@ -886,7 +400,7 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        return self._overlay.apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
 class _Sample_Iter_Wraper(object):
     """Provide an iterator for sample objects.
@@ -1373,176 +887,3 @@ class Fitted(Fittable):
     def default(self):
         return float(self)
 
-class LossFunction(object):
-    """An abstract class for a function to assess goodness of fit.
-
-    This is an abstract class for describing how well data fits a model.
-
-    When subclasses are initialized, they will be initialized with the
-    Sample object to which the model should be fit.  Because the data
-    will not change but the model will change, this is specified with
-    initialization.  
-
-    The optional `required_conditions` argument limits the
-    stratification of `sample` by conditions to only the conditions
-    mentioned in `required_conditions`.  This decreases computation
-    time by only solving the model for the condition names listed in
-    `required_conditions`.  For example, a simple DDM with no drift
-    and constant variaince would mean `required_conditions` is an
-    empty list.
-
-    If `pool` is None, then solve normally.  If `pool` is a Pool
-    object from pathos.multiprocessing, then parallelize the loop.
-    Note that `pool` must be pathos.multiprocessing.Pool, not
-    multiprocessing.Pool, since the latter does not support pickling
-    functions, whereas the former does.
-    """
-    def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
-        assert hasattr(self, "name"), "Solver needs a name"
-        self.sample = sample
-        self.required_conditions = required_conditions
-        self.pool = pool
-        self.setup(**kwargs)
-    def setup(self, **kwargs):
-        """Initialize the loss function.
-
-        The optional `setup` function is executed at the end of the
-        initializaiton.  It is executed only once at the beginning of
-        the fitting procedure.
-        """
-        pass
-    def loss(self, model):
-        """Compute the value of the loss function for the given model.
-
-        `model` should be a Model object.  This should return a
-        floating point value, where smaller values mean a better fit
-        of the model to the data.
-
-        """
-        raise NotImplementedError
-    def cache_by_conditions(self, model):
-        """Solve the model for all relevant conditions.
-
-        If `required_conditions` isn't None, solve `model` for each
-        combination of conditions found within the dataset.  For
-        example, if `required_conditions` is ["hand", "color"], and
-        hand can be left or right and color can be blue or green,
-        solves the model for: hand=left and color=blue; hand=right and
-        color=blue; hand=left and color=green, hand=right and
-        color=green.
-
-        If `required_conditions` is None, use all of the conditions
-        found within the sample.
-        """
-        cache = {}
-        conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
-        if self.pool is None: # No parallelization
-            for c in conditions:
-                cache[frozenset(c.items())] = model.solve(conditions=c)
-            return cache
-        else: # Parallelize across Pool
-            sols = self.pool.map(lambda x : model.solve(conditions=x), conditions)
-            for c,s in zip(conditions,sols):
-                cache[frozenset(c.items())] = s
-            return cache
-                
-class LossSquaredError(LossFunction):
-    name = "Squared Difference"
-    def setup(self, dt, T_dur, **kwargs):
-        self.dt = dt
-        self.T_dur = T_dur
-        self.hists_corr = {}
-        self.hists_err = {}
-        for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
-            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
-        self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
-    def loss(self, model):
-        assert model.dt == self.dt and model.T_dur == self.T_dur
-        sols = self.cache_by_conditions(model)
-        this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
-        return np.sum((this-self.target)**2)
-
-SquaredErrorLoss = LossSquaredError # Named this incorrectly on the first go... lecacy
-
-class LossLikelihood(LossFunction):
-    name = "Likelihood"
-    def setup(self, dt, T_dur, **kwargs):
-        self.dt = dt
-        self.T_dur = T_dur
-        # Each element in the dict is indexed by the conditions of the
-        # model (e.g. coherence, trial conditions) as a frozenset.
-        # Each contains a tuple of lists, which are to contain the
-        # position for each within a histogram.  For instance, if a
-        # reaction time corresponds to position i, then we can index a
-        # list representing a normalized histogram/"pdf" (given by dt
-        # and T_dur) for immediate access to the probability of
-        # obtaining that value.
-        self.hist_indexes = {}
-        for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            s = self.sample.subset(**comb)
-            maxt = max(max(s.corr) if s.corr else -1, max(s.err) if s.err else -1)
-            assert maxt < self.T_dur, "Simulation time T_dur not long enough for these data"
-            # Find the integers which correspond to the timepoints in
-            # the pdfs.  Exclude all data points where this index
-            # rounds to 0 because this is always 0 in the pdf (no
-            # diffusion has happened yet) and you can't take the log
-            # of 0.  Also don't group them into the first bin because
-            # this creates bias.
-            corr = [int(round(e/dt)) for e in s.corr if int(round(e/dt)) > 0]
-            err = [int(round(e/dt)) for e in s.err if int(round(e/dt)) > 0]
-            nondec = self.sample.non_decision
-            self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
-    def loss(self, model):
-        assert model.dt == self.dt and model.T_dur == self.T_dur
-        sols = self.cache_by_conditions(model)
-        loglikelihood = 0
-        for k in sols.keys():
-            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]))
-            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
-            if sols[k].prob_undecided() > 0:
-                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
-            # nans come from negative values in the pdfs, which in
-            # turn come from the dx parameter being set too low.  This
-            # comes up when fitting, because sometimes the algorithm
-            # will "explore" and look at extreme parameter values.
-            # For example, this arrises when variance is very close to
-            # 0.  We will issue a warning now, but throwing an
-            # exception may be the better way to handle this to make
-            # sure it doesn't go unnoticed.
-            if np.isnan(loglikelihood):
-                print("Warning: parameter values too extreme for dx.")
-                return np.inf
-        return -loglikelihood
-
-class LossBIC(LossLikelihood):
-    name = "Use BIC loss function, functionally equivalent to LossLikelihood"
-    def setup(self, nparams, samplesize, **kwargs):
-        self.nparams = nparams
-        self.samplesize = samplesize
-        LossLikelihood.setup(self, **kwargs)
-    def loss(self, model):
-        loglikelihood = -LossLikelihood.loss(self, model)
-        return np.log(self.samplesize)*self.nparams - 2*loglikelihood
-
-class LossLikelihoodMixture(LossLikelihood):
-    name = "Likelihood with 2% uniform noise"
-    def loss(self, model):
-        assert model.dt == self.dt and model.T_dur == self.T_dur
-        sols = self.cache_by_conditions(model)
-        loglikelihood = 0
-        for k in sols.keys():
-            solpdfcorr = sols[k].pdf_corr()
-            solpdfcorr[solpdfcorr<0] = 0 # Numerical errors cause this to be negative sometimes
-            solpdferr = sols[k].pdf_err()
-            solpdferr[solpdferr<0] = 0 # Numerical errors cause this to be negative sometimes
-            pdfcorr = solpdfcorr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
-            pdferr = solpdferr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
-            loglikelihood += np.sum(np.log(pdfcorr[self.hist_indexes[k][0]]))
-            loglikelihood += np.sum(np.log(pdferr[self.hist_indexes[k][1]]))
-            if sols[k].prob_undecided() > 0:
-                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
-        return -loglikelihood
-
-LossMLE = LossLikelihood # Better naming... legacy
-LossMLEMixture = LossLikelihoodMixture

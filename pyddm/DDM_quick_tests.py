@@ -19,6 +19,8 @@ import numpy
 import ddm
 from ddm import *
 from ddm.plot import *
+import ddm.models as models
+from ddm.models import *
 
 SHOW_PLOTS = False
 
@@ -171,7 +173,7 @@ def test_fit_constant_mu_constant_sigma():
 
 # Make sure we can fit different parameters in the same (or a
 # different) model using a single Fittable object
-class SigmaDouble(ddm.Sigma):
+class SigmaDouble(models.Sigma):
     name = "time-varying sigma"
     required_parameters = ["sigma1", "sigma2"]
     def get_sigma(self, t, conditions, **kwargs):
@@ -180,7 +182,7 @@ class SigmaDouble(ddm.Sigma):
         else:
             return self.sigma2
 
-class SigmaConstantButNot(ddm.Sigma): # To avoid the numerical simulations
+class SigmaConstantButNot(models.Sigma): # To avoid the numerical simulations
     name = "almost sigma constant"
     required_parameters = ["sigma"]
     def get_sigma(self, t, conditions, **kwargs):
@@ -205,13 +207,13 @@ def test_shared_parameter_fitting_samemodel():
     assert abs(msam._sigmadep.sigma1 - mone._sigmadep.sigma) < 0.1 * mone._sigmadep.sigma
 
 
-class MuPowerTime(ddm.Mu):
+class MuPowerTime(models.Mu):
     name = "mu power with time"
     required_parameters = ["mu", "power"]
     def get_mu(self, t, conditions, **kwargs):
         return t**self.power * self.mu
 
-class SigmaPowerTime(ddm.Sigma):
+class SigmaPowerTime(models.Sigma):
     name = "sigma power with time"
     required_parameters = ["sigma", "power"]
     def get_sigma(self, t, conditions, **kwargs):
