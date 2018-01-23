@@ -7,7 +7,7 @@ setup(
     author = 'Norman Lam',
     maintainer = 'Max Shinn',
     maintainer_email = 'maxwell.shinn@yale.edu',
-    packages = ['ddm'],
+    packages = ['ddm', 'ddm.models'],
     py_modules = ['ddm.functions', 'ddm.model', 'ddm.parameters', 'ddm.analytic', 'ddm.plot'],
     requires = ['numpy', 'scipy', 'matplotlib']
 )

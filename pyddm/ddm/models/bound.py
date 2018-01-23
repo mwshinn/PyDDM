@@ -1,6 +1,7 @@
 import numpy as np
 
 from .base import Dependence
+from paranoid import *
 
 class Bound(Dependence):
     """Subclass this to specify how bounds vary with time.
@@ -25,15 +26,26 @@ class Bound(Dependence):
         assert "B" in self.required_parameters, "B must be a required parameter"
         return self.B
 
+@verifiedclass
 class BoundConstant(Bound):
     """Bound dependence: bound is constant throuhgout the simulation.
 
     Takes only one parameter: `B`, the constant bound."""
     name = "constant"
     required_parameters = ["B"]
-    def get_bound(self, t, conditions, **kwargs):
+    @staticmethod
+    def _test(v):
+        assert v.B in Positive()
+    @staticmethod
+    def _generate():
+        yield BoundConstant(B=1)
+        yield BoundConstant(B=100)
+    @accepts(Self)
+    @returns(Positive)
+    def get_bound(self, *args, **kwargs):
         return self.B
 
+@verifiedclass
 class BoundCollapsingLinear(Bound):
     """Bound dependence: bound collapses linearly over time.
 
@@ -45,9 +57,20 @@ class BoundCollapsingLinear(Bound):
     """
     name = "collapsing_linear"
     required_parameters = ["B", "t"]
-    def get_bound(self, t, conditions, **kwargs):
+    @staticmethod
+    def _test(v):
+        assert v.B in Positive()
+        assert v.t in Number()
+    @staticmethod
+    def _generate():
+        yield BoundCollapsingLinear(B=1, t=1)
+        yield BoundCollapsingLinear(B=100, t=50.1)
+    @accepts(Self, Positive0)
+    @returns(Positive0)
+    def get_bound(self, t, *args, **kwargs):
         return max(self.B - self.t*t, 0.)
 
+@verifiedclass
 class BoundCollapsingExponential(Bound):
     """Bound dependence: bound collapses exponentially over time.
 
@@ -59,6 +82,17 @@ class BoundCollapsingExponential(Bound):
     """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]
-    def get_bound(self, t, conditions, **kwargs):
+    @staticmethod
+    def _test(v):
+        assert v.B in Positive()
+        assert v.tau in Positive()
+    @staticmethod
+    def _generate():
+        yield BoundCollapsingExponential(B=1, tau=1)
+        yield BoundCollapsingExponential(B=.1, tau=.001)
+        yield BoundCollapsingExponential(B=100, tau=100)
+    @accepts(Self, Positive0)
+    @returns(Positive0)
+    def get_bound(self, t, *args, **kwargs):
         return self.B * np.exp(-self.tau*t)
 

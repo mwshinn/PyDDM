@@ -3,6 +3,7 @@ from scipy import sparse
 import scipy.sparse.linalg
 
 from .base import Dependence
+from paranoid import *
 
 class Mu(Dependence):
     """Subclass this to specify how drift rate varies with position and time.
@@ -55,6 +56,7 @@ class Mu(Dependence):
     def get_mu(self, t, conditions, **kwargs):
         raise NotImplementedError
 
+@verifiedclass
 class MuConstant(Mu):
     """Mu dependence: drift rate is constant throughout the simulation.
 
@@ -63,9 +65,21 @@ class MuConstant(Mu):
     Note that this is a special case of MuLinear."""
     name = "constant"
     required_parameters = ["mu"]
+    @staticmethod
+    def _test(v):
+        assert v.mu in Number()
+    @staticmethod
+    def _generate():
+        yield MuConstant(mu=0)
+        yield MuConstant(mu=1)
+        yield MuConstant(mu=-1)
+        yield MuConstant(mu=100)
+    @accepts(Self)
+    @returns(Number)
     def get_mu(self, **kwargs):
         return self.mu
 
+@verifiedclass
 class MuLinear(Mu):
     """Mu dependence: drift rate varies linearly with position and time.
 
@@ -77,6 +91,17 @@ class MuLinear(Mu):
     """
     name = "linear_xt"
     required_parameters = ["mu", "x", "t"]
+    @staticmethod
+    def _test(v):
+        assert v.mu in Number()
+        assert v.x in Number()
+        assert v.t in Number()
+    @staticmethod
+    def _generate():
+        yield MuLinear(mu=0, x=0, t=0)
+        yield MuLinear(mu=1, x=-1, t=1)
+        yield MuLinear(mu=10, x=10, t=10)
+        yield MuLinear(mu=1, x=-10, t=-.5)
     # Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
     # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
     # same x,t with p(x,t) (probability distribution function). Hence
@@ -86,5 +111,7 @@ class MuLinear(Mu):
              + sparse.diags(-0.5*dt/dx * (self.mu + self.x*x[:-1] + self.t*t),-1)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         return 0.5*dt/dx * np.sign(x_bound) * (self.mu + self.x*x_bound + self.t*t)
+    @accepts(Self, Number, Positive0)
+    @returns(Number)
     def get_mu(self, x, t, **kwargs):
         return self.mu + self.x*x + self.t*t

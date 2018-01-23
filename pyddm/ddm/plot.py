@@ -67,7 +67,7 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s1, correct=False)
     plot_solution_pdf(s2, correct=False)
 
-def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dt=None):
+def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=None):
     # Avoid stupid errors with mutable objects
     if conditions is None:
         conditions = {}
@@ -77,11 +77,11 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dt=
     
     # We use these a lot, hence the shorthand
     if model:
-        dt = model.dt
+        dt = model.dt if not data_dt else data_dt
         T_dur = model.T_dur
         t_domain = model.t_domain()
     elif sample:
-        dt = .01 if not dt else dt
+        dt = .01 if not data_dt else data_dt # sample dt
         T_dur = max(sample)
         t_domain = np.linspace(0, T_dur, T_dur/dt+1)
     else:
@@ -136,11 +136,13 @@ def play_with_model(sample=None,
 def model_gui(model,
               sample=None,
               pool=None,
+              data_dt=None,
               plot=plot_fit_diagnostics):
     """Mess around with model parameters visually.
 
     This allows you to see how the model `model` would be affected by
-    various changes in parameter values.
+    various changes in parameter values.  It also allows you to easily
+    plot `sample` conditioned on different conditions.
 
     First, the sample is optional.  If provided, it will be displayed
     in the background.
@@ -155,6 +157,9 @@ def model_gui(model,
     plotting.  It should not return anything, but it should draw the
     figure on "fig".
 
+    Because sometimes the model is run in very high resolution,
+    `data_dt` allows you to set the bin width for `sample`.
+
     Some of this code is taken from `fit_model`.
     """
     # Loop through the different components of the model and get the
@@ -164,14 +169,21 @@ def model_gui(model,
     # can't use a dictonary because some parameters have the same
     # name.)  Create a list of functions to set the value of these
     # parameters, named "setters".
-    components_list = [model.get_dependence("mu"),
-                       model.get_dependence("sigma"),
-                       model.get_dependence("bound"),
-                       model.get_dependence("IC"),
-                       model.get_dependence("overlay")]
-    # All of the conditions required by at least one of the model
-    # components.
-    required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+    if model:
+        components_list = [model.get_dependence("mu"),
+                           model.get_dependence("sigma"),
+                           model.get_dependence("bound"),
+                           model.get_dependence("IC"),
+                           model.get_dependence("overlay")]
+        # All of the conditions required by at least one of the model
+        # components.
+        required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+    elif sample:
+        components_list = []
+        required_conditions = sample.condition_names()
+    else:
+        print("Must define model, sample, or both")
+        return
     
     
     params = [] # A list of all of the Fittables that were passed.
@@ -223,7 +235,7 @@ def model_gui(model,
     # can't duplicate it earlier in this function or else duplicated
     # parameters will have separate setters since they will no
     # longer have the same id.
-    m = copy.deepcopy(model)
+    m = copy.deepcopy(model) if model else None
     
     # Grid of the Fittables, replacing them with the default values.
     x_0 = [] # Default parameter values
@@ -236,7 +248,7 @@ def model_gui(model,
     
     # Initialize the TK (tkinter) subsystem.
     root = tk.Tk()    
-    root.wm_title("Model: %s" % m.name)
+    root.wm_title("Model: %s" % m.name if m else "Data")
     root.grid_columnconfigure(1, weight=2)
     root.grid_columnconfigure(2, weight=1)
     root.grid_rowconfigure(0, weight=1)
@@ -255,7 +267,7 @@ def model_gui(model,
         and the selected conditions."""
         current_conditions = {c : int(condition_vars[i].get()) for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
         fig.clear()
-        plot(model=m, fig=fig, sample=sample, conditions=current_conditions)
+        plot(model=m, fig=fig, sample=sample, conditions=current_conditions, data_dt=data_dt)
         canvas.draw()
     
     def value_changed():
@@ -284,8 +296,9 @@ def model_gui(model,
     
     # And now create the sliders.  While we're at it, get rid of the
     # Fittables, replacing them with the default values.
-    frame_sliders = tk.LabelFrame(master=root, text="Parameters")
-    frame_sliders.grid(row=0, column=2, sticky="nwe")
+    if params: # Make sure there is at least one parameter
+        frame_sliders = tk.LabelFrame(master=root, text="Parameters")
+        frame_sliders.grid(row=0, column=2, sticky="nwe")
     widgets = [] # To set the value programmatically in, e.g., set_defaults
     for p,s,name in zip(params, setters, paramnames):
         # Calculate slider constraints

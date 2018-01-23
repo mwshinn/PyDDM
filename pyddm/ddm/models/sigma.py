@@ -2,6 +2,7 @@ from scipy import sparse
 import scipy.sparse.linalg
 
 from .base import Dependence
+from paranoid import *
 
 class Sigma(Dependence):
     """Subclass this to specify how diffusion rate/noise varies with position and time.
@@ -56,6 +57,7 @@ class Sigma(Dependence):
     def get_sigma(self, conditions, **kwargs):
         raise NotImplementedError
 
+@verifiedclass
 class SigmaConstant(Sigma):
     """Simga dependence: diffusion rate/noise is constant throughout the simulation.
 
@@ -64,9 +66,20 @@ class SigmaConstant(Sigma):
     Note that this is a special case of SigmaLinear."""
     name = "constant"
     required_parameters = ["sigma"]
+    @staticmethod
+    def _test(v):
+        assert v.sigma in Positive()
+    @staticmethod
+    def _generate():
+        yield SigmaConstant(sigma=.001)
+        yield SigmaConstant(sigma=1)
+        yield SigmaConstant(sigma=100)
+    @accepts(Self)
+    @returns(Number)
     def get_sigma(self, **kwargs):
         return self.sigma
 
+@verifiedclass
 class SigmaLinear(Sigma):
     """Sigma dependence: diffusion rate varies linearly with position and time.
 
@@ -78,6 +91,17 @@ class SigmaLinear(Sigma):
     """
     name = "linear_xt"
     required_parameters = ["sigma", "x", "t"]
+    @staticmethod
+    def _test(v):
+        assert v.sigma in Positive0()
+        assert v.x in Number()
+        assert v.t in Number()
+    @staticmethod
+    def _generate():
+        yield SigmaLinear(sigma=0, x=0, t=0)
+        yield SigmaLinear(sigma=1, x=-1, t=1)
+        yield SigmaLinear(sigma=10, x=10, t=10)
+        yield SigmaLinear(sigma=1, x=-10, t=-.5)
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         diagadj = self.sigma + self.x*x + self.t*t
         diagadj[diagadj<0] = 0
@@ -89,5 +113,8 @@ class SigmaLinear(Sigma):
         if fluxadj < 0:
             return 0
         return 0.5*dt/dx**2 * fluxadj**2
+    @accepts(Self, Number, Number)
+    @returns(Positive)
+    @requires('self.sigma + self.x*x + self.t*t > 0') # Sigma can't go below zero
     def get_sigma(self, x, t, **kwargs):
         return self.sigma + self.x*x + self.t*t
