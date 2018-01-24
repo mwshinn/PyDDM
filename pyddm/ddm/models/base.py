@@ -1,3 +1,7 @@
+__ALL__ = ["Dependence"]
+
+import paranoid
+
 class Dependence(object): # TODO Base this on ABC
     """An abstract class describing how one variable depends on other variables.
 
@@ -33,6 +37,32 @@ class Dependence(object): # TODO Base this on ABC
     such as allowing tests for equality of derived algorithms and for
     ensuring extra parameters were not assigned.
     """
+    @staticmethod
+    def _test(v):
+        assert hasattr(v, "depname"), "Dependence needs a parameter name"
+        assert v.depname in paranoid.types.String(), "depname must be a string"
+        assert hasattr(v, "name"), "Dependence classes need a name"
+        assert v.name in paranoid.types.String(), "name must be a string"
+        assert hasattr(v, "required_parameters"), "Dependence needs a list of required params"
+    @classmethod
+    def _generate(cls):
+        """Generate from subclasses.
+
+        For each class which inherits Dependence, find the subclasses
+        of that subclass, and generate from each of those (if the
+        _generate function is available).
+        """
+        # Don't call directly as a Dependence object, it must be
+        # inherited.
+        if cls is Dependence:
+            raise paranoid.NoGeneratorError("Cannot generate directly from Dependence objects")
+        # Call the _generate methods of each subclass, e.g. call
+        # MuConstant._generate() if the _generate() function is called
+        # from Mu (i.e. cls == Mu).
+        subs = cls.__subclasses__()
+        for s in subs:
+            if hasattr(s, "_generate") and callable(s._generate):
+                yield from s._generate()
     def __init__(self, **kwargs):
         """Create a new Dependence object with parameters specified in **kwargs.
 
@@ -40,9 +70,11 @@ class Dependence(object): # TODO Base this on ABC
         inherited from this one.  Errors here are caused by invalid
         subclass declarations.
         """
+        # Check to make sure the subclass and subsubclass were implemented correctly
         assert hasattr(self, "depname"), "Dependence needs a parameter name"
         assert hasattr(self, "name"), "Dependence classes need a name"
         assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
+        # Check/set parameters
         if hasattr(self, "default_parameters"):
             args = self.default_parameters
             args.update(kwargs)

@@ -1,6 +1,14 @@
+__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayDelay"]
+
 import numpy as np
 
+from paranoid import accepts, returns, requires, ensures, Self, verifiedclass, Range, Positive, Number, List
+
 from .base import Dependence
+from ..solution import Solution
+
+# TODO in unit test, ensure all overlays with reasonable parameters
+# applied to a Solution add up to 1
 
 class Overlay(Dependence):
     """Subclasses can modify distributions after they have been generated.
@@ -25,18 +33,35 @@ class Overlay(Dependence):
     def get_solution_components(self, solution): # DEPRECIATED TODO delete this
         return (solution.corr, solution.err, solution.model, solution.conditions)
 
+@verifiedclass
 class OverlayNone(Overlay):
     name = "None"
     required_parameters = []
+    @staticmethod
+    def _test(v):
+        pass
+    @staticmethod
+    def _generate():
+        yield OverlayNone()
+    @accepts(Self, Solution)
+    @returns(Solution)
     def apply(self, solution):
         return solution
 
 # NOTE: This class is likely to break if any changes are made to the
 # Dependence constructor.  In theory, no changes should be made to the
 # Dependence constructor, but just in case...
+@verifiedclass
 class OverlayChain(Overlay):
     name = "Chain overlay"
     required_parameters = ["overlays"]
+    @staticmethod
+    def _test(v):
+        assert v.overlays in List(Overlay), "overlays must be a list of Overlay objects"
+    @staticmethod
+    def _generate():
+        yield OverlayClain(overlays=[OverlayNone()])
+        # TODO more
     def __init__(self, **kwargs):
         Overlay.__init__(self, **kwargs)
         object.__setattr__(self, "required_parameters", [])
@@ -63,6 +88,8 @@ class OverlayChain(Overlay):
     def __repr__(self):
         overlayreprs = list(map(repr, self.overlays))
         return "OverlayChain(overlays=[" + ", ".join(overlayreprs) + "])"
+    @accepts(Self, Solution)
+    @returns(Solution)
     def apply(self, solution):
         assert isinstance(solution, Solution)
         newsol = solution
@@ -70,9 +97,21 @@ class OverlayChain(Overlay):
             newsol = o.apply(newsol)
         return newsol
 
+@verifiedclass
 class OverlayUniformMixture(Overlay):
     name = "Uniform distribution mixture model"
     required_parameters = ["umixturecoef"]
+    @staticmethod
+    def _test(v):
+        assert v.umixturecoef in Range(0, 1), "Invalid mixture coef"
+    @staticmethod
+    def _generate():
+        yield OverlayUniformMixture(umixturecoef=0)
+        yield OverlayUniformMixture(umixturecoef=1)
+        yield OverlayUniformMixture(umixturecoef=.02)
+        yield OverlayUniformMixture(umixturecoef=.5)
+    @accepts(Self, Solution)
+    @returns(Solution)
     def apply(self, solution):
         assert self.umixturecoef >= 0 and self.umixturecoef <= 1
         corr, err, m, cond = self.get_solution_components(solution)
@@ -87,9 +126,22 @@ class OverlayUniformMixture(Overlay):
         err[0] = 0
         return Solution(corr, err, m, cond)
 
+@verifiedclass
 class OverlayPoissonMixture(Overlay):
     name = "Poisson distribution mixture model (lapse rate)"
     required_parameters = ["mixturecoef", "rate"]
+    @staticmethod
+    def _test(v):
+        assert v.mixturecoef in Range(0, 1), "Invalid mixture coef"
+        assert v.rate in Positive(), "Invalid rate"
+    @staticmethod
+    def _generate():
+        yield OverlayPoissonMixture(mixturecoef=0, rate=1)
+        yield OverlayPoissonMixture(mixturecoef=.5, rate=.1)
+        yield OverlayPoissonMixture(mixturecoef=.02, rate=10)
+        yield OverlayPoissonMixture(mixturecoef=1, rate=1)
+    @accepts(Self, Solution)
+    @returns(Solution)
     def apply(self, solution):
         assert self.mixturecoef >= 0 and self.mixturecoef <= 1
         assert isinstance(solution, Solution)
@@ -112,9 +164,23 @@ class OverlayPoissonMixture(Overlay):
         #print(err)
         return Solution(corr, err, m, cond)
 
+@verifiedclass
 class OverlayDelay(Overlay):
     name = "Add a delay by shifting the histogram"
     required_parameters = ["delaytime"]
+    @staticmethod
+    def _test(v):
+        assert v.delaytime in Number(), "Invalid delay time"
+    @staticmethod
+    def _generate():
+        yield OverlayDelay(delaytime=0)
+        yield OverlayDelay(delaytime=.5)
+        yield OverlayDelay(delaytime=-.5)
+    @accepts(Self, Solution)
+    @returns(Solution)
+    @ensures("(set(solution.corr) + {0}) - set(return.corr) != set()")
+    @ensures("(set(solution.err) + {0}) - set(return.err) != set()")
+    @ensures("solution.prob_undecided() <= return.prob_undecided()")
     def apply(self, solution):
         corr, err, m, cond = self.get_solution_components(solution)
         shifts = int(self.delaytime/m.dt) # round

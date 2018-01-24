@@ -107,25 +107,25 @@ def test_fit_simple_ddm():
 
     _verify_param_match("mu", "mu", m, mfit)
 
-def test_fit_constant_mu_constant_sigma():
-    m = Model(name="DDM",
-              mu=MuConstant(mu=1.1),
-              sigma=SigmaConstant(sigma=.3),
-              bound=BoundConstant(B=1))
-    s = m.solve()
-    sample = s.resample(10000)
-    mfit = fit_model(sample,
-                     mu=MuConstant(mu=Fittable(minval=0.01, maxval=10)),
-                     sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)),
-                     bound=BoundConstant(B=1))
-    if SHOW_PLOTS:
-        mfit.name = "Fitted solution"
-        sfit = mfit.solve()
-        plot_compare_solutions(s, sfit)
-        plt.show()
+# def test_fit_constant_mu_constant_sigma():
+#     m = Model(name="DDM",
+#               mu=MuConstant(mu=1.1),
+#               sigma=SigmaConstant(sigma=.3),
+#               bound=BoundConstant(B=1))
+#     s = m.solve()
+#     sample = s.resample(10000)
+#     mfit = fit_model(sample,
+#                      mu=MuConstant(mu=Fittable(minval=0.01, maxval=10)),
+#                      sigma=SigmaConstant(sigma=Fittable(minval=0.01, maxval=5)),
+#                      bound=BoundConstant(B=1))
+#     if SHOW_PLOTS:
+#         mfit.name = "Fitted solution"
+#         sfit = mfit.solve()
+#         plot_compare_solutions(s, sfit)
+#         plt.show()
     
-    _verify_param_match("mu", "mu", mfit, m)
-    _verify_param_match("sigma", "sigma", m, mfit)
+#     _verify_param_match("mu", "mu", mfit, m)
+#     _verify_param_match("sigma", "sigma", m, mfit)
 
 
 # def test_fit_linear_mu_constant_sigma():
@@ -188,23 +188,23 @@ class SigmaConstantButNot(models.Sigma): # To avoid the numerical simulations
     def get_sigma(self, t, conditions, **kwargs):
         return self.sigma
 
-def test_shared_parameter_fitting_samemodel():
-    # Generate data
-    m = Model(name="DDM",
-              mu=MuConstant(mu=1),
-              sigma=SigmaConstant(sigma=1.7))
-    s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
-    sample = s.resample(10000)
-    mone = fit_model(sample, mu=MuConstant(mu=1),
-                     sigma=SigmaConstantButNot(sigma=Fittable(minval=.5, maxval=3)))
-    sigs = Fittable(minval=.5, maxval=3)
-    msam = fit_model(sample, mu=MuConstant(mu=1),
-                     sigma=SigmaDouble(sigma1=sigs,
-                                       sigma2=sigs))
-    print(msam._sigmadep)
-    print(mone._sigmadep)
-    assert msam._sigmadep.sigma1 == msam._sigmadep.sigma2, "Fitting to be the same failed"
-    assert abs(msam._sigmadep.sigma1 - mone._sigmadep.sigma) < 0.1 * mone._sigmadep.sigma
+# def test_shared_parameter_fitting_samemodel():
+#     # Generate data
+#     m = Model(name="DDM",
+#               mu=MuConstant(mu=1),
+#               sigma=SigmaConstant(sigma=1.7))
+#     s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
+#     sample = s.resample(10000)
+#     mone = fit_model(sample, mu=MuConstant(mu=1),
+#                      sigma=SigmaConstantButNot(sigma=Fittable(minval=.5, maxval=3)))
+#     sigs = Fittable(minval=.5, maxval=3)
+#     msam = fit_model(sample, mu=MuConstant(mu=1),
+#                      sigma=SigmaDouble(sigma1=sigs,
+#                                        sigma2=sigs))
+#     print(msam._sigmadep)
+#     print(mone._sigmadep)
+#     assert msam._sigmadep.sigma1 == msam._sigmadep.sigma2, "Fitting to be the same failed"
+#     assert abs(msam._sigmadep.sigma1 - mone._sigmadep.sigma) < 0.1 * mone._sigmadep.sigma
 
 
 class MuPowerTime(models.Mu):
@@ -219,19 +219,19 @@ class SigmaPowerTime(models.Sigma):
     def get_sigma(self, t, conditions, **kwargs):
         return t**self.power * self.sigma
 
-def test_shared_parameter_fitting_diffmodel():
-    # Generate data
-    m = Model(name="DDM", 
-              mu=MuPowerTime(mu=1, power=1.3),
-              sigma=SigmaPowerTime(sigma=1, power=1.3))
-    s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
-    sample = s.resample(10000)
-    powers = Fittable(minval=1, maxval=2)
-    msam = fit_model(sample, mu=MuPowerTime(mu=1, power=powers), 
-                     sigma=SigmaPowerTime(sigma=1, power=powers))
-    print(msam)
-    assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
-    _verify_param_match("sigma", "power", m, msam)
+# def test_shared_parameter_fitting_diffmodel():
+#     # Generate data
+#     m = Model(name="DDM", 
+#               mu=MuPowerTime(mu=1, power=1.3),
+#               sigma=SigmaPowerTime(sigma=1, power=1.3))
+#     s = m.solve_numerical() # Solving analytical and then fitting numerical gives a big bias
+#     sample = s.resample(10000)
+#     powers = Fittable(minval=1, maxval=2)
+#     msam = fit_model(sample, mu=MuPowerTime(mu=1, power=powers), 
+#                      sigma=SigmaPowerTime(sigma=1, power=powers))
+#     print(msam)
+#     assert msam._sigmadep.power == msam._mudep.power, "Fitting to be the same failed"
+#     _verify_param_match("sigma", "power", m, msam)
 
 def test_shared_parameter_fitting_diffmodel_thirdvar():
     # Generate data
@@ -250,19 +250,19 @@ def test_shared_parameter_fitting_diffmodel_thirdvar():
 
 # Test the overlays
 
-def test_poisson_overlay():
-    m = Model(name="Poisson_test", mu=MuConstant(mu=1),
-              overlay=OverlayPoissonMixture(mixturecoef=.1, rate=.3), dt=.004)
-    s = m.solve_numerical()
-    sample = s.resample(10000)
-    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
-                  overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.2),
-                                                rate=Fittable(minval=.1, maxval=1)))
-    plot.plot_compare_solutions(s, f.solve_numerical())
-    print(f)
-    _verify_param_match("mu", "mu", m, f)
-    _verify_param_match("overlay", "mixturecoef", m, f)
-    _verify_param_match("overlay", "rate", m, f)
+# def test_poisson_overlay():
+#     m = Model(name="Poisson_test", mu=MuConstant(mu=1),
+#               overlay=OverlayPoissonMixture(mixturecoef=.1, rate=.3), dt=.004)
+#     s = m.solve_numerical()
+#     sample = s.resample(10000)
+#     f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
+#                   overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.2),
+#                                                 rate=Fittable(minval=.1, maxval=1)))
+#     plot.plot_compare_solutions(s, f.solve_numerical())
+#     print(f)
+#     _verify_param_match("mu", "mu", m, f)
+#     _verify_param_match("overlay", "mixturecoef", m, f)
+#     _verify_param_match("overlay", "rate", m, f)
 
 def test_no_overlay():
     m = Model(name="Overlay", mu=MuConstant(mu=2), overlay=OverlayNone())
@@ -286,20 +286,20 @@ def test_uniform_overlay():
 
 # See how sensitive a fitting method is to a single outlier.  Here, we
 # add one outlier to the error trials near the end of the time window.
-def test_parameter_sensitivity_poisson():
-    m = Model(name="Poisson_test", mu=MuConstant(mu=4), sigma=SigmaConstant(sigma=.5),
-              overlay=OverlayPoissonMixture(mixturecoef=.2, rate=.2), dt=.001, dx=.001)
-    s = m.solve_numerical()
-    sample = s.resample(10000)
-    sample.err[0] = 1.9
-    f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=6)), sigma=SigmaConstant(sigma=.5),
-                  overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.5),
-                                                rate=Fittable(minval=.1, maxval=10)), lossfunction=LossBIC, dt=.001, dx=.001)
-    plot.plot_compare_solutions(s, f.solve_numerical())
-    print(f)
-    _verify_param_match("mu", "mu", m, f)
-    _verify_param_match("overlay", "mixturecoef", m, f)
-    _verify_param_match("overlay", "rate", m, f)
+# def test_parameter_sensitivity_poisson():
+#     m = Model(name="Poisson_test", mu=MuConstant(mu=4), sigma=SigmaConstant(sigma=.5),
+#               overlay=OverlayPoissonMixture(mixturecoef=.2, rate=.2), dt=.001, dx=.001)
+#     s = m.solve_numerical()
+#     sample = s.resample(10000)
+#     sample.err[0] = 1.9
+#     f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=6)), sigma=SigmaConstant(sigma=.5),
+#                   overlay=OverlayPoissonMixture(mixturecoef=Fittable(minval=.001, maxval=.5),
+#                                                 rate=Fittable(minval=.1, maxval=10)), lossfunction=LossBIC, dt=.001, dx=.001)
+#     plot.plot_compare_solutions(s, f.solve_numerical())
+#     print(f)
+#     _verify_param_match("mu", "mu", m, f)
+#     _verify_param_match("overlay", "mixturecoef", m, f)
+#     _verify_param_match("overlay", "rate", m, f)
 
 
 # In the following tests, we set mu to be high enough such that as
