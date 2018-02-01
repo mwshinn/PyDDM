@@ -39,7 +39,7 @@ class ICPointSourceCenter(InitialCondition):
     def _generate():
         yield ICPointSourceCenter()
     @accepts(Self, NDArray(d=1))
-    @returns(NDArray(typ=Number, d=1))
+    @returns(NDArray(t=Number, d=1))
     @ensures('sum(return) == 1')
     @ensures('list(reversed(return)) == list(return)')
     @ensures('len(set(return)) in [1, 2]')
@@ -60,7 +60,7 @@ class ICUniform(InitialCondition):
     def _generate():
         yield ICUniform()
     @accepts(Self, NDArray(d=1))
-    @returns(NDArray(typ=Number, d=1))
+    @returns(NDArray(t=Number, d=1))
     @ensures('sum(return) == 1')
     @ensures('list(reversed(return)) == list(return)')
     @ensures('len(set(return)) in [1, 2]')

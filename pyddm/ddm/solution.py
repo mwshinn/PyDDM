@@ -1,10 +1,11 @@
 import copy
 import numpy as np
-from paranoid import NDArray, Generic, Number
+from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0
+from paranoid.decorators import accepts, returns, requires, ensures, verifiedclass
 from .models.paranoid_types import Conditions
 from .sample import Sample
 
-
+@verifiedclass
 class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
 
@@ -24,14 +25,15 @@ class Solution(object):
     """
     @staticmethod
     def _test(v):
-        assert v.corr in NDArray(d=1, typ=Number), "Invalid corr histogram"
-        assert v.err in NDArray(d=1, typ=Number), "Invalid err histogram"
+        assert v.corr in NDArray(d=1, t=Number), "Invalid corr histogram"
+        assert v.err in NDArray(d=1, t=Number), "Invalid err histogram"
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
         assert len(v.corr) == len(v.err), "Histogram lengths must match"
-        assert 0 <= abs(v.prob_correct() + v.prob_error() - 1) <= 1, "Histogram does not integrate to 1"
+        assert 0 <= np.sum(v.corr) + np.sum(v.err) <= 1, "Histogram does not integrate to 1"
         assert v.conditions in Conditions()
     @staticmethod
     def _generate():
+        from .model import Model # TODO fix hack
         m = Model()
         X = m.t_domain()
         l = len(X)
@@ -51,48 +53,66 @@ class Solution(object):
             - `conditions` - a dictionary of condition names/values used to generate the solution
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
-        self.corr = pdf_corr
-        self._pdf_corr = pdf_corr # for backward compatibility
-        self.err = pdf_err
-        self._pdf_err = pdf_err # for backward compatibility
+        self.corr = pdf_corr/1.00000000001 # Correct floating point errors to always get prob <= 1
+        self.err = pdf_err/1.00000000001
         self.conditions = conditions
 
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Positive0))
     def pdf_corr(self):
         """The correct component of the joint PDF."""
         return self.corr/self.model.dt
 
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Positive0))
     def pdf_err(self):
         """The error (incorrect) component of the joint PDF."""
         return self.err/self.model.dt
 
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Positive0))
     def cdf_corr(self):
         """The correct component of the joint CDF."""
         return np.cumsum(self.corr)
 
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Positive0))
     def cdf_err(self):
         """The error (incorrect) component of the joint CDF."""
         return np.cumsum(self.err)
 
+    @accepts(Self)
+    @returns(Range(0, 1))
     def prob_correct(self):
         """The probability of selecting the right response."""
         return np.sum(self.corr)
 
+    @accepts(Self)
+    @returns(Range(0, 1))
     def prob_error(self):
         """The probability of selecting the incorrect (error) response."""
         return np.sum(self.err)
 
+    @accepts(Self)
+    @returns(Range(0, 1))
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
         return 1 - self.prob_correct() - self.prob_error()
 
+    @accepts(Self)
+    @returns(Range(0, 1))
     def prob_correct_forced(self):
         """The probability of selecting the correct response if a response is forced."""
         return self.prob_correct() + self.prob_undecided()/2.
 
+    @accepts(Self)
+    @returns(Range(0, 1))
     def prob_error_forced(self):
         """The probability of selecting the incorrect response if a response is forced."""
         return self.prob_error() + self.prob_undecided()/2.
 
+    @accepts(Self)
+    @returns(Positive0)
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return np.sum((self.corr)*self.model.t_domain()) / self.prob_correct()
@@ -132,6 +152,8 @@ class Solution(object):
                 sample.append(rng.uniform(low=hist_bins[ind], high=hist_bins[ind+1]))
         return sample
 
+    @accepts(Self, Natural1, seed=Natural0)
+    @returns(Sample)
     def resample(self, k=1, seed=0):
         """Generate a list of reaction times sampled from the PDF.
 
@@ -161,8 +183,9 @@ class Solution(object):
         assert self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0, "Invalid pdfs"
         combined_pdf = list(reversed(self.pdf_err()[1:]))+list(self.pdf_corr()[1:])
         sample = self._sample_from_histogram(np.asarray(combined_pdf)*self.model.dt, combined_domain, k, seed=seed)
-        corr_sample = [x for x in sample if x >= 0]
-        err_sample = [-x for x in sample if x < 0]
+        aa = lambda x : np.asarray(x)
+        corr_sample = aa([x for x in sample if x >= 0])
+        err_sample = aa([-x for x in sample if x < 0])
         non_decision = k - (len(corr_sample) + len(err_sample))
-        conditions = {k : ([v]*len(corr_sample), [v]*len(err_sample), [v]*non_decision) for k,v in self.conditions.items()}
+        conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*non_decision)) for k,v in self.conditions.items()}
         return Sample(corr_sample, err_sample, non_decision, **conditions)

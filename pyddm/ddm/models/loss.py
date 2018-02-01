@@ -24,6 +24,16 @@ class LossFunction(object):
     multiprocessing.Pool, since the latter does not support pickling
     functions, whereas the former does.
     """
+    @classmethod
+    def _generate():
+        # Return an instance of each subclass which doesn't have a
+        # "setup" method, i.e. it takes no arguments.
+        subs = cls.__subclasses__()
+        for s in subs:
+            # Check if setup is the same as its parent.
+            if s.setup is LossFunction.setup:
+                yield s()
+    
     def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
@@ -108,7 +118,7 @@ class LossLikelihood(LossFunction):
         self.hist_indexes = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
-            maxt = max(max(s.corr) if s.corr else -1, max(s.err) if s.err else -1)
+            maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
             assert maxt < self.T_dur, "Simulation time T_dur not long enough for these data"
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Exclude all data points where this index

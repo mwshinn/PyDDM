@@ -16,6 +16,9 @@ from .models.paranoid_types import Conditions
 from .sample import Sample
 from .solution import Solution
 
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String
+from paranoid.decorators import accepts, returns, requires, ensures, verifiedclass
+
 # This speeds up the code by about 10%.
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
     
@@ -33,6 +36,7 @@ sparse.csr_matrix.check_format = lambda self, full_check=True : True
 
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
+@verifiedclass
 class Model(object):
     """A full simulation of a single DDM-style model.
 
@@ -48,6 +52,24 @@ class Model(object):
     services, such as analytical or numerical simulations of the
     resulting reaction time distribution.
     """
+    @staticmethod
+    def _test(v):
+        assert v.get_dependence("mu") in Generic(Mu)
+        assert v.get_dependence("sigma") in Generic(Sigma)
+        assert v.get_dependence("bound") in Generic(Bound)
+        assert v.get_dependence("IC") in Generic(IC)
+        assert v.get_dependence("overlay") in Generic(Overlay)
+        assert v.dx in Positive()
+        assert v.dt in Positive()
+        assert v.T_dur in Positive()
+        assert v.name in String()
+        assert v.required_conditions in List(String)
+    @staticmethod
+    def _generate():
+        # TODO maybe generate better models?
+        return Model(dx=.01, dt=.01, T_dur=2)
+        return Model(dx=.05, dt=.01, T_dur=3)
+        return Model(dx=.005, dt=.005, T_dur=.5)
     def __init__(self, mu=MuConstant(mu=0),
                  sigma=SigmaConstant(sigma=1),
                  bound=BoundConstant(B=1),
@@ -407,6 +429,7 @@ class Model(object):
     
 
 
+@verifiedclass
 class Fittable(float):
     """For parameters that should be adjusted when fitting a model to data.
         
@@ -416,6 +439,36 @@ class Fittable(float):
     invalid parameter value.  `default` is the value to start with
     when fitting; if it is not given, it will be selected at random.
     """
+    @staticmethod
+    def _test(v):
+        assert v in Numeric()
+        # This if statement technically violates the liskov
+        # substitution principle.  However this is only the case
+        # because Fittable inherits from float.  If it didn't, passing
+        # nan as the "value" for a Fittable wouldn't be necessary and
+        # everything would be fine.  Inheriting from float is a
+        # convenience so that we don't have to redefine all of
+        # python's floating point internal methods for the Fitted
+        # class.  In theory you could get around this problem by
+        # making Fitted inherit from Fittable (which would inherit
+        # only from nothing) and float via multiple inheritance, but
+        # this gets complicated quickly since float is a builtin.
+        if type(v) is Fittable:
+            assert np.isnan(v), "Fittable has already been fitted"
+        elif type(v) is Fitted:
+            assert v in Number(), "Fitted value is invalid"
+    @staticmethod
+    def _generate():
+        yield Fittable()
+        yield Fittable(minval=1)
+        yield Fittable(maxval=3)
+        yield Fittable(minval=-1, maxval=1)
+        yield Fittable(default_value=.001)
+        yield Fittable(minval=3, default_value=6)
+        yield Fittable(minval=10, maxval=100, default_value=20)
+        yield Fitted(0)
+        yield Fitted(1)
+        yield Fitted(4, minval=0, maxval=10)
     def __new__(cls, val=np.nan, **kwargs):
         if not np.isnan(val):
             print(val)
@@ -445,6 +498,8 @@ class Fittable(float):
         if self.default_value is not None:
             components.append("default=" + self.default_value.__repr__())
         return type(self).__name__ + "(" + ", ".join(components) + ")"
+    @accepts(Self)
+    @returns(Number)
     def default(self):
         """Choose a default value.
 
@@ -467,6 +522,8 @@ class Fittable(float):
                 return np.random.standard_cauchy()
             else:
                 raise ValueError("Error with the maximum or minimum bounds")
+    @accepts(Self, Number)
+    @returns(Self)
     def make_fitted(self, val):
         return Fitted(float(val), maxval=self.maxval, minval=self.minval)
 

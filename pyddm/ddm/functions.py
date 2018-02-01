@@ -12,6 +12,7 @@ from scipy.optimize import minimize, basinhopping, differential_evolution, Optim
 
 from .parameters import dx as default_dx, dt as default_dt
 from .model import Model, Solution, Fitted, Fittable
+from .sample import Sample
 from .models.mu import MuConstant
 from .models.sigma import SigmaConstant
 from .models.ic import ICPointSourceCenter
@@ -19,9 +20,15 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone
 from .models.loss import LossLikelihood
 
+from paranoid.types import Boolean, Number
+from paranoid.decorators import accepts, returns, requires, ensures
+from .models.paranoid_types import Conditions
+
 ########################################################################################################################
 ### Defined functions.
 
+@accepts(Model, Model, tol=Number)
+@returns(Boolean)
 def models_close(m1, m2, tol=.1):
     """Determines whether two models are similar.
 
@@ -306,6 +313,8 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
 # TODO get rid of "conditions" stipulation?
+@accepts(Model, Sample, Conditions)
+@returns(Solution)
 def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
@@ -323,6 +332,8 @@ def solve_partial_conditions(model, sample, conditions): # TODO doc
         print(sum(model_corr)+sum(model_err))
     return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
 
+@accepts(Model)
+@returns(Boolean)
 def hit_boundary(model):
     components_list = [model.get_dependence("mu"),
                        model.get_dependence("sigma"),
@@ -342,6 +353,8 @@ def hit_boundary(model):
                     hit = True
     return hit
 
+@accepts(Fittable)
+@returns(Boolean)
 def dependence_hit_boundary(pv):
     """Returns True if a Fitted instance has hit the boundary.
 

@@ -60,7 +60,7 @@ class OverlayChain(Overlay):
         assert v.overlays in List(Overlay), "overlays must be a list of Overlay objects"
     @staticmethod
     def _generate():
-        yield OverlayClain(overlays=[OverlayNone()])
+        yield OverlayChain(overlays=[OverlayNone()])
         # TODO more
     def __init__(self, **kwargs):
         Overlay.__init__(self, **kwargs)
@@ -178,8 +178,8 @@ class OverlayDelay(Overlay):
         yield OverlayDelay(delaytime=-.5)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("(set(solution.corr) + {0}) - set(return.corr) != set()")
-    @ensures("(set(solution.err) + {0}) - set(return.err) != set()")
+    @ensures("set(return.corr) - set(solution.corr).union({0}) == set()")
+    @ensures("set(return.err) - set(solution.err).union({0}) == set()")
     @ensures("solution.prob_undecided() <= return.prob_undecided()")
     def apply(self, solution):
         corr, err, m, cond = self.get_solution_components(solution)
