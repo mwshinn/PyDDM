@@ -17,26 +17,23 @@ from .sample import Sample
 from .solution import Solution
 
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String
-from paranoid.decorators import accepts, returns, requires, ensures, verifiedclass
+from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 
 # This speeds up the code by about 10%.
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
     
-# TODO:
-# - Ensure that OverlayChain doesn't have two parameters with the same name
-
-# This describes how a variable is dependent on other variables.
+# "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how mu and sigma depend on x and t.
 # `name` is the type of dependence (e.g. "linear") for methods which
 # implement the algorithms, and any parameters these algorithms could
 # need should be passed as kwargs. To compare to legacy code, the
-# `name` used to be `f_mu_setting` or `f_sigma_setting` and
-# kwargs now encompassed (e.g.) `param_mu_t_temp`.
+# `name` used to be `f_mu_setting` or `f_sigma_setting` and kwargs now
+# encompassed (e.g.) `param_mu_t_temp`.
 
 
 
 ##Pre-defined list of models that can be used, and the corresponding default parameters
-@verifiedclass
+@paranoidclass
 class Model(object):
     """A full simulation of a single DDM-style model.
 
@@ -57,7 +54,7 @@ class Model(object):
         assert v.get_dependence("mu") in Generic(Mu)
         assert v.get_dependence("sigma") in Generic(Sigma)
         assert v.get_dependence("bound") in Generic(Bound)
-        assert v.get_dependence("IC") in Generic(IC)
+        assert v.get_dependence("IC") in Generic(InitialCondition)
         assert v.get_dependence("overlay") in Generic(Overlay)
         assert v.dx in Positive()
         assert v.dt in Positive()
@@ -67,9 +64,9 @@ class Model(object):
     @staticmethod
     def _generate():
         # TODO maybe generate better models?
-        return Model(dx=.01, dt=.01, T_dur=2)
-        return Model(dx=.05, dt=.01, T_dur=3)
-        return Model(dx=.005, dt=.005, T_dur=.5)
+        yield Model(dx=.01, dt=.01, T_dur=2)
+        yield Model(dx=.05, dt=.01, T_dur=3)
+        yield Model(dx=.005, dt=.005, T_dur=.5)
     def __init__(self, mu=MuConstant(mu=0),
                  sigma=SigmaConstant(sigma=1),
                  bound=BoundConstant(B=1),
@@ -410,7 +407,7 @@ class Model(object):
             _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
             _inner_B_err = x_list[x_index_inner]
             _outer_B_err = x_list[x_index_outer]
-            if len(pdf_inner) == 0: # Fix error when bounds collapse to 0
+            if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
                 pdf_inner = np.array([0])
             pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
                             +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
@@ -429,7 +426,7 @@ class Model(object):
     
 
 
-@verifiedclass
+@paranoidclass
 class Fittable(float):
     """For parameters that should be adjusted when fitting a model to data.
         

@@ -4,8 +4,7 @@ import itertools
 from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0
 from paranoid.decorators import *
 
-# TODO require passing non-decision trials
-@verifiedclass
+@paranoidclass
 class Sample(object):
     """Describes a sample from some (empirical or simulated) distribution.
 
@@ -122,7 +121,6 @@ class Sample(object):
         condition names corresponding to the columns.  This function
         does not yet work with no-decision trials.
         """
-        # TODO this function doesn't do validity checks yet
         c = data[:,1].astype(bool)
         nc = (1-data[:,1]).astype(bool)
         def pt(x): # Pythonic types
@@ -232,14 +230,14 @@ class Sample(object):
     @staticmethod
     @accepts(dt=Positive, T_dur=Positive)
     @returns(NDArray(d=1, t=Positive0))
-    @requires('T_dur/dt < 1e5') # Too large of a number
+    #@requires('T_dur/dt < 1e5') # Too large of a number
     def t_domain(dt=.01, T_dur=2):
         """The times that corresponds with pdf/cdf_corr/err parameters (their support)."""
         return np.linspace(0, T_dur, T_dur/dt+1)
 
     @accepts(Self, dt=Positive, T_dur=Positive)
     @returns(NDArray(d=1, t=Positive0))
-    @requires('T_dur/dt < 1e5') # Too large of a number
+    #@requires('T_dur/dt < 1e5') # Too large of a number
     @ensures('len(return) == len(self.t_domain(dt=dt, T_dur=T_dur))')
     def pdf_corr(self, dt=.01, T_dur=2):
         """The correct component of the joint PDF."""
@@ -247,7 +245,7 @@ class Sample(object):
 
     @accepts(Self, dt=Positive, T_dur=Positive)
     @returns(NDArray(d=1, t=Positive0))
-    @requires('T_dur/dt < 1e5') # Too large of a number
+    #@requires('T_dur/dt < 1e5') # Too large of a number
     @ensures('len(return) == len(self.t_domain(dt=dt, T_dur=T_dur))')
     def pdf_err(self, dt=.01, T_dur=2):
         """The error (incorrect) component of the joint PDF."""
@@ -255,7 +253,7 @@ class Sample(object):
 
     @accepts(Self, dt=Positive, T_dur=Positive)
     @returns(NDArray(d=1, t=Positive0))
-    @requires('T_dur/dt < 1e5') # Too large of a number
+    #@requires('T_dur/dt < 1e5') # Too large of a number
     @ensures('len(return) == len(self.t_domain(dt=dt, T_dur=T_dur))')
     def cdf_corr(self, dt=.01, T_dur=2):
         """The correct component of the joint CDF."""

@@ -104,32 +104,6 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1.axis([0, T_dur, 0, None])
     ax2.axis([0, T_dur, 0, None])
     pt = fig.suptitle("")
-    
-
-
-# This is a wrapper to fit the old interface.  For compatibility
-# purposes only.  Depreciated.
-def play_with_model(sample=None,
-                    default_model=None,
-                    conditions={},
-                    mu=MuConstant(mu=0),
-                    sigma=SigmaConstant(sigma=1),
-                    bound=BoundConstant(B=1),
-                    IC=ICPointSourceCenter(),
-                    dt=default_dt, dx=default_dx, 
-                    overlay=OverlayNone(),
-                    pool=None,
-                    name="fit_model"):
-    if default_model:
-        return model_gui(default_model)
-    
-    if sample:
-        T_dur = np.ceil(max(sample)/dt)*dt
-    else:
-        T_dur = 2
-    assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
-    m = Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx)
-    return model_gui(m, sample=sample, pool=pool)
 
 
 # TODO sample is not optional

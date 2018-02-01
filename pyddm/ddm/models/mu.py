@@ -58,7 +58,7 @@ class Mu(Dependence):
     def get_mu(self, t, conditions, **kwargs):
         raise NotImplementedError
 
-@verifiedclass
+@paranoidclass
 class MuConstant(Mu):
     """Mu dependence: drift rate is constant throughout the simulation.
 
@@ -81,7 +81,7 @@ class MuConstant(Mu):
     def get_mu(self, **kwargs):
         return self.mu
 
-@verifiedclass
+@paranoidclass
 class MuLinear(Mu):
     """Mu dependence: drift rate varies linearly with position and time.
 

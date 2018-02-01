@@ -2,7 +2,7 @@ __ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "O
 
 import numpy as np
 
-from paranoid import accepts, returns, requires, ensures, Self, verifiedclass, Range, Positive, Number, List
+from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List
 
 from .base import Dependence
 from ..solution import Solution
@@ -30,10 +30,7 @@ class Overlay(Dependence):
         """
         raise NotImplementedError
 
-    def get_solution_components(self, solution): # DEPRECIATED TODO delete this
-        return (solution.corr, solution.err, solution.model, solution.conditions)
-
-@verifiedclass
+@paranoidclass
 class OverlayNone(Overlay):
     name = "None"
     required_parameters = []
@@ -51,7 +48,7 @@ class OverlayNone(Overlay):
 # NOTE: This class is likely to break if any changes are made to the
 # Dependence constructor.  In theory, no changes should be made to the
 # Dependence constructor, but just in case...
-@verifiedclass
+@paranoidclass
 class OverlayChain(Overlay):
     name = "Chain overlay"
     required_parameters = ["overlays"]
@@ -61,7 +58,8 @@ class OverlayChain(Overlay):
     @staticmethod
     def _generate():
         yield OverlayChain(overlays=[OverlayNone()])
-        # TODO more
+        yield OverlayChain(overlays=[OverlayUniformMixture(umixturecoef=.3), OverlayPoissonMixture(pmixturecoef=.2, rate=.7)])
+        yield OverlayChain(overlays=[OverlayDelay(delaytime=.1), OverlayPoissonMixture(pmixturecoef=.1, rate=1), OverlayUniformMixture(umixturecoef=.1)])
     def __init__(self, **kwargs):
         Overlay.__init__(self, **kwargs)
         object.__setattr__(self, "required_parameters", [])
@@ -97,7 +95,7 @@ class OverlayChain(Overlay):
             newsol = o.apply(newsol)
         return newsol
 
-@verifiedclass
+@paranoidclass
 class OverlayUniformMixture(Overlay):
     name = "Uniform distribution mixture model"
     required_parameters = ["umixturecoef"]
@@ -114,7 +112,10 @@ class OverlayUniformMixture(Overlay):
     @returns(Solution)
     def apply(self, solution):
         assert self.umixturecoef >= 0 and self.umixturecoef <= 1
-        corr, err, m, cond = self.get_solution_components(solution)
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
         # distributions to find this number because that would exclude
@@ -126,26 +127,29 @@ class OverlayUniformMixture(Overlay):
         err[0] = 0
         return Solution(corr, err, m, cond)
 
-@verifiedclass
+@paranoidclass
 class OverlayPoissonMixture(Overlay):
     name = "Poisson distribution mixture model (lapse rate)"
-    required_parameters = ["mixturecoef", "rate"]
+    required_parameters = ["pmixturecoef", "rate"]
     @staticmethod
     def _test(v):
-        assert v.mixturecoef in Range(0, 1), "Invalid mixture coef"
+        assert v.pmixturecoef in Range(0, 1), "Invalid mixture coef"
         assert v.rate in Positive(), "Invalid rate"
     @staticmethod
     def _generate():
-        yield OverlayPoissonMixture(mixturecoef=0, rate=1)
-        yield OverlayPoissonMixture(mixturecoef=.5, rate=.1)
-        yield OverlayPoissonMixture(mixturecoef=.02, rate=10)
-        yield OverlayPoissonMixture(mixturecoef=1, rate=1)
+        yield OverlayPoissonMixture(pmixturecoef=0, rate=1)
+        yield OverlayPoissonMixture(pmixturecoef=.5, rate=.1)
+        yield OverlayPoissonMixture(pmixturecoef=.02, rate=10)
+        yield OverlayPoissonMixture(pmixturecoef=1, rate=1)
     @accepts(Self, Solution)
     @returns(Solution)
     def apply(self, solution):
-        assert self.mixturecoef >= 0 and self.mixturecoef <= 1
+        assert self.pmixturecoef >= 0 and self.pmixturecoef <= 1
         assert isinstance(solution, Solution)
-        corr, err, m, cond = self.get_solution_components(solution)
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
         # distributions to find this number because that would exclude
@@ -158,13 +162,13 @@ class OverlayPoissonMixture(Overlay):
         lapses = lambda t : 2*self.rate*np.exp(-2*self.rate*t) if t != 0 else 0
         X = [i*m.dt for i in range(0, len(corr))]
         Y = np.asarray(list(map(lapses, X)))/pdfsum
-        corr = corr*(1-self.mixturecoef) + .5*self.mixturecoef*Y # Assume numpy ndarrays, not lists
-        err = err*(1-self.mixturecoef) + .5*self.mixturecoef*Y
+        corr = corr*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y # Assume numpy ndarrays, not lists
+        err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y
         #print(corr)
         #print(err)
         return Solution(corr, err, m, cond)
 
-@verifiedclass
+@paranoidclass
 class OverlayDelay(Overlay):
     name = "Add a delay by shifting the histogram"
     required_parameters = ["delaytime"]
@@ -178,11 +182,14 @@ class OverlayDelay(Overlay):
         yield OverlayDelay(delaytime=-.5)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("set(return.corr) - set(solution.corr).union({0}) == set()")
-    @ensures("set(return.err) - set(solution.err).union({0}) == set()")
+    @ensures("set(return.corr) - set(solution.corr).union({0.0}) == set()")
+    @ensures("set(return.err) - set(solution.err).union({0.0}) == set()")
     @ensures("solution.prob_undecided() <= return.prob_undecided()")
     def apply(self, solution):
-        corr, err, m, cond = self.get_solution_components(solution)
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
         shifts = int(self.delaytime/m.dt) # round
         newcorr = np.zeros(corr.shape)
         newerr = np.zeros(err.shape)

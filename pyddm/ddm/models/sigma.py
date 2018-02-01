@@ -59,7 +59,7 @@ class Sigma(Dependence):
     def get_sigma(self, conditions, **kwargs):
         raise NotImplementedError
 
-@verifiedclass
+@paranoidclass
 class SigmaConstant(Sigma):
     """Simga dependence: diffusion rate/noise is constant throughout the simulation.
 
@@ -81,7 +81,7 @@ class SigmaConstant(Sigma):
     def get_sigma(self, **kwargs):
         return self.sigma
 
-@verifiedclass
+@paranoidclass
 class SigmaLinear(Sigma):
     """Sigma dependence: diffusion rate varies linearly with position and time.
 

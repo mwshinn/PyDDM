@@ -3,7 +3,7 @@ __ALL__ = ["InitialCondition", "ICPointSourceCenter", "ICUniform"]
 import numpy as np
 
 from .base import Dependence
-from paranoid import accepts, returns, requires, ensures, verifiedclass
+from paranoid import accepts, returns, requires, ensures, paranoidclass
 from paranoid.types import NDArray, Number
 from paranoid.types import Self
 
@@ -27,7 +27,7 @@ class InitialCondition(Dependence):
         """
         raise NotImplementedError
 
-@verifiedclass
+@paranoidclass
 class ICPointSourceCenter(InitialCondition):
     """Initial condition: a dirac delta function in the center of the domain."""
     name = "point_source_center"
@@ -48,7 +48,7 @@ class ICPointSourceCenter(InitialCondition):
         pdf[int((len(x)-1)/2)] = 1. # Initial condition at x=0, center of the channel.
         return pdf
 
-@verifiedclass
+@paranoidclass
 class ICUniform(InitialCondition):
     """Initial condition: a uniform distribution."""
     name = "uniform"

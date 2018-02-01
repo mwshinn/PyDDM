@@ -1,11 +1,11 @@
 import copy
 import numpy as np
 from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0
-from paranoid.decorators import accepts, returns, requires, ensures, verifiedclass
+from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
 from .sample import Sample
 
-@verifiedclass
+@paranoidclass
 class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
 
@@ -53,8 +53,12 @@ class Solution(object):
             - `conditions` - a dictionary of condition names/values used to generate the solution
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
-        self.corr = pdf_corr/1.00000000001 # Correct floating point errors to always get prob <= 1
-        self.err = pdf_err/1.00000000001
+        self.corr = pdf_corr 
+        self.err = pdf_err
+        # Correct floating point errors to always get prob <= 1
+        if np.sum(self.corr) + np.sum(self.err) > 1:
+            self.corr /= 1.00000000001
+            self.err /= 1.00000000001
         self.conditions = conditions
 
     @accepts(Self)
@@ -112,6 +116,7 @@ class Solution(object):
         return self.prob_error() + self.prob_undecided()/2.
 
     @accepts(Self)
+    @requires('self.prob_correct() > 0')
     @returns(Positive0)
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
@@ -152,7 +157,9 @@ class Solution(object):
                 sample.append(rng.uniform(low=hist_bins[ind], high=hist_bins[ind+1]))
         return sample
 
+    # TODO rewrite this to work more generically with all histograms
     @accepts(Self, Natural1, seed=Natural0)
+    @requires("self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0") # TODO remove this after rewrite
     @returns(Sample)
     def resample(self, k=1, seed=0):
         """Generate a list of reaction times sampled from the PDF.
@@ -187,5 +194,5 @@ class Solution(object):
         corr_sample = aa([x for x in sample if x >= 0])
         err_sample = aa([-x for x in sample if x < 0])
         non_decision = k - (len(corr_sample) + len(err_sample))
-        conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*non_decision)) for k,v in self.conditions.items()}
+        conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*int(non_decision))) for k,v in self.conditions.items()}
         return Sample(corr_sample, err_sample, non_decision, **conditions)

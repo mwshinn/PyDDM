@@ -13,6 +13,7 @@ class Conditions(ParametersDict):
         assert not set(v.keys()) - {'coherence', 'presample', 'highreward', 'blocktype'}, \
             "Invalid reward keys"
     def generate(self):
+        {}
         for ps,coh,hr,bt in zip([0, 400, 800, 1000], [50, 53, 57, 60, 70], [0, 1], [1, 2]):
             yield {"presample": ps, "coherence": coh, "highreward": hr, "blocktype": bt}
             

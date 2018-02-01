@@ -26,7 +26,7 @@ class Bound(Dependence):
         assert "B" in self.required_parameters, "B must be a required parameter"
         return self.B
 
-@verifiedclass
+@paranoidclass
 class BoundConstant(Bound):
     """Bound dependence: bound is constant throuhgout the simulation.
 
@@ -45,7 +45,7 @@ class BoundConstant(Bound):
     def get_bound(self, *args, **kwargs):
         return self.B
 
-@verifiedclass
+@paranoidclass
 class BoundCollapsingLinear(Bound):
     """Bound dependence: bound collapses linearly over time.
 
@@ -70,7 +70,7 @@ class BoundCollapsingLinear(Bound):
     def get_bound(self, t, *args, **kwargs):
         return max(self.B - self.t*t, 0.)
 
-@verifiedclass
+@paranoidclass
 class BoundCollapsingExponential(Bound):
     """Bound dependence: bound collapses exponentially over time.
 
