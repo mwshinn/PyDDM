@@ -176,9 +176,9 @@ class Sample(object):
                 mask_corr = np.logical_and(mask_corr, [i == v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i == v for i in self.conditions[k][1]])
                 mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i == v for i in self.conditions[k][2]])
-        filtered_conditions = {k : (list(itertools.compress(v[0], mask_corr)),
-                                    list(itertools.compress(v[1], mask_err)),
-                                    (list(itertools.compress(v[2], mask_non)) if len(v) == 3 else []))
+        filtered_conditions = {k : (np.asarray(list(itertools.compress(v[0], mask_corr))),
+                                    np.asarray(list(itertools.compress(v[1], mask_err))),
+                                    (np.asarray(list(itertools.compress(v[2], mask_non))) if len(v) == 3 else np.asarray([])))
                                for k,v in self.conditions.items()}
         return Sample(np.asarray(list(itertools.compress(self.corr, list(mask_corr)))),
                       np.asarray(list(itertools.compress(self.err, list(mask_err)))),

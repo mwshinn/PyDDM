@@ -1,4 +1,11 @@
+__all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC', 'LossLikelihoodMixture']
+
 import numpy as np
+
+from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
+from paranoid.types import Self, Number, Positive0, Natural1
+from ..sample import Sample
+from ..model import Model
 
 class LossFunction(object):
     """An abstract class for a function to assess goodness of fit.
@@ -25,14 +32,15 @@ class LossFunction(object):
     functions, whereas the former does.
     """
     @classmethod
-    def _generate():
+    def _generate(cls):
         # Return an instance of each subclass which doesn't have a
         # "setup" method, i.e. it takes no arguments.
         subs = cls.__subclasses__()
         for s in subs:
             # Check if setup is the same as its parent.
             if s.setup is LossFunction.setup:
-                yield s()
+                samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
+                yield s(sample=samp, dt=.01, T_dur=2)
     
     def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
@@ -83,27 +91,45 @@ class LossFunction(object):
                 cache[frozenset(c.items())] = s
             return cache
                 
+@paranoidclass
 class LossSquaredError(LossFunction):
     name = "Squared Difference"
+    @staticmethod
+    def _test(v):
+        assert v.dt in Positive0()
+        assert v.T_dur in Positive0()
+        assert v.hists_corr != {}
+        assert v.hists_err != {}
+        assert v.target.size == 2*len(v.hists_corr.keys())*(v.T_dur/v.dt+1)
+    def _generate():
+        yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=2)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
         self.hists_corr = {}
         self.hists_err = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).corr, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
-            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).err, bins=T_dur/dt+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
+            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
+            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
         self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
+    @accepts(Self, Model)
+    @returns(Number)
+    @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
         this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
         return np.sum((this-self.target)**2)
 
-SquaredErrorLoss = LossSquaredError # Named this incorrectly on the first go... lecacy
-
+@paranoidclass
 class LossLikelihood(LossFunction):
     name = "Likelihood"
+    @staticmethod
+    def _test(v):
+        assert v.dt in Positive0()
+        assert v.T_dur in Positive0()
+    def _generate():
+        yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=2)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -130,6 +156,9 @@ class LossLikelihood(LossFunction):
             err = [int(round(e/dt)) for e in s.err if int(round(e/dt)) > 0]
             nondec = self.sample.non_decision
             self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
+    @accepts(Self, Model)
+    @returns(Number)
+    @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
@@ -152,18 +181,37 @@ class LossLikelihood(LossFunction):
                 return np.inf
         return -loglikelihood
 
+@paranoidclass
 class LossBIC(LossLikelihood):
     name = "Use BIC loss function, functionally equivalent to LossLikelihood"
+    @staticmethod
+    def _test(v):
+        assert v.nparams in Natural1()
+        assert v.samplesize in Natural1()
+    @staticmethod
+    def _generate():
+        samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
+        yield LossBIC(sample=samp, nparams=4, samplesize=100, dt=.01, T_dur=2)
     def setup(self, nparams, samplesize, **kwargs):
         self.nparams = nparams
         self.samplesize = samplesize
         LossLikelihood.setup(self, **kwargs)
+    @accepts(Self, Model)
+    @returns(Number)
+    @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         loglikelihood = -LossLikelihood.loss(self, model)
         return np.log(self.samplesize)*self.nparams - 2*loglikelihood
 
+@paranoidclass
 class LossLikelihoodMixture(LossLikelihood):
     name = "Likelihood with 2% uniform noise"
+    @staticmethod
+    def _generate():
+        yield LossLikelihoodMixture(sample=next(Sample._generate()), dt=.01, T_dur=2)
+    @accepts(Self, Model)
+    @returns(Number)
+    @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
@@ -173,8 +221,8 @@ class LossLikelihoodMixture(LossLikelihood):
             solpdfcorr[solpdfcorr<0] = 0 # Numerical errors cause this to be negative sometimes
             solpdferr = sols[k].pdf_err()
             solpdferr[solpdferr<0] = 0 # Numerical errors cause this to be negative sometimes
-            pdfcorr = solpdfcorr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
-            pdferr = solpdferr*.98 + .01*np.ones(1+self.T_dur/self.dt)/self.T_dur*self.dt
+            pdfcorr = solpdfcorr*.98 + .01*np.ones(1+int(self.T_dur/self.dt))/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
+            pdferr = solpdferr*.98 + .01*np.ones(1+int(self.T_dur/self.dt))/self.T_dur*self.dt
             loglikelihood += np.sum(np.log(pdfcorr[self.hist_indexes[k][0]]))
             loglikelihood += np.sum(np.log(pdferr[self.hist_indexes[k][1]]))
             if sols[k].prob_undecided() > 0:

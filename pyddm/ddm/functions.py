@@ -313,18 +313,24 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
 @accepts(Model, Sample, Conditions)
-@requires('all(c in conditions.keys() for c in model.required_conditions)')
 @returns(Solution)
+# The first of these two statements is more readable, but because
+# Python treats generators like functions, you can't use variables
+# from the locals() scope in generators in eval statements in Python.
+# This is a "will not fix" bug.
+#@requires('all([c in sample.conditions.keys() for c in model.required_conditions])')
+@requires('all(map((lambda x,cond=sample.conditions.keys() : x in cond), model.required_conditions))')
 def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
+    samp = sample.subset(**conditions)
     model_corr = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
     model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
-    for conds in sample.condition_combinations(required_conditions=model.required_conditions):
-        subset = sample.subset(**conds)
+    for conds in samp.condition_combinations(required_conditions=model.required_conditions):
+        subset = samp.subset(**conds)
         sol = model.solve(conditions=conds)
-        model_corr += len(subset)/len(sample)*sol.pdf_corr()
-        model_err += len(subset)/len(sample)*sol.pdf_err()
+        model_corr += len(subset)/len(samp)*sol.pdf_corr()
+        model_err += len(subset)/len(samp)*sol.pdf_err()
         print(sum(model_corr)+sum(model_err))
     return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
 
