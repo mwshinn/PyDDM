@@ -225,6 +225,7 @@ def model_gui(model,
     root.wm_title("Model: %s" % m.name if m else "Data")
     root.grid_columnconfigure(1, weight=2)
     root.grid_columnconfigure(2, weight=1)
+    root.grid_columnconfigure(3, weight=0)
     root.grid_rowconfigure(0, weight=1)
     
     # Creates a widget for a matplotlib figure.  Anything drawn to
@@ -271,8 +272,21 @@ def model_gui(model,
     # And now create the sliders.  While we're at it, get rid of the
     # Fittables, replacing them with the default values.
     if params: # Make sure there is at least one parameter
-        frame_sliders = tk.LabelFrame(master=root, text="Parameters")
-        frame_sliders.grid(row=0, column=2, sticky="nwe")
+        # Allow a scrollbar
+        frame_sliders_container = tk.Canvas(root, bd=2, width=200)
+        frame_sliders_container.grid(row=0, column=2, sticky="nsew")
+        scrollbar = tk.Scrollbar(root, command=frame_sliders_container.yview)
+        scrollbar.grid(row=0, column=3, sticky="ns")
+        frame_sliders_container.configure(yscrollcommand = scrollbar.set)
+        
+        # Construct the region with sliders
+        frame_sliders = tk.LabelFrame(master=frame_sliders_container, text="Parameters")
+        windowid = frame_sliders_container.create_window((0,0), window=frame_sliders, anchor='nw')
+        # Get the sizing right
+        def adjust_window(e, wid=windowid, c=frame_sliders_container):
+            c.configure(scrollregion=frame_sliders_container.bbox('all'))
+            c.itemconfig(wid, width=e.width)
+        frame_sliders_container.bind("<Configure>", adjust_window)
     widgets = [] # To set the value programmatically in, e.g., set_defaults
     for p,s,name in zip(params, setters, paramnames):
         # Calculate slider constraints

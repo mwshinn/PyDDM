@@ -29,7 +29,8 @@ class Solution(object):
         assert v.err in NDArray(d=1, t=Number), "Invalid err histogram"
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
         assert len(v.corr) == len(v.err), "Histogram lengths must match"
-        assert 0 <= np.sum(v.corr) + np.sum(v.err) <= 1, "Histogram does not integrate to 1"
+        assert 0 <= np.sum(v.corr) + np.sum(v.err) <= 1, "Histogram does not integrate " \
+            " to 1, not to " + str(np.sum(v.corr) + np.sum(v.err))
         assert v.conditions in Conditions()
     @staticmethod
     def _generate():
