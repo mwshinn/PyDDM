@@ -20,7 +20,7 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone
 from .models.loss import LossLikelihood
 
-from paranoid.types import Boolean, Number
+from paranoid.types import Boolean, Number, String
 from paranoid.decorators import accepts, returns, requires, ensures
 from .models.paranoid_types import Conditions
 
@@ -28,6 +28,7 @@ from .models.paranoid_types import Conditions
 ### Defined functions.
 
 @accepts(Model, Model, tol=Number)
+@requires("m1.get_model_type() == m2.get_model_type()")
 @returns(Boolean)
 def models_close(m1, m2, tol=.1):
     """Determines whether two models are similar.
@@ -221,11 +222,20 @@ def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
     # this scope, we can make use of it by using, for example, the
     # model `m` defined previously.
     def _fit_model(xs):
-        for x,s in zip(xs, setters):
+        for x,p,s in zip(xs, params, setters):
+            # Sometimes the numpy optimizers will ignore bounds up to
+            # floating point errors, i.e. if your upper bound is 1,
+            # they will give 1.000000000001.  This fixes that problem
+            # to make sure the model is within its domain.
+            if x > p.maxval:
+                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
+                x = p.maxval
+            if x < p.minval:
+                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
+                x = p.minval
             s(m, x)
-        #to_min = -np.log(np.sum((fit_to_data*np.asarray([sol.pdf_corr(), sol.pdf_err()]))**0.5)) # Bhattacharyya distance
         lossf = lf.loss(m)
-        print(xs, "loss="+str(lossf))
+        print(repr(m), "loss="+str(lossf))
         return lossf
     # Cast to a dictionary if necessary
     if fitparams is None:
@@ -319,7 +329,8 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 # from the locals() scope in generators in eval statements in Python.
 # This is a "will not fix" bug.
 #@requires('all([c in sample.conditions.keys() for c in model.required_conditions])')
-@requires('all(map((lambda x,cond=sample.conditions.keys() : x in cond), model.required_conditions))')
+@requires('all(map((lambda x,cond=sample.condition_names() : x in cond), model.required_conditions))')
+@requires('all(map((lambda x,cond=sample.condition_names() : x in cond), conditions))')
 def solve_partial_conditions(model, sample, conditions): # TODO doc
     T_dur = model.T_dur
     dt = model.dt

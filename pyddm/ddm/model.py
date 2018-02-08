@@ -16,7 +16,7 @@ from .models.paranoid_types import Conditions
 from .sample import Sample
 from .solution import Solution
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 
 # This speeds up the code by about 10%.
@@ -231,6 +231,8 @@ class Model(object):
         pos = np.cumsum(mu*self.dt + sigma*randnorm*np.sqrt(self.dt))
         return pos
 
+    @accepts(Self, Conditions, Natural1)
+    @returns(Sample)
     def simulated_solution(self, conditions=None, size=1000):
         """Simulate individual trials to obtain a distribution.
 
@@ -263,6 +265,8 @@ class Model(object):
                 raise ValueError("Internal error")
         return Sample(corr_times, err_times, undec_count)
 
+    @accepts(Self)
+    @returns(Boolean)
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
         mt = self.get_model_type()
@@ -270,6 +274,8 @@ class Model(object):
             (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
             mt["IC"] == ICPointSourceCenter
         
+    @accepts(Self, conditions=Conditions)
+    @returns(Solution)
     def solve(self, conditions=None):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
@@ -282,6 +288,8 @@ class Model(object):
         else:
             return self.solve_numerical(conditions=conditions)
 
+    @accepts(Self, conditions=Conditions)
+    @returns(Solution)
     def solve_analytical(self, conditions=None):
         """Solve the model with an analytic solution, if possible.
 
@@ -317,6 +325,8 @@ class Model(object):
         anal_pdf_err[0] = 0.
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
+    @accepts(Self, conditions=Conditions)
+    @returns(Solution)
     def solve_numerical(self, conditions=None):
         """Solve the DDM model numerically.
 
@@ -419,6 +429,13 @@ class Model(object):
             if bound < self.dx:
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+
+        # Fix numerical errors
+        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
+        if pdfsum > 1:
+            print("Warning, renormalizing model solution from", pdfsum, "to 1.")
+            pdf_corr /= pdfsum
+            pdf_err /= pdferr
 
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
