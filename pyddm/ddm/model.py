@@ -211,7 +211,7 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
-    def simulate_trial(self, conditions=None):
+    def simulate_trial(self, conditions={}):
         """Simulate the decision variable for one trial.
 
         Given conditions `conditions`, this function will simulate the
@@ -223,8 +223,6 @@ class Model(object):
 
         # TODO this doesn't support OU models since it doesn't take X.
         T = self.t_domain()
-        if conditions is None:
-            conditions = {}
         mu = np.asarray([self.get_dependence("mu").get_mu(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
         sigma = np.asarray([self.get_dependence("sigma").get_sigma(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
         randnorm = randn(len(T))
@@ -233,7 +231,7 @@ class Model(object):
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
-    def simulated_solution(self, conditions=None, size=1000):
+    def simulated_solution(self, conditions={}, size=1000):
         """Simulate individual trials to obtain a distribution.
 
         Given conditions `conditions` and the number `size` of trials
@@ -245,8 +243,6 @@ class Model(object):
         # TODO this doesn't support OU models.  It could also be made
         # more efficient by stopping the simulation once it has
         # crossed threshold.
-        if conditions is None:
-            conditions = {}
         corr_times = []
         err_times = []
         undec_count = 0
@@ -276,13 +272,10 @@ class Model(object):
         
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
-    def solve(self, conditions=None):
+    def solve(self, conditions={}):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
-        # Don't use {} as a default argument since it is mutable
-        if conditions is None:
-            conditions = {}
         if self.has_analytical_solution():
             return self.solve_analytical(conditions=conditions)
         else:
@@ -290,7 +283,7 @@ class Model(object):
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
-    def solve_analytical(self, conditions=None):
+    def solve_analytical(self, conditions={}):
         """Solve the model with an analytic solution, if possible.
 
         Analytic solutions are only possible in a select number of
@@ -304,9 +297,6 @@ class Model(object):
         joint PDF.  If unsuccessful, this will raise an exception.
         """
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
-        # Don't use {} as a default argument since it is mutable
-        if conditions is None:
-            conditions = {}
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
@@ -327,7 +317,7 @@ class Model(object):
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
-    def solve_numerical(self, conditions=None):
+    def solve_numerical(self, conditions={}):
         """Solve the DDM model numerically.
 
         This uses the implicit method to solve the DDM at each
@@ -337,9 +327,6 @@ class Model(object):
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
         """
-        # Don't use {} as a default argument since it is mutable
-        if conditions is None:
-            conditions = {}
         ### Initialization: Lists
         pdf_curr = self.IC(conditions=conditions) # Initial condition
         pdf_prev = np.zeros((len(pdf_curr)))

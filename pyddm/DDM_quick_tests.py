@@ -21,6 +21,10 @@ from ddm import *
 from ddm.plot import *
 import ddm.models as models
 from ddm.models import *
+from ddm.models.mu import MuConstant, Mu
+from ddm.models.sigma import SigmaConstant, Sigma
+from ddm.models.bound import BoundConstant
+from ddm.models.overlay import OverlayChain, OverlayPoissonMixture, OverlayUniformMixture
 
 SHOW_PLOTS = False
 
@@ -173,7 +177,7 @@ def test_fit_simple_ddm():
 
 # Make sure we can fit different parameters in the same (or a
 # different) model using a single Fittable object
-class SigmaDouble(models.Sigma):
+class SigmaDouble(Sigma):
     name = "time-varying sigma"
     required_parameters = ["sigma1", "sigma2"]
     def get_sigma(self, t, conditions, **kwargs):
@@ -182,7 +186,7 @@ class SigmaDouble(models.Sigma):
         else:
             return self.sigma2
 
-class SigmaConstantButNot(models.Sigma): # To avoid the numerical simulations
+class SigmaConstantButNot(Sigma): # To avoid the numerical simulations
     name = "almost sigma constant"
     required_parameters = ["sigma"]
     def get_sigma(self, t, conditions, **kwargs):
@@ -207,13 +211,13 @@ class SigmaConstantButNot(models.Sigma): # To avoid the numerical simulations
 #     assert abs(msam._sigmadep.sigma1 - mone._sigmadep.sigma) < 0.1 * mone._sigmadep.sigma
 
 
-class MuPowerTime(models.Mu):
+class MuPowerTime(Mu):
     name = "mu power with time"
     required_parameters = ["mu", "power"]
     def get_mu(self, t, conditions, **kwargs):
         return t**self.power * self.mu
 
-class SigmaPowerTime(models.Sigma):
+class SigmaPowerTime(Sigma):
     name = "sigma power with time"
     required_parameters = ["sigma", "power"]
     def get_sigma(self, t, conditions, **kwargs):
@@ -313,14 +317,14 @@ def test_overlay_uniform_distribution_integrates_to_1():
     assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
 
 def test_overlay_poisson_distribution_integrates_to_1():
-    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayPoissonMixture(mixturecoef=.2, rate=2))
+    m = Model(name="Overlay_test", mu=MuConstant(mu=2), overlay=OverlayPoissonMixture(pmixturecoef=.2, rate=2))
     s = m.solve_numerical()
     distsum = s.prob_correct() + s.prob_error()
     assert .98 < distsum < 1.0001, "Distribution doesn't sum to 1"
 
 def test_overlay_chain_distribution_integrates_to_1():
     m = Model(name="Overlay_test", mu=MuConstant(mu=2),
-              overlay=OverlayChain(overlays=[OverlayPoissonMixture(mixturecoef=.2, rate=2),
+              overlay=OverlayChain(overlays=[OverlayPoissonMixture(pmixturecoef=.2, rate=2),
                                              OverlayUniformMixture(umixturecoef=.2)]))
     s = m.solve_numerical()
     distsum = s.prob_correct() + s.prob_error()

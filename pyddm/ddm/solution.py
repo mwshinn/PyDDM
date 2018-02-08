@@ -102,7 +102,10 @@ class Solution(object):
     @returns(Range(0, 1))
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
-        return 1 - self.prob_correct() - self.prob_error()
+        udprob = 1 - (self.prob_correct() + self.prob_error())
+        if udprob < 0:
+            print("Warning, setting undecided probability from %f to 0" % udprob)
+        return udprob
 
     @accepts(Self)
     @returns(Range(0, 1))

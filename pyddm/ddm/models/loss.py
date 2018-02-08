@@ -161,11 +161,12 @@ class LossLikelihood(LossFunction):
     @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
+        MIN_LIKELIHOOD = 1e-8 # Avoid log(0)
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
-            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]))
-            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]))
+            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]+MIN_LIKELIHOOD))
+            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]+MIN_LIKELIHOOD))
             if sols[k].prob_undecided() > 0:
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
             # nans come from negative values in the pdfs, which in
