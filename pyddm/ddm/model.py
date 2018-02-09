@@ -420,9 +420,9 @@ class Model(object):
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
-            print("Warning, renormalizing model solution from", pdfsum, "to 1.")
+            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
             pdf_corr /= pdfsum
-            pdf_err /= pdferr
+            pdf_err /= pdfsum
 
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
