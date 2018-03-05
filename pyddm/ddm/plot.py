@@ -94,9 +94,9 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
         data_hist_top = np.histogram(sample_cond.corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
-        
-        ax1.plot(t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
-        ax2.plot(t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
+        data_t_domain = np.linspace(0, T_dur, T_dur/dt+1)
+        ax1.plot(data_t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
+        ax2.plot(data_t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
     if model:
         s = solve_partial_conditions(model, sample_cond, conditions=conditions)
         ax1.plot(t_domain, s.pdf_corr(), lw=2, color='red')

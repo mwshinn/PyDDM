@@ -17,15 +17,12 @@ from .models.mu import MuConstant
 from .models.sigma import SigmaConstant
 from .models.ic import ICPointSourceCenter
 from .models.bound import BoundConstant
-from .models.overlay import OverlayNone
+from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
 
 from paranoid.types import Boolean, Number, String
 from paranoid.decorators import accepts, returns, requires, ensures
 from .models.paranoid_types import Conditions
-
-########################################################################################################################
-### Defined functions.
 
 @accepts(Model, Model, tol=Number)
 @requires("m1.get_model_type() == m2.get_model_type()")

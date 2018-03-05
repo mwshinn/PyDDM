@@ -5,6 +5,8 @@ import numpy as np
 from scipy import sparse, randn
 import scipy.sparse.linalg
 
+import inspect
+
 from . import parameters as param
 from .analytic import analytic_ddm
 from .models.mu import MuConstant, Mu
@@ -17,7 +19,7 @@ from .sample import Sample
 from .solution import Solution
 
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1
-from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
+from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
 # This speeds up the code by about 10%.
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
@@ -231,6 +233,7 @@ class Model(object):
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
+    @paranoidconfig(max_runtime=10)
     def simulated_solution(self, conditions={}, size=1000):
         """Simulate individual trials to obtain a distribution.
 
@@ -259,17 +262,32 @@ class Model(object):
                 undec_count += 1
             else:
                 raise ValueError("Internal error")
-        return Sample(corr_times, err_times, undec_count)
+        return Sample(np.asarray(corr_times), np.asarray(err_times), undec_count)
 
     @accepts(Self)
     @returns(Boolean)
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
         mt = self.get_model_type()
-        return mt["Mu"] == MuConstant and mt["Sigma"] == SigmaConstant and \
-            (mt["Bound"] in [BoundConstant, BoundCollapsingLinear]) and \
-            mt["IC"] == ICPointSourceCenter
-        
+        # First check to make sure mu doesn't vary with time or
+        # particle location
+        mu_valid = False
+        mufuncsig = inspect.signature(mt["Mu"].get_mu)
+        if "t" in mufuncsig.parameters or "x" in mufuncsig.parameters:
+            return False
+        # Check sigma to make sure it doesn't vary with time or particle location
+        sigmafuncsig = inspect.signature(mt["Sigma"].get_sigma)
+        if "t" in sigmafuncsig.parameters or "x" in sigmafuncsig.parameters:
+            return False
+        # Check to make sure bound is one that we can solve for
+        if not mt["Bound"]in [BoundConstant, BoundCollapsingLinear]:
+            return False
+        # Make sure initial condition is at the center
+        if not mt["IC"] == ICPointSourceCenter:
+            return False
+        # Assuming none of these is the case, return True.
+        return True
+    
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
     def solve(self, conditions={}):
@@ -313,6 +331,14 @@ class Model(object):
         anal_pdf_corr[0] = 0.
         anal_pdf_err[anal_pdf_err==np.NaN] = 0.
         anal_pdf_err[0] = 0.
+
+        # Fix numerical errors
+        pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
+        if pdfsum > 1:
+            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            anal_pdf_corr /= pdfsum
+            anal_pdf_err /= pdfsum
+
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
     @accepts(Self, conditions=Conditions)

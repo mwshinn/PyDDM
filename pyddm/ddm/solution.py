@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+from math import fsum
 from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
@@ -29,8 +30,8 @@ class Solution(object):
         assert v.err in NDArray(d=1, t=Number), "Invalid err histogram"
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
         assert len(v.corr) == len(v.err), "Histogram lengths must match"
-        assert 0 <= np.sum(v.corr) + np.sum(v.err) <= 1, "Histogram does not integrate " \
-            " to 1, not to " + str(np.sum(v.corr) + np.sum(v.err))
+        assert 0 <= fsum(v.corr.tolist() + v.err.tolist()) <= 1, "Histogram does not integrate " \
+            " to 1, not to " + str(fsum(v.corr.tolist() + v.err.tolist()))
         assert v.conditions in Conditions()
     @staticmethod
     def _generate():
@@ -57,7 +58,7 @@ class Solution(object):
         self.corr = pdf_corr 
         self.err = pdf_err
         # Correct floating point errors to always get prob <= 1
-        if np.sum(self.corr) + np.sum(self.err) > 1:
+        if fsum(self.corr.tolist() + self.err.tolist()) > 1:
             self.corr /= 1.00000000001
             self.err /= 1.00000000001
         self.conditions = conditions
@@ -90,21 +91,22 @@ class Solution(object):
     @returns(Range(0, 1))
     def prob_correct(self):
         """The probability of selecting the right response."""
-        return np.sum(self.corr)
+        return fsum(self.corr)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_error(self):
         """The probability of selecting the incorrect (error) response."""
-        return np.sum(self.err)
+        return fsum(self.err)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
-        udprob = 1 - (self.prob_correct() + self.prob_error())
+        udprob = 1 - fsum(self.corr.tolist() + self.err.tolist())
         if udprob < 0:
             print("Warning, setting undecided probability from %f to 0" % udprob)
+            edprob = 0
         return udprob
 
     @accepts(Self)
@@ -124,7 +126,7 @@ class Solution(object):
     @returns(Positive0)
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
-        return np.sum((self.corr)*self.model.t_domain()) / self.prob_correct()
+        return fsum((self.corr)*self.model.t_domain()) / self.prob_correct()
 
     @staticmethod
     def _sample_from_histogram(hist, hist_bins, k, seed=0):
@@ -146,7 +148,7 @@ class Solution(object):
         rng = np.random.RandomState(seed)
         sample = []
         h = hist
-        norm = np.round(np.sum(h), 2)
+        norm = np.round(fsum(h), 2)
         assert norm <= 1 or int(norm) == norm, "Invalid histogram of size %f" % norm
         if norm >= 1:
             h = h/norm

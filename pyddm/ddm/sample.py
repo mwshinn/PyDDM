@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 
-from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0
+from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked
 from paranoid.decorators import *
 
 @paranoidclass
@@ -114,12 +114,9 @@ class Sample(object):
         error (1 == correct, 0 == error).  Any remaining columns
         should be conditions.  `column_names` should be a list of
         length m of strings indicating the names of the conditions.
-        The first two values can be anything, since these correspond
-        to special columns as described above.  (However, for the
-        bookkeeping, it might be wise to make them "rt" and "correct"
-        or something of the sort.)  Remaining elements are the
-        condition names corresponding to the columns.  This function
-        does not yet work with no-decision trials.
+        The order of the names should correspond to the order of the
+        columns.  This function does not yet work with no-decision
+        trials.
         """
         c = data[:,1].astype(bool)
         nc = (1-data[:,1]).astype(bool)
@@ -129,8 +126,40 @@ class Sample(object):
                 arr = arr.astype(int)
             return arr
 
-        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), []) for i,k in enumerate(column_names[2:])}
+        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), []) for i,k in enumerate(column_names)}
         return Sample(pt(data[c,0]), pt(data[nc,0]), 0, **conditions)
+    @staticmethod
+    @accepts(Unchecked, String, String) # TODO change unchecked to pandas
+    @returns(Self)
+    @requires('df.shape[1] >= 2')
+    @requires('rt_column_name in df')
+    @requires('correct_column_name in df')
+    @requires('set(df[correct_column_name]) == {0, 1}')
+    @requires('all(df[rt_column_name].astype("float") == df[rt_column_name])')
+    @ensures('len(df) == len(return)')
+    def from_pandas_dataframe(df, rt_column_name, correct_column_name):
+        """Generate a Sample object from a pandas dataframe.
+        
+        `df` should be a pandas array.  `rt_column_name` and
+        `correct_column_name` should be strings, and `df` should
+        contain columns by these names. The column with the name
+        `rt_column_name` should be the response times, and the column
+        with the name `correct_column_name` should be whether the
+        trial was correct or an error (1 == correct, 0 == error).  Any
+        remaining columns should be conditions.  This function does
+        not yet work with no-decision trials.
+        """
+        c = df[correct_column_name].astype(bool)
+        nc = (1-df[correct_column_name]).astype(bool)
+        def pt(x): # Pythonic types
+            arr = np.asarray(x)
+            if np.all(arr == np.round(arr)):
+                arr = arr.astype(int)
+            return arr
+
+        column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
+        conditions = {k: (pt(df[c][k]), pt(df[nc][k]), []) for k in column_names}
+        return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, **conditions)
     def items(self, correct):
         """Iterate through the reaction times.
 
@@ -165,10 +194,10 @@ class Sample(object):
         mask_non = np.ones(self.non_decision).astype(bool)
         for k,v in kwargs.items():
             if hasattr(v, '__call__'):
-                mask_corr = np.logical_and(mask_corr, map(v, self.conditions[k][0]))
-                mask_err = np.logical_and(mask_err, map(v, self.conditions[k][1]))
-                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, map(v, self.conditions[k][2]))
-            if hasattr(v, '__contains__'):
+                mask_corr = np.logical_and(mask_corr, [v(i) for i in self.conditions[k][0]])
+                mask_err = np.logical_and(mask_err, [v(i) for i in  self.conditions[k][1]])
+                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [v(i) for i in self.conditions[k][2]])
+            elif hasattr(v, '__contains__'):
                 mask_corr = np.logical_and(mask_corr, [i in v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
                 mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i in v for i in self.conditions[k][2]])

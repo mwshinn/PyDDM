@@ -25,6 +25,7 @@ from ddm.models.mu import MuConstant, Mu
 from ddm.models.sigma import SigmaConstant, Sigma
 from ddm.models.bound import BoundConstant
 from ddm.models.overlay import OverlayChain, OverlayPoissonMixture, OverlayUniformMixture
+from ddm.functions import fit_model
 
 SHOW_PLOTS = False
 

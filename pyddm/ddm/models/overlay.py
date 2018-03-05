@@ -1,6 +1,7 @@
 __ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayDelay"]
 
 import numpy as np
+from math import fsum
 
 from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List
 
@@ -182,8 +183,8 @@ class OverlayDelay(Overlay):
         yield OverlayDelay(delaytime=-.5)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("set(return.corr) - set(solution.corr).union({0.0}) == set()")
-    @ensures("set(return.err) - set(solution.err).union({0.0}) == set()")
+    @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
+    @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
     @ensures("solution.prob_undecided() <= return.prob_undecided()")
     def apply(self, solution):
         corr = solution.corr
@@ -191,8 +192,8 @@ class OverlayDelay(Overlay):
         m = solution.model
         cond = solution.conditions
         shifts = int(self.delaytime/m.dt) # round
-        newcorr = np.zeros(corr.shape)
-        newerr = np.zeros(err.shape)
+        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
+        newerr = np.zeros(err.shape, dtype=err.dtype)
         if shifts > 0:
             newcorr[shifts:] = corr[:-shifts]
             newerr[shifts:] = err[:-shifts]
