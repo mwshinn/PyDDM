@@ -240,7 +240,7 @@ def model_gui(model,
     def update():
         """Redraws the plot according to the current parameters of the model
         and the selected conditions."""
-        current_conditions = {c : int(condition_vars[i].get()) for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
+        current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
         fig.clear()
         plot(model=m, fig=fig, sample=sample, conditions=current_conditions, data_dt=data_dt)
         canvas.draw()
@@ -257,6 +257,7 @@ def model_gui(model,
     if required_conditions is not None:
         condition_names = [n for n in condition_names if n in required_conditions]
     condition_vars = [] # Tk variables for condition values (set by radio buttons)
+    condition_vars_values = [] # Corresponds to the above, but with numerical values instead of strings
     for i,cond in enumerate(condition_names):
         lframe = tk.LabelFrame(master=frame, text=cond, width=100, height=100)
         lframe.pack()
@@ -265,8 +266,9 @@ def model_gui(model,
         b = tk.Radiobutton(master=lframe, text="All", variable=thisvar, value="All", command=value_changed)
         b.pack(anchor=tk.W)
         for cv in sample.condition_values(cond):
-            b = tk.Radiobutton(master=lframe, text=cv, variable=thisvar, value=cv, command=value_changed)
+            b = tk.Radiobutton(master=lframe, text=str(cv), variable=thisvar, value=cv, command=value_changed)
             b.pack(anchor=tk.W)
+        condition_vars_values.append({str(cv) : cv for cv in sample.condition_values(cond)})
         thisvar.set("All")
     
     # And now create the sliders.  While we're at it, get rid of the
@@ -321,3 +323,4 @@ def model_gui(model,
     root.update()
     set_defaults()
     tk.mainloop()
+    return m

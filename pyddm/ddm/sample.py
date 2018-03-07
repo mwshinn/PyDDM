@@ -86,16 +86,18 @@ class Sample(object):
         return np.concatenate([self.corr, self.err]).__iter__()
     def __add__(self, other):
         assert sorted(self.conditions.keys()) == sorted(other.conditions.keys()), "Canot add with unlike conditions"
-        corr = self.corr + other.corr
-        err = self.err + other.err
+        corr = np.concatenate([self.corr, other.corr])
+        err = np.concatenate([self.err, other.err])
         non_decision = self.non_decision + other.non_decision
         conditions = {}
         for k in self.conditions.keys():
             sc = self.conditions
             oc = other.conditions
-            conditions[k] = (sc[k][0]+oc[k][0], sc[k][1]+oc[k][1],
-                             (sc[k][2] if len(sc[k]) == 3 else [])
-                             + (oc[k][2] if len(oc[k]) == 3 else []))
+            bothc = np.concatenate([sc[k][0], oc[k][0]])
+            bothe = np.concatenate([sc[k][1], oc[k][1]])
+            bothn = np.concatenate([sc[k][2] if len(sc[k]) == 3 else [],
+                                    oc[k][2] if len(oc[k]) == 3 else []])
+            conditions[k] = (bothc, bothe, bothn)
         return Sample(corr, err, non_decision, **conditions)
     @staticmethod
     @accepts(NDArray(d=2, t=Number), List(String))

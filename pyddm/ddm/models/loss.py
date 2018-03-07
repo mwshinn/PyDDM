@@ -78,6 +78,9 @@ class LossFunction(object):
 
         If `required_conditions` is None, use all of the conditions
         found within the sample.
+
+        This is a convenience function for defining new loss
+        functions.
         """
         cache = {}
         conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
@@ -145,7 +148,7 @@ class LossLikelihood(LossFunction):
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
             maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
-            assert maxt < self.T_dur, "Simulation time T_dur not long enough for these data"
+            assert maxt <= self.T_dur, "Simulation time T_dur not long enough for these data"
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Exclude all data points where this index
             # rounds to 0 because this is always 0 in the pdf (no

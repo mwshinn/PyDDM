@@ -222,8 +222,12 @@ class Model(object):
         a trajectory of the simulated trial over time as a numpy
         array.
         """
-
-        # TODO this doesn't support OU models since it doesn't take X.
+        mufuncsig = inspect.signature(self.get_dependence("mu").get_mu)
+        sigmafuncsig = inspect.signature(self.get_dependence("sigma").get_sigma)
+        assert not "x" in mufuncsig.parameters, "Mus with x arguments cannot be simulated"
+        assert not "x" in sigmafuncsig.parameters, "Sigmas with x arguments cannot be simulated"
+        assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
+        
         T = self.t_domain()
         mu = np.asarray([self.get_dependence("mu").get_mu(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
         sigma = np.asarray([self.get_dependence("sigma").get_sigma(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
@@ -243,26 +247,28 @@ class Model(object):
         to solve.  Returns a sample object.
         """
 
-        # TODO this doesn't support OU models.  It could also be made
-        # more efficient by stopping the simulation once it has
-        # crossed threshold.
+        # TODO this doesn't support OU models or simulations with
+        # overlays.  It could also be made more efficient by stopping
+        # the simulation once it has crossed threshold.
         corr_times = []
         err_times = []
         undec_count = 0
         for _ in range(0, size):
             timecourse = self.simulate_trial(conditions=conditions)
             bound = np.asarray([self.get_dependence("bound").get_bound(t, conditions=conditions) for t in self.t_domain()])
-            cross_corr = [i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]]
-            cross_err = [i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]]
-            if (cross_corr and cross_err and cross_corr[0] < cross_err[0]) or (cross_corr and not cross_err):
-                corr_times.append(self.t_domain()[cross_corr[0]])
-            elif (cross_err and cross_corr and cross_err[0] < cross_corr[0]) or (cross_err and not cross_corr):
-                err_times.append(self.t_domain()[cross_err[0]])
+            cross_corr = next((i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]), None)
+            cross_err = next((i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]), None)
+            if (cross_corr and cross_err and cross_corr < cross_err) or (cross_corr and not cross_err):
+                corr_times.append(self.t_domain()[cross_corr])
+            elif (cross_corr and cross_err and cross_err < cross_corr) or (cross_err and not cross_corr):
+                err_times.append(self.t_domain()[cross_err])
             elif (not cross_corr) and (not cross_err):
                 undec_count += 1
             else:
                 raise ValueError("Internal error")
-        return Sample(np.asarray(corr_times), np.asarray(err_times), undec_count)
+        aa = lambda x : np.asarray(x)
+        conds = {k:(aa(len(corr_times)*[v]), aa(len(err_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items()}
+        return Sample(aa(corr_times), aa(err_times), undec_count, **conds)
 
     @accepts(Self)
     @returns(Boolean)
