@@ -24,9 +24,6 @@ class Bound(Dependence):
     def get_bound(self, t, conditions, **kwargs):
         """Return the bound at time `t`."""
         raise NotImplementedError
-    def B_base(self, conditions):
-        assert "B" in self.required_parameters, "B must be a required parameter"
-        return self.B
 
 @paranoidclass
 class BoundConstant(Bound):

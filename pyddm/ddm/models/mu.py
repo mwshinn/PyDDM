@@ -109,11 +109,15 @@ class MuLinear(Mu):
     # same x,t with p(x,t) (probability distribution function). Hence
     # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        return sparse.diags( 0.5*dt/dx * (self.mu + self.x*x[1:]  + self.t*t), 1) \
-             + sparse.diags(-0.5*dt/dx * (self.mu + self.x*x[:-1] + self.t*t),-1)
+        return sparse.diags(0.5*dt/dx * self.get_mu(x=x[1:], t=t, conditions=conditions), 1) \
+             + sparse.diags(-0.5*dt/dx * self.get_mu(x=x[:-1], t=t, conditions=conditions),-1)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        return 0.5*dt/dx * np.sign(x_bound) * (self.mu + self.x*x_bound + self.t*t)
-    @accepts(Self, Number, Positive0)
-    @returns(Number)
+        return 0.5*dt/dx * np.sign(x_bound) * self.get_mu(x=x_bound, t=t, conditions=conditions)
+    # We allow this function to accept a vector or a scalar for x,
+    # because if we use list comprehensions instead of native numpy
+    # multiplication in the get_matrix functio it slows things down by
+    # around 100x.
+    @accepts(Self, Or(Number, NDArray(d=1, t=Number)), Positive0)
+    @returns(Or(Number, NDArray(d=1, t=Number)))
     def get_mu(self, x, t, **kwargs):
         return self.mu + self.x*x + self.t*t

@@ -177,7 +177,8 @@ class Model(object):
         return dict(map(tt, self.dependencies))
     def x_domain(self, conditions):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
-        B = self.get_dependence("bound").B_base(conditions=conditions)
+        B = self.get_dependence("bound").get_bound(t=0, conditions=conditions)
+        B = np.ceil(B/self.dx)*self.dx # Align the bound to dx borders
         return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
@@ -213,7 +214,8 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
-    def simulate_trial(self, conditions={}):
+    @ensures('len(return) == len(self.t_domain())')
+    def simulate_trial(self, conditions={}, seed=0):
         """Simulate the decision variable for one trial.
 
         Given conditions `conditions`, this function will simulate the
@@ -229,16 +231,27 @@ class Model(object):
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         
         T = self.t_domain()
-        mu = np.asarray([self.get_dependence("mu").get_mu(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
-        sigma = np.asarray([self.get_dependence("sigma").get_sigma(t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in T])
-        randnorm = randn(len(T))
-        pos = np.cumsum(mu*self.dt + sigma*randnorm*np.sqrt(self.dt))
-        return pos
+
+        # Choose a starting position from the IC
+        rng = np.random.RandomState(seed)
+        rn = rng.rand()
+        ic = self.IC(conditions=conditions)
+        x0 = next(T[i] for i,e in enumerate(np.cumsum(ic)) if rn > e)
+        # Iterate through, adjusting by mu on each iteration
+        pos = [x0]
+        for i in range(1, len(T)):
+            mu = self.get_dependence("mu").get_mu(t=T[i-1], x=pos[i-1], dx=self.dx, dt=self.dt, conditions=conditions)
+            sigma = self.get_dependence("sigma").get_sigma(t=T[i-1], x=pos[i-1], dx=self.dx, dt=self.dt, conditions=conditions)
+            rn = rng.randn()
+            pos.append(pos[i-1] + mu*self.dt + rn*sigma*np.sqrt(self.dt))
+
+        return np.asarray(pos)
+    # TODO test
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
     @paranoidconfig(max_runtime=10)
-    def simulated_solution(self, conditions={}, size=1000):
+    def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.
 
         Given conditions `conditions` and the number `size` of trials
@@ -253,8 +266,8 @@ class Model(object):
         corr_times = []
         err_times = []
         undec_count = 0
-        for _ in range(0, size):
-            timecourse = self.simulate_trial(conditions=conditions)
+        for s in range(0, size):
+            timecourse = self.simulate_trial(conditions=conditions, seed=[s, seed])
             bound = np.asarray([self.get_dependence("bound").get_bound(t, conditions=conditions) for t in self.t_domain()])
             cross_corr = next((i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]), None)
             cross_err = next((i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]), None)
@@ -325,11 +338,11 @@ class Model(object):
         if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
                                                        self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").B_base(conditions=conditions), self.t_domain())
+                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), self.t_domain())
         elif isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
                                                        self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").B_base(conditions=conditions),
+                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions),
                                                        self.t_domain(), -self.get_dependence("bound").t) # TODO why must this be negative? -MS
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
@@ -382,8 +395,8 @@ class Model(object):
 
                 # Now figure out which x positions are still within
                 # the (collapsing) bound.
-                assert self.get_dependence("bound").B_base(conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-                bound_shift = self.get_dependence("bound").B_base(conditions=conditions) - bound
+                assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+                bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
                 # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
                 x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
                 x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
