@@ -8,6 +8,7 @@ System requirements
 - `Scipy/numpy <https://www.scipy.org/>`_
 - `Paranoid scientist <https://github.com/mwshinn/paranoidscientist>`_ (``pip install paranoid-scientist``)
 - For plotting features, `matplotlib <https://matplotlib.org/>`_
+- For parallelization support, `pathos <https://pypi.python.org/pypi/pathos>`_
 
 Installation
 ------------

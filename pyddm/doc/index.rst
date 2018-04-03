@@ -31,6 +31,7 @@ Key features include:
    quickstart
    modelgui
    recipes
+   faqs
    apidoc/index
 
 :ref:`genindex`   
