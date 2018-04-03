@@ -2,7 +2,7 @@ import copy
 from functools import lru_cache
 
 import numpy as np
-from scipy import sparse, randn
+from scipy import sparse
 import scipy.sparse.linalg
 
 import inspect

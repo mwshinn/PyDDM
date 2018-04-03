@@ -84,6 +84,22 @@ class Sample(object):
     def __iter__(self):
         """Iterate through each reaction time, with no regard to whether it was a correct or error trial."""
         return np.concatenate([self.corr, self.err]).__iter__()
+    def __eq__(self, other):
+        if not np.allclose(self.corr, other.corr) or \
+           not np.allclose(self.err, other.err) or \
+           self.non_decision != other.non_decision:
+            return False
+        for k in self.conditions:
+            if k not in other.conditions:
+                return False
+            if not np.allclose(self.conditions[k][0], other.conditions[k][0]) or \
+               not np.allclose(self.conditions[k][1], other.conditions[k][1]):
+                return False
+            if len(self.conditions[k]) == 3 and \
+               len(other.conditions[k]) == 3 and \
+               not np.allclose(self.conditions[k][2], other.conditions[k][2]):
+                return False
+        return True
     def __add__(self, other):
         assert sorted(self.conditions.keys()) == sorted(other.conditions.keys()), "Canot add with unlike conditions"
         corr = np.concatenate([self.corr, other.corr])
