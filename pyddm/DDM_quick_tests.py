@@ -274,7 +274,7 @@ def test_no_overlay():
     s = m.solve_numerical()
     sample = s.resample(10000)
     f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)))
-    plot.plot_compare_solutions(s, f.solve_numerical())
+    plot_compare_solutions(s, f.solve_numerical())
     print(f)
     _verify_param_match("mu", "mu", m, f)
 
@@ -284,7 +284,7 @@ def test_uniform_overlay():
     sample = s.resample(10000)
     f = fit_model(sample, mu=MuConstant(mu=Fittable(minval=0, maxval=3)),
                   overlay=OverlayUniformMixture(umixturecoef=Fittable(minval=.001, maxval=.5)))
-    plot.plot_compare_solutions(s, f.solve_numerical())
+    plot_compare_solutions(s, f.solve_numerical())
     print(f)
     _verify_param_match("mu", "mu", m, f)
     _verify_param_match("overlay", "umixturecoef", m, f)

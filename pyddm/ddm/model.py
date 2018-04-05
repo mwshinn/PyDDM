@@ -18,7 +18,7 @@ from .models.paranoid_types import Conditions
 from .sample import Sample
 from .solution import Solution
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
 # This speeds up the code by about 10%.
@@ -214,6 +214,7 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
+    @accepts(Self, conditions=Dict(k=String, v=Number), seed=Natural0)
     @ensures('len(return) == len(self.t_domain())')
     def simulate_trial(self, conditions={}, seed=0):
         """Simulate the decision variable for one trial.
@@ -267,7 +268,7 @@ class Model(object):
         err_times = []
         undec_count = 0
         for s in range(0, size):
-            timecourse = self.simulate_trial(conditions=conditions, seed=[s, seed])
+            timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32))
             bound = np.asarray([self.get_dependence("bound").get_bound(t, conditions=conditions) for t in self.t_domain()])
             cross_corr = next((i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]), None)
             cross_err = next((i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]), None)

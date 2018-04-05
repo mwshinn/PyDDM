@@ -22,7 +22,15 @@ class Mu(Dependence):
     """
     depname = "Mu"
     def _cached_sparse_diags(self, *args, **kwargs):
-        """Cache sparse.diags to save 15% runtime."""
+        """Cache sparse.diags to save 15% runtime.
+
+        This is basically just a wrapper for the sparse.diags function
+        to incorporate a size 1 LRU memoization.  Functools
+        memoization doesn't work because arguments are not hashable.
+
+        Profiling identified the sparse.diags function as a major
+        bottleneck, and the use of this function ameliorates that.
+        """
         if "_last_diag_args" not in self.__dict__:
             object.__setattr__(self, "_last_diag_args", [])
             object.__setattr__(self, "_last_diag_kwargs", {})
@@ -35,19 +43,32 @@ class Mu(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
+    @accepts(Self, x=NDArray(d=1), t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @returns(sparse.spmatrix)
+    @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
-        `x` should be a length N ndarray.  
+        `x` should be a length N ndarray of all positions in the grid.
+        `t` should be the time in seconds at which to calculate sigma.
+        `dt` and `dx` should be the simulations timestep and grid step
+        `conditions` should be the conditions at which to calculate sigma
 
-        Returns a sparse numpy matrix.
+        Returns a sparse NxN numpy matrix.
         """
         mu = self.get_mu(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
-        return self._cached_sparse_diags([ 0.5*dt/dx * mu,
-                                           -0.5*dt/dx * mu],
-                                         [1, -1], shape=(len(x), len(x)), format="csr")
+        if np.isscalar(mu):
+            return self._cached_sparse_diags([ 0.5*dt/dx * mu,
+                                              -0.5*dt/dx * mu],
+                                             [1, -1], shape=(len(x), len(x)), format="csr")
+        else:
+            return self._cached_sparse_diags([ 0.5*dt/dx * mu[1:],
+                                              -0.5*dt/dx * mu[:-1]]
+                                             [1, -1], format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
+    @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @returns(Number)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         """The drift component of flux across the boundary at position `x_bound` at time `t`.
 
@@ -81,6 +102,8 @@ class MuConstant(Mu):
     def get_mu(self, **kwargs):
         return self.mu
 
+#TODO While testing, make sure that with x=0 this is the same as
+#constant mu.
 @paranoidclass
 class MuLinear(Mu):
     """Mu dependence: drift rate varies linearly with position and time.
@@ -104,15 +127,6 @@ class MuLinear(Mu):
         yield MuLinear(mu=1, x=-1, t=1)
         yield MuLinear(mu=10, x=10, t=10)
         yield MuLinear(mu=1, x=-10, t=-.5)
-    # Reminder: The general definition is (mu*p)_(x_{n+1},t_{m+1}) -
-    # (mu*p)_(x_{n-1},t_{m+1})... So choose mu(x,t) that is at the
-    # same x,t with p(x,t) (probability distribution function). Hence
-    # we use x[1:]/[:-1] respectively for the +/-1 off-diagonal.
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
-        return sparse.diags(0.5*dt/dx * self.get_mu(x=x[1:], t=t, conditions=conditions), 1) \
-             + sparse.diags(-0.5*dt/dx * self.get_mu(x=x[:-1], t=t, conditions=conditions),-1)
-    def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        return 0.5*dt/dx * np.sign(x_bound) * self.get_mu(x=x_bound, t=t, conditions=conditions)
     # We allow this function to accept a vector or a scalar for x,
     # because if we use list comprehensions instead of native numpy
     # multiplication in the get_matrix functio it slows things down by
