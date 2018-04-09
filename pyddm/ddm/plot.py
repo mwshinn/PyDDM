@@ -223,16 +223,17 @@ def model_gui(model,
     # Initialize the TK (tkinter) subsystem.
     root = tk.Tk()    
     root.wm_title("Model: %s" % m.name if m else "Data")
-    root.grid_columnconfigure(1, weight=2)
-    root.grid_columnconfigure(2, weight=1)
-    root.grid_columnconfigure(3, weight=0)
+    root.grid_columnconfigure(1, weight=0)
+    root.grid_columnconfigure(2, weight=2)
+    root.grid_columnconfigure(3, weight=1)
+    root.grid_columnconfigure(4, weight=0)
     root.grid_rowconfigure(0, weight=1)
     
     # Creates a widget for a matplotlib figure.  Anything drawn to
     # this figure can be displayed by calling canvas.draw().
     fig = Figure()
     canvas = FigureCanvasTkAgg(fig, master=root)
-    canvas.get_tk_widget().grid(row=0, column=1, sticky="nswe")
+    canvas.get_tk_widget().grid(row=0, column=2, sticky="nswe")
     fig.text(.5, .5, "Loading...")
     canvas.show()
     canvas.draw()
@@ -251,16 +252,31 @@ def model_gui(model,
             update()
     
     # Draw the radio buttons allowing the user to select conditions
-    frame = tk.Frame(master=root)
-    frame.grid(row=0, column=0, sticky="nw")
+    frame_params_container = tk.Canvas(root, bd=2, width=100)
+    frame_params_container.grid(row=0, column=0, sticky="nesw")
+    scrollbar_params = tk.Scrollbar(root, command=frame_params_container.yview)
+    scrollbar_params.grid(row=0, column=1, sticky="ns")
+    frame_params_container.configure(yscrollcommand = scrollbar_params.set)
+
+    frame = tk.Frame(master=frame_params_container)
+    windowid_params = frame_params_container.create_window((0,0), window=frame, anchor='nw')
+    # Get the sizing right
+    def adjust_window_params(e, wid=windowid_params, c=frame_params_container):
+        c.configure(scrollregion=frame_params_container.bbox('all'))
+        c.itemconfig(wid, width=e.width)
+    frame_params_container.bind("<Configure>", adjust_window_params)
+
+    
+    #frame = tk.Frame(master=root)
+    #frame.grid(row=0, column=0, sticky="nw")
     condition_names = required_conditions
     if required_conditions is not None:
         condition_names = [n for n in condition_names if n in required_conditions]
     condition_vars = [] # Tk variables for condition values (set by radio buttons)
     condition_vars_values = [] # Corresponds to the above, but with numerical values instead of strings
     for i,cond in enumerate(condition_names):
-        lframe = tk.LabelFrame(master=frame, text=cond, width=100, height=100)
-        lframe.pack()
+        lframe = tk.LabelFrame(master=frame, text=cond)
+        lframe.pack(expand=True, anchor=tk.W)
         thisvar = tk.StringVar()
         condition_vars.append(thisvar)
         b = tk.Radiobutton(master=lframe, text="All", variable=thisvar, value="All", command=value_changed)
@@ -276,9 +292,9 @@ def model_gui(model,
     if params: # Make sure there is at least one parameter
         # Allow a scrollbar
         frame_sliders_container = tk.Canvas(root, bd=2, width=200)
-        frame_sliders_container.grid(row=0, column=2, sticky="nsew")
+        frame_sliders_container.grid(row=0, column=3, sticky="nsew")
         scrollbar = tk.Scrollbar(root, command=frame_sliders_container.yview)
-        scrollbar.grid(row=0, column=3, sticky="ns")
+        scrollbar.grid(row=0, column=4, sticky="ns")
         frame_sliders_container.configure(yscrollcommand = scrollbar.set)
         
         # Construct the region with sliders
@@ -322,5 +338,6 @@ def model_gui(model,
     
     root.update()
     set_defaults()
+    frame_params_container.configure(scrollregion=frame_params_container.bbox('all'))
     tk.mainloop()
     return m
