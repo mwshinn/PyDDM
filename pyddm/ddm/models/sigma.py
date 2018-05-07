@@ -64,8 +64,8 @@ class Sigma(Dependence):
                                              [0, 1, -1], shape=(len(x), len(x)), format="csr")
         else:
             return self._cached_sparse_diags([ 1.0*sigma**2 * dt/dx**2,
-                                              -0.5*sigma[1:]**2 * dt/dx**2,
-                                              -0.5*sigma[:-1]**2 * dt/dx**2],
+                                              -0.5*(0.5*(sigma[1:]+sigma[:-1]))**2 * dt/dx**2,
+                                              -0.5*(0.5*(sigma[1:]+sigma[:-1]))**2 * dt/dx**2],
                                              [0, 1, -1], format="csr")
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
     @returns(Positive0)
@@ -73,7 +73,12 @@ class Sigma(Dependence):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
 
         Flux here is essentially the amount of the mass of the PDF
-        that is past the boundary point `x_bound` at time `t` (in seconds).
+        that is past the boundary point `x_bound` at time `t` (in
+        seconds).
+
+        Note that under the central scheme we want to use x at
+        half-grid from the boundary. This is however cleaner and
+        justifiable using forward/backward scheme.
         """
         return 0.5*dt/dx**2 * self.get_sigma(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)**2
     def get_sigma(self, conditions, **kwargs):
@@ -126,8 +131,8 @@ class SigmaLinear(Sigma):
         yield SigmaLinear(sigma=1, x=-1, t=1)
         yield SigmaLinear(sigma=10, x=10, t=10)
         yield SigmaLinear(sigma=1, x=-10, t=-.5)
-    @accepts(Self, Number, Number)
-    @returns(Positive)
+    @accepts(Self, Or(Number, NDArray(d=1, t=Number)), Positive0)
+    @returns(Or(Positive, NDArray(d=1, t=Positive)))
     @requires('self.sigma + self.x*x + self.t*t > 0') # Sigma can't go below zero
     def get_sigma(self, x, t, **kwargs):
         return self.sigma + self.x*x + self.t*t

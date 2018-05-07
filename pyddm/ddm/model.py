@@ -1,4 +1,3 @@
-import copy
 from functools import lru_cache
 
 import numpy as np
@@ -201,6 +200,33 @@ class Model(object):
         mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
         sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
         return self._cache_eye(len(x), format="csr") + mu_matrix + sigma_matrix
+    # TODO remove diffusion_matrix methods
+    def diffusion_matrix_cn(self, x, t, conditions):
+        """The matrix for the implicit method of solving the diffusion equation.
+
+        - `x` - a length N ndarray representing the domain over which
+          the matrix is to be defined. Usually a contiguous subset of
+          x_domain().
+        - `t` - The timepoint at which the matrix is valid.
+
+        Returns a size NxN scipy sparse array.
+        """
+        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        return self._cache_eye(len(x), format="csr") + 0.5*mu_matrix + 0.5*sigma_matrix
+    def diffusion_matrix_prev_cn(self, x, t, conditions):
+        """The matrix for the implicit method of solving the diffusion equation.
+
+        - `x` - a length N ndarray representing the domain over which
+          the matrix is to be defined. Usually a contiguous subset of
+          x_domain().
+        - `t` - The timepoint at which the matrix is valid.
+
+        Returns a size NxN scipy sparse array.
+        """
+        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        return self._cache_eye(len(x), format="csr") - 0.5*mu_matrix - 0.5*sigma_matrix
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
         mu_flux = self.get_dependence('mu').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
@@ -316,8 +342,10 @@ class Model(object):
         Return a Solution object describing the joint PDF distribution of reaction times."""
         if self.has_analytical_solution():
             return self.solve_analytical(conditions=conditions)
+        elif isinstance(self.get_dependence("bound"), BoundConstant):
+            return self.solve_numerical_cn(conditions=conditions)
         else:
-            return self.solve_numerical(conditions=conditions)
+            return self.solve_numerical_implicit(conditions=conditions)
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -361,9 +389,138 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
+    # TODO changeme
+    def solve_numerical(self, *args, **kwargs):
+        return self.solve_numerical_cn(*args, **kwargs)
+    
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
-    def solve_numerical(self, conditions={}):
+    def solve_numerical_explicit(self, conditions={}):
+        """Solve the DDM model numerically.
+
+        This uses the explicit method to solve the DDM at each
+        timepoint, which is less efficient and accurate than implicit methods.
+        Results are then compiled together.  This is the
+        core DDM solver of this library.
+
+        It returns a Solution object describing the joint PDF.  This
+        method should not fail for any model type.
+
+        Normally, this method should not be used;
+        solve_numerical_explicit should be used instead.  Also note
+        the stability criteria for explicit method is:
+            sigma^2/2 * dt/dx^2 < 1/2
+        """
+        ### Initialization: Lists
+
+        pdf_curr = self.IC(conditions=conditions) # Initial condition
+        pdf_prev = np.zeros((len(pdf_curr)))
+        # If pdf_corr + pdf_err + undecided probability are summed, they
+        # equal 1.  So these are componets of the joint pdf.
+        pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        x_list = self.x_domain(conditions=conditions)
+
+        # TODO this is technically incorrect, we need to find the max over all t and sigma
+        sigma_max = max((self._sigmadep.get_sigma(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
+        assert sigma_max**2 * self.dt/self.dx**2 <1, "Stability Criteria for Explicit method not satisfied"
+
+        # Looping through time and updating the pdf.
+        for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
+            # Update Previous state. To be frank pdf_prev could be
+            # removed for max efficiency. Leave it just in case.
+            pdf_prev = pdf_curr.copy()
+
+            # For efficiency only do diffusion if there's at least
+            # some densities remaining in the channel.
+            if sum(pdf_curr[:])>0.0001:
+                ## Define the boundaries at current time.
+                bound = self.get_dependence('bound').get_bound(t, conditions=conditions) # Boundary at current time-step.
+
+                # Now figure out which x positions are still within
+                # the (collapsing) bound.
+                assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+                bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
+                # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
+                x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
+                x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
+
+                # We weight the upper and lower matrices according to
+                # how far away the bound is from each.  The weight of
+                # each matrix is approximated linearly. The inner
+                # bound is 0 when bound exactly at grids.
+                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
+                weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
+                x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
+
+                # Diffusion Matrix for Implicit Method. Here defined as
+                # Outer Matrix, and inder matrix is either trivial or an
+                # extracted submatrix.
+                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t, conditions=conditions)
+                diffusion_matrix_explicit = 2.* np.diag(np.ones(len(x_list_inbounds))) - diffusion_matrix               # Explicit method flips sign except for the identity matrix
+
+                ### Compute Probability density functions (pdf)
+                # PDF for outer matrix
+                pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+                # pdf_outer.shape = (pdf_outer.size,)
+                # If the bounds are the same the bound perfectly
+                # aligns with the grid), we don't need so solve the
+                # diffusion matrix again since we don't need a linear
+                # approximation.
+                if x_index_inner == x_index_outer:
+                    pdf_inner = pdf_outer.copy()
+                else:
+                    pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+
+                # Pdfs out of bound is consideered decisions made.
+                pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
+                                  + weight_inner * np.sum(pdf_prev[:x_index_inner])
+                pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
+                                   + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
+                # Reconstruct current proability density function,
+                # adding outer and inner contribution to it.  Use
+                # .fill() method to avoid alocating memory with
+                # np.zeros().
+                pdf_curr.fill(0) # Reset
+                pdf_curr[x_index_outer:len(x_list)-x_index_outer] = pdf_curr[x_index_outer:len(x_list)-x_index_outer] + weight_outer*(pdf_outer)
+                pdf_curr[x_index_inner:len(x_list)-x_index_inner] = pdf_curr[x_index_inner:len(x_list)-x_index_inner] + weight_inner*(pdf_inner)
+
+            else:
+                break #break if the remaining densities are too small....
+
+            # Increase current, transient probability of crossing
+            # either bounds, as flux.  Corr is a correct answer, err
+            # is an incorrect answer
+            _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
+            _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
+            _inner_B_err = x_list[x_index_inner]
+            _outer_B_err = x_list[x_index_outer]
+            if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
+                pdf_inner = np.array([0])
+            pdf_corr[i_t+1] += weight_outer * pdf_outer.T[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
+                            +  weight_inner * pdf_inner.T[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
+            pdf_err[i_t+1]  += weight_outer * pdf_outer.T[0] * self.flux(_outer_B_err, t, conditions=conditions) \
+                            +  weight_inner * pdf_inner.T[0] * self.flux(_inner_B_err, t, conditions=conditions)
+
+            # Renormalize when the channel size has <1 grid, although
+            # all hell breaks loose in this regime.
+            if bound < self.dx:
+                pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+
+        # Fix numerical errors
+        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
+        if pdfsum > 1:
+            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            pdf_corr /= pdfsum
+            pdf_err /= pdfsum
+
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
+
+
+    @accepts(Self, conditions=Conditions)
+    @returns(Solution)
+    def solve_numerical_implicit(self, conditions={}):
         """Solve the DDM model numerically.
 
         This uses the implicit method to solve the DDM at each
@@ -386,7 +543,7 @@ class Model(object):
         for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
             # Update Previous state. To be frank pdf_prev could be
             # removed for max efficiency. Leave it just in case.
-            pdf_prev = copy.copy(pdf_curr)
+            pdf_prev = pdf_curr.copy()
 
             # For efficiency only do diffusion if there's at least
             # some densities remaining in the channel.
@@ -423,7 +580,7 @@ class Model(object):
                 # diffusion matrix again since we don't need a linear
                 # approximation.
                 if x_index_inner == x_index_outer:
-                    pdf_inner = copy.copy(pdf_outer)
+                    pdf_inner = pdf_outer.copy()
                 else:
                     pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
@@ -472,8 +629,163 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
+    @accepts(Self, conditions=Conditions)
+    @returns(Solution)
+    def solve_numerical_cn(self, conditions={}):
+        """Solve the DDM model numerically.
 
-    
+        This uses the Crank Nicolson method to solve the DDM at each
+        timepoint.  Results are then compiled together.  This is the
+        core DDM solver of this library.
+
+        It returns a Solution object describing the joint PDF.  This
+        method should not fail for any model type.
+        """
+        ### Initialization: Lists
+        pdf_curr = self.IC(conditions=conditions) # Initial condition
+        pdf_outer = self.IC(conditions=conditions)
+        pdf_inner = self.IC(conditions=conditions)
+        # pdf_prev = np.zeros((len(pdf_curr)))
+        # If pdf_corr + pdf_err + undecided probability are summed, they
+        # equal 1.  So these are componets of the joint pdf.
+        pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        x_list = self.x_domain(conditions=conditions)
+        x_index_inner = self.x_domain(conditions=conditions)
+        x_index_outer = self.x_domain(conditions=conditions)
+
+        # bound = self.get_dependence('bound').get_bound(t=0, conditions=conditions) # Boundary at current time-step.
+        # assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+        # bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
+        bound_shift = 0.                                                                                                # Can use the last 3 lines instead. Check with Max how he wants for Version Control
+        # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
+        x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
+        x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
+
+        # We weight the upper and lower matrices according to
+        # how far away the bound is from each.  The weight of
+        # each matrix is approximated linearly. The inner
+        # bound is 0 when bound exactly at grids.
+        weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
+        weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
+        x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
+        diffusion_matrix = self.diffusion_matrix_cn(x_list_inbounds, 0, conditions=conditions)
+
+
+        # Looping through time and updating the pdf.
+        for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
+            # Update Previous state.
+            pdf_outer_prev = pdf_outer.copy()
+            pdf_inner_prev = pdf_inner.copy()
+
+            # For efficiency only do diffusion if there's at least
+            # some densities remaining in the channel.
+            if sum(pdf_curr[:])>0.0001:
+                ## Define the boundaries at current time.
+                bound = self.get_dependence('bound').get_bound(t, conditions=conditions) # Boundary at current time-step.
+
+                # Now figure out which x positions are still within
+                # the (collapsing) bound.
+                assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+                bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
+                # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
+                x_index_inner_prev = x_index_inner
+                x_index_outer_prev = x_index_outer
+                x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
+                x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
+                x_index_inner_shift = x_index_inner - x_index_inner_prev
+                x_index_outer_shift = x_index_outer - x_index_outer_prev
+                x_index_io_shift = x_index_inner - x_index_outer
+                x_index_io_shift_prev = x_index_inner_prev - x_index_outer_prev
+                # We weight the upper and lower matrices according to
+                # how far away the bound is from each.  The weight of
+                # each matrix is approximated linearly. The inner
+                # bound is 0 when bound exactly at grids.
+                weight_inner_prev = weight_inner
+                weight_outer_prev = weight_outer
+                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
+                weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
+                x_list_inbounds_prev = x_list_inbounds.copy() # List of x-positions still within bounds.
+                x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
+
+                # Diffusion Matrix for Implicit Method. Here defined as
+                # Outer Matrix, and inder matrix is either trivial or an
+                # extracted submatrix.
+                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.         ## Crank-Nicolson
+                diffusion_matrix_prev = self.diffusion_matrix_prev_cn(x_list_inbounds_prev, np.maximum(0,t-self.dt), conditions=conditions)
+                diffusion_matrix = self.diffusion_matrix_cn(x_list_inbounds, t, conditions=conditions)
+
+                ### Compute Probability density functions (pdf)
+                # PDF for outer matrix
+                # Probability density function for outer matrix.
+                # Considers the whole space in the previous step
+                # for matrix multiplication, then restrains to current
+                # space when solving for matrix_diffusion.. Separating
+                # outer and inner pdf_prev
+                # 
+                # For constant bounds pdf_inner is unnecessary.
+                # For changing bounds pdf_inner is always needed,
+                # even if the current inner and outer bounds
+                # coincide. I currently make this generally but
+                # we can constrain it to changing-bound
+                # simulations only.
+                pdf_outer = sparse.linalg.spsolve(diffusion_matrix,
+                                                  diffusion_matrix_prev.dot(
+                                                      pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
+                pdf_inner = sparse.linalg.spsolve(diffusion_matrix[x_index_io_shift:len(x_list_inbounds)-x_index_io_shift,
+                                                                   x_index_io_shift:len(x_list_inbounds)-x_index_io_shift],
+                                                  diffusion_matrix_prev[x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev),
+                                                                        x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev)].dot(
+                                                                            pdf_inner_prev)[x_index_inner_shift:(len(x_list)-2*x_index_inner+x_index_inner_shift)])
+
+                # Pdfs out of bound is considered decisions made.
+                pdf_err[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \
+                                + weight_inner_prev * np.sum(pdf_inner_prev[:x_index_inner_shift])
+                pdf_corr[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[len(pdf_outer_prev)-x_index_outer_shift:]) \
+                                 + weight_inner_prev * np.sum(pdf_inner_prev[len(pdf_inner_prev)-x_index_inner_shift:])
+                # Reconstruct current probability density function,
+                # adding outer and inner contribution to it.  Use
+                # .fill() method to avoid allocating memory with
+                # np.zeros().
+                pdf_curr.fill(0) # Reset
+                pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer
+                pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
+
+            else:
+                break #break if the remaining densities are too small....
+
+            # Increase current, transient probability of crossing
+            # either bounds, as flux.  Corr is a correct answer, err
+            # is an incorrect answer
+            _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
+            _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
+            _inner_B_err = x_list[x_index_inner]
+            _outer_B_err = x_list[x_index_outer]
+            if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
+                pdf_inner = np.array([0])
+            pdf_corr[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
+                            +  0.5*weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
+            pdf_err[i_t+1]  += 0.5*weight_outer * pdf_outer[0]  * self.flux(_outer_B_err,  t, conditions=conditions) \
+                            +  0.5*weight_inner * pdf_inner[0]  * self.flux(_inner_B_err,  t, conditions=conditions)
+            pdf_corr[i_t]   += 0.5*weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
+                            +  0.5*weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
+            pdf_err[i_t]    += 0.5*weight_outer * pdf_outer[0]  * self.flux(_outer_B_err,  t, conditions=conditions) \
+                            +  0.5*weight_inner * pdf_inner[0]  * self.flux(_inner_B_err,  t, conditions=conditions)
+
+            # Renormalize when the channel size has <1 grid, although
+            # all hell breaks loose in this regime.
+            if bound < self.dx:
+                pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+
+        # Fix numerical errors
+        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
+        if pdfsum > 1:
+            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            pdf_corr /= pdfsum
+            pdf_err /= pdfsum
+
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
 
 
 @paranoidclass
