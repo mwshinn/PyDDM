@@ -117,6 +117,7 @@ class OverlayUniformMixture(Overlay):
         err = solution.err
         m = solution.model
         cond = solution.conditions
+        undec = solution.undec
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
         # distributions to find this number because that would exclude
@@ -126,7 +127,7 @@ class OverlayUniformMixture(Overlay):
         err = err*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur
         corr[0] = 0
         err[0] = 0
-        return Solution(corr, err, m, cond)
+        return Solution(corr, err, m, cond, undec)
 
 @paranoidclass
 class OverlayPoissonMixture(Overlay):
@@ -151,6 +152,7 @@ class OverlayPoissonMixture(Overlay):
         err = solution.err
         m = solution.model
         cond = solution.conditions
+        undec = solution.undec
         # These aren't real pdfs since they don't sum to 1, they sum
         # to 1/self.model.dt.  We can't just sum the correct and error
         # distributions to find this number because that would exclude
@@ -167,7 +169,7 @@ class OverlayPoissonMixture(Overlay):
         err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y
         #print(corr)
         #print(err)
-        return Solution(corr, err, m, cond)
+        return Solution(corr, err, m, cond, undec)
 
 @paranoidclass
 class OverlayDelay(Overlay):
@@ -191,6 +193,7 @@ class OverlayDelay(Overlay):
         err = solution.err
         m = solution.model
         cond = solution.conditions
+        undec = solution.undec
         shifts = int(self.delaytime/m.dt) # round
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
         newerr = np.zeros(err.shape, dtype=err.dtype)
@@ -203,4 +206,4 @@ class OverlayDelay(Overlay):
         else:
             newcorr = corr
             newerr = err
-        return Solution(newcorr, newerr, m, cond)
+        return Solution(newcorr, newerr, m, cond, undec)

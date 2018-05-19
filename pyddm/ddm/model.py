@@ -627,7 +627,7 @@ class Model(object):
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
 
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -785,7 +785,8 @@ class Model(object):
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
 
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions))
+        # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
 
 
 @paranoidclass

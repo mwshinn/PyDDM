@@ -26,8 +26,12 @@ class Solution(object):
     """
     @staticmethod
     def _test(v):
+        # TODO should these be Positive0 instead of Number?
         assert v.corr in NDArray(d=1, t=Number), "Invalid corr histogram"
         assert v.err in NDArray(d=1, t=Number), "Invalid err histogram"
+        if v.undec is not None:
+            assert v.undec in NDArray(d=1, t=Number), "Invalid err histogram"
+            assert len(v.undec) == len(v.model.x_domain(conditions=v.conditions))
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
         assert len(v.corr) == len(v.err), "Histogram lengths must match"
         assert 0 <= fsum(v.corr.tolist() + v.err.tolist()) <= 1, "Histogram does not integrate " \
@@ -43,7 +47,7 @@ class Solution(object):
         yield Solution(np.zeros(l), np.zeros(l), m, next(Conditions().generate()))
         # Uniform
         yield Solution(np.ones(l)/(2*l), np.ones(l)/(2*l), m, next(Conditions().generate()))
-    def __init__(self, pdf_corr, pdf_err, model, conditions):
+    def __init__(self, pdf_corr, pdf_err, model, conditions, pdf_undec=None):
         """Create a Solution object from the results of a model
         simulation.
 
@@ -53,10 +57,12 @@ class Solution(object):
             - `pdf_err` - a size N numpy ndarray describing the error portion of the joint pdf
             - `model` - the Model object used to generate `pdf_corr` and `pdf_err`
             - `conditions` - a dictionary of condition names/values used to generate the solution
+            - `pdf_undec` - a size M numpy ndarray describing the final state of the simulation.  None if unavailable.
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
         self.corr = pdf_corr 
         self.err = pdf_err
+        self.undec = pdf_undec
         # Correct floating point errors to always get prob <= 1
         if fsum(self.corr.tolist() + self.err.tolist()) > 1:
             self.corr /= 1.00000000001
@@ -74,6 +80,16 @@ class Solution(object):
     def pdf_err(self):
         """The error (incorrect) component of the joint PDF."""
         return self.err/self.model.dt
+
+    # TODO This doesn't take non-decision time into consideration
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Positive0))
+    def pdf_undec(self):
+        """The final state of the simulation, same size as `x_domain()`."""
+        if self.undec is not None:
+            return self.undec/self.model.dx
+        else:
+            raise ValueError("Final state unavailable")
 
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))
