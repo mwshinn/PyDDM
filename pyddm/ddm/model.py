@@ -241,7 +241,7 @@ class Model(object):
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
     @accepts(Self, conditions=Dict(k=String, v=Number), seed=Natural0)
-    @ensures('len(return) == len(self.t_domain())')
+    @ensures('0 < len(return) <= len(self.t_domain())')
     def simulate_trial(self, conditions={}, seed=0):
         """Simulate the decision variable for one trial.
 
@@ -251,10 +251,6 @@ class Model(object):
         a trajectory of the simulated trial over time as a numpy
         array.
         """
-        mufuncsig = inspect.signature(self.get_dependence("mu").get_mu)
-        sigmafuncsig = inspect.signature(self.get_dependence("sigma").get_sigma)
-        assert not "x" in mufuncsig.parameters, "Mus with x arguments cannot be simulated"
-        assert not "x" in sigmafuncsig.parameters, "Sigmas with x arguments cannot be simulated"
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         
         T = self.t_domain()
@@ -263,17 +259,31 @@ class Model(object):
         rng = np.random.RandomState(seed)
         rn = rng.rand()
         ic = self.IC(conditions=conditions)
-        x0 = next(T[i] for i,e in enumerate(np.cumsum(ic)) if rn > e)
-        # Iterate through, adjusting by mu on each iteration
+        x0 = np.random.choice(self.x_domain(conditions=conditions), p=ic)
         pos = [x0]
         for i in range(1, len(T)):
-            mu = self.get_dependence("mu").get_mu(t=T[i-1], x=pos[i-1], dx=self.dx, dt=self.dt, conditions=conditions)
-            sigma = self.get_dependence("sigma").get_sigma(t=T[i-1], x=pos[i-1], dx=self.dx, dt=self.dt, conditions=conditions)
+            # Stochastic Runge-Kutta order 4.  See "Introduction to
+            # Stochastic Differential Equations" by Thomas C. Gard
+            h = self.dt
             rn = rng.randn()
-            pos.append(pos[i-1] + mu*self.dt + rn*sigma*np.sqrt(self.dt))
+            dw = np.sqrt(self.dt)*rn
+            fm = lambda x,t : self.get_dependence("mu").get_mu(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
+            fs = lambda x,t : self.get_dependence("sigma").get_sigma(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
+            mu1 = fm(t=T[i-1], x=pos[i-1])
+            s1  = fs(t=T[i-1], x=pos[i-1])
+            mu2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + mu1*h/2 + s1*dw/2))
+            s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + mu1*h/2 + s1*dw/2))
+            mu3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + mu2*h/2 + s2*dw/2))
+            s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + mu2*h/2 + s2*dw/2))
+            mu4 = fm(t=(T[i-1]+h), x=(pos[i-1] + mu3*h + s3*dw)) # Should this be 1/2*s3*dw?
+            s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + mu3*h + s3*dw)) # Should this be 1/2*s3*dw?
+            dx = h*(mu1 + 2*mu2 + 2*mu3 + mu4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
+            pos.append(pos[i-1] + dx)
+            B = self.get_dependence("bound").get_bound(T[i], conditions=conditions)
+            if pos[i] > B or pos[i] < -B:
+                break
 
         return np.asarray(pos)
-    # TODO test
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
@@ -294,18 +304,24 @@ class Model(object):
         err_times = []
         undec_count = 0
         for s in range(0, size):
+            if s % 200 == 0:
+                print("Simulating trial %i" % s)
             timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32))
-            bound = np.asarray([self.get_dependence("bound").get_bound(t, conditions=conditions) for t in self.t_domain()])
-            cross_corr = next((i for i in range(0, len(timecourse)) if bound[i] <= timecourse[i]), None)
-            cross_err = next((i for i in range(0, len(timecourse)) if -bound[i] >= timecourse[i]), None)
-            if (cross_corr and cross_err and cross_corr < cross_err) or (cross_corr and not cross_err):
-                corr_times.append(self.t_domain()[cross_corr])
-            elif (cross_corr and cross_err and cross_err < cross_corr) or (cross_err and not cross_corr):
-                err_times.append(self.t_domain()[cross_err])
-            elif (not cross_corr) and (not cross_err):
+            T_finish = self.t_domain()[len(timecourse) - 1]
+            B = self.get_dependence("bound").get_bound(T_finish, conditions=conditions)
+            # Correct for the fact that the particle could have
+            # crossed at any point between T_finish-dt and T_finish.
+            dt_correction = self.dt/2
+            # Determine whether the sim is a correct or error trial.
+            if timecourse[-1] > B:
+                corr_times.append(T_finish - dt_correction)
+            elif timecourse[-1] < -B:
+                err_times.append(T_finish - dt_correction)
+            elif len(timecourse) == len(self.t_domain()):
                 undec_count += 1
             else:
-                raise ValueError("Internal error")
+                raise SystemError("Internal error: Invalid particle simulation")
+            
         aa = lambda x : np.asarray(x)
         conds = {k:(aa(len(corr_times)*[v]), aa(len(err_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items()}
         return Sample(aa(corr_times), aa(err_times), undec_count, **conds)
