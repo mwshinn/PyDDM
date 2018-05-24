@@ -47,6 +47,7 @@ class Solution(object):
         yield Solution(np.zeros(l), np.zeros(l), m, next(Conditions().generate()))
         # Uniform
         yield Solution(np.ones(l)/(2*l), np.ones(l)/(2*l), m, next(Conditions().generate()))
+        # TODO add one with pdf_undec
     def __init__(self, pdf_corr, pdf_err, model, conditions, pdf_undec=None):
         """Create a Solution object from the results of a model
         simulation.
@@ -180,6 +181,7 @@ class Solution(object):
         return sample
 
     # TODO rewrite this to work more generically with all histograms
+    # TODO use the numpy function "sample" to do this, and then add uniform [0,1) noise
     @accepts(Self, Natural1, seed=Natural0)
     @requires("self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0") # TODO remove this after rewrite
     @returns(Sample)

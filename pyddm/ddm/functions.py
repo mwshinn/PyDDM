@@ -20,7 +20,7 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
 
-from paranoid.types import Boolean, Number, String
+from paranoid.types import Boolean, Number, String, Set
 from paranoid.decorators import accepts, returns, requires, ensures
 from .models.paranoid_types import Conditions
 
@@ -319,16 +319,17 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                 P.append((new, fit))
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
-@accepts(Model, Sample, Conditions)
+@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
 @returns(Solution)
 # The first of these two statements is more readable, but because
 # Python treats generators like functions, you can't use variables
 # from the locals() scope in generators in eval statements in Python.
 # This is a "will not fix" bug.
 #@requires('all([c in sample.conditions.keys() for c in model.required_conditions])')
+# TODO add undecided pdf
 @requires('all(map((lambda x,cond=sample.condition_names() : x in cond), model.required_conditions))')
 @requires('all(map((lambda x,cond=sample.condition_names() : x in cond), conditions))')
-def solve_partial_conditions(model, sample, conditions): # TODO doc
+def solve_partial_conditions(model, sample, conditions={}, method=None): # TODO doc
     T_dur = model.T_dur
     dt = model.dt
     samp = sample.subset(**conditions)
@@ -336,7 +337,18 @@ def solve_partial_conditions(model, sample, conditions): # TODO doc
     model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
-        sol = model.solve(conditions=conds)
+        if method is None:
+            sol = model.solve(conditions=conds)
+        elif method == "analytical":
+            sol = model.solve_analytical(conditions=conds)
+        elif method == "numerical":
+            sol = model.solve_numerical(conditions=conds)
+        elif method == "cn":
+            sol = model.solve_numerical_cn(conditions=conds)
+        elif method == "implicit":
+            sol = model.solve_numerical_implicit(conditions=conds)
+        elif method == "explicit":
+            sol = model.solve_numerical_explicit(conditions=conds)
         model_corr += len(subset)/len(samp)*sol.pdf_corr()
         model_err += len(subset)/len(samp)*sol.pdf_err()
         print(sum(model_corr)+sum(model_err))
