@@ -145,45 +145,9 @@ class Solution(object):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return fsum((self.corr)*self.model.t_domain()) / self.prob_correct()
 
-    @staticmethod
-    def _sample_from_histogram(hist, hist_bins, k, seed=0):
-        """Generate a sample from a histogram.
-
-        Given a histogram, imply the distribution and generate a
-        sample. `hist` should be either a normalized histogram
-        (i.e. summing to 1 or less for non-decision) or else a listing
-        of bin membership counts, of size n.  (I.e. there are n bins.)
-        The bins should be labeled by `hist_bins`, a list of size
-        n+1. This will sample from the distribution and return a list
-        of size `k`.  This uses the naive method of selecting
-        uniformly from the area of each histogram bar according to the
-        size of the bar, rather than non-parametrically estimating the
-        distribution and then sampling from the distribution (which
-        would arguably be better).
-        """
-        assert len(hist_bins) == len(hist) + 1, "Incorrect bin specification"
-        rng = np.random.RandomState(seed)
-        sample = []
-        h = hist
-        norm = np.round(fsum(h), 2)
-        assert norm <= 1 or int(norm) == norm, "Invalid histogram of size %f" % norm
-        if norm >= 1:
-            h = h/norm
-            norm = 1
-        hcum = np.cumsum(h)
-        rns = rng.rand(k)
-        for rn in rns:
-            ind = next((i for i in range(0, len(hcum)) if rn < hcum[i]), np.nan)
-            if np.isnan(ind):
-                sample.append(np.nan)
-            else:
-                sample.append(rng.uniform(low=hist_bins[ind], high=hist_bins[ind+1]))
-        return sample
-
     # TODO rewrite this to work more generically with all histograms
     # TODO use the numpy function "sample" to do this, and then add uniform [0,1) noise
     @accepts(Self, Natural1, seed=Natural0)
-    @requires("self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0") # TODO remove this after rewrite
     @returns(Sample)
     def resample(self, k=1, seed=0):
         """Generate a list of reaction times sampled from the PDF.
@@ -201,22 +165,24 @@ class Solution(object):
         reaction times, and the second element is a list of error
         reaction times.
         """
-        # To sample from both correct and error distributions, we make
-        # the correct answers be positive and the incorrect answers be
-        # negative.
-        pdf_domain = self.model.t_domain()
-        assert pdf_domain[0] == 0, "Invalid PDF domain"
-        combined_domain = list(reversed(np.asarray(pdf_domain)*-1)) + list(pdf_domain[1:])
-        # Continuity correction doesn't work here.  Instead we say
-        # that the histogram value at time dt belongs in the [0, dt]
-        # bin, the value at time 2*dt belongs in the [dt, 2*dt] bin,
-        # etc.
-        assert self.pdf_err()[0] == 0 and self.pdf_corr()[0] == 0, "Invalid pdfs"
-        combined_pdf = list(reversed(self.pdf_err()[1:]))+list(self.pdf_corr()[1:])
-        sample = self._sample_from_histogram(np.asarray(combined_pdf)*self.model.dt, combined_domain, k, seed=seed)
+        # Concatenate the correct and error distributions as well as
+        # their probabilities, and add an undecided component on the
+        # end.  Shift the error t domain by the maximum plus one.
+        shift = np.max(self.model.t_domain())+1
+        combined_domain = list(self.model.t_domain()) + list(self.model.t_domain()+shift) + [-1]
+        combined_probs = list(self.pdf_corr()*self.model.dt) + list(self.pdf_err()*self.model.dt) + [self.prob_undecided()]
+        assert fsum(combined_probs) == 1, "Distribution sums to %f rather than 1" % fsum(combined_probs)
+        # Each point x on the pdf represents the space from x to x+dt.
+        # So sample and then add uniform noise to each element.
+        samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)
+        samp += np.random.uniform(0, self.model.dt, k)
+        
         aa = lambda x : np.asarray(x)
-        corr_sample = aa([x for x in sample if x >= 0])
-        err_sample = aa([-x for x in sample if x < 0])
-        non_decision = k - (len(corr_sample) + len(err_sample))
-        conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*int(non_decision))) for k,v in self.conditions.items()}
-        return Sample(corr_sample, err_sample, non_decision, **conditions)
+        undecided = np.sum(samp==-1)
+        samp = samp[samp != -1] # Remove undecided trials
+        # Find correct and error trials
+        corr_sample = samp[samp<shift]
+        err_sample = samp[samp>=shift]-shift
+        # Build Sample object
+        conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*int(undecided))) for k,v in self.conditions.items()}
+        return Sample(corr_sample, err_sample, undecided, **conditions)

@@ -8,4 +8,5 @@ from .solution import Solution
 # Some default functions for paranoid scientist
 import paranoid
 import math
-paranoid.settings.Settings.get("namespace").update({"math": math})
+import numpy as np
+paranoid.settings.Settings.get("namespace").update({"math": math, "np": np})

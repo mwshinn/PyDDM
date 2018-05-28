@@ -102,8 +102,6 @@ class MuConstant(Mu):
     def get_mu(self, **kwargs):
         return self.mu
 
-#TODO While testing, make sure that with x=0 this is the same as
-#constant mu.
 @paranoidclass
 class MuLinear(Mu):
     """Mu dependence: drift rate varies linearly with position and time.
@@ -133,5 +131,6 @@ class MuLinear(Mu):
     # around 100x.
     @accepts(Self, Or(Number, NDArray(d=1, t=Number)), Positive0)
     @returns(Or(Number, NDArray(d=1, t=Number)))
+    @ensures("np.isscalar(x) <--> np.isscalar(return)")
     def get_mu(self, x, t, **kwargs):
         return self.mu + self.x*x + self.t*t

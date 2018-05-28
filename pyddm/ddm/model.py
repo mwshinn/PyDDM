@@ -425,7 +425,9 @@ class Model(object):
         method should not fail for any model type.
         """
         if method == "cn":
-            raise NotImplementedError("Please use solve_numerical_cn for now...")
+            # TODO
+            #raise NotImplementedError("Please use solve_numerical_cn for now...")
+            return self.solve_numerical_cn(conditions=conditions)
 
         # Check to make sure the explicit method is stable with 
         if method == "explicit":

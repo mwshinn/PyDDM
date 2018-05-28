@@ -99,15 +99,15 @@ class SigmaConstant(Sigma):
     @staticmethod
     def _generate():
         yield SigmaConstant(sigma=.001)
+        yield SigmaConstant(sigma=.5)
         yield SigmaConstant(sigma=1)
+        yield SigmaConstant(sigma=2)
         yield SigmaConstant(sigma=100)
     @accepts(Self)
     @returns(Number)
     def get_sigma(self, **kwargs):
         return self.sigma
 
-#TODO While testing, make sure that with x=0 this is the same as
-#constant mu.
 @paranoidclass
 class SigmaLinear(Sigma):
     """Sigma dependence: diffusion rate varies linearly with position and time.
@@ -134,5 +134,6 @@ class SigmaLinear(Sigma):
     @accepts(Self, Or(Number, NDArray(d=1, t=Number)), Positive0)
     @returns(Or(Positive, NDArray(d=1, t=Positive)))
     @requires('self.sigma + self.x*x + self.t*t > 0') # Sigma can't go below zero
+    @ensures("np.isscalar(x) <--> np.isscalar(return)")
     def get_sigma(self, x, t, **kwargs):
         return self.sigma + self.x*x + self.t*t
