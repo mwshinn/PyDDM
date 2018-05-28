@@ -65,6 +65,7 @@ class Model(object):
     @staticmethod
     def _generate():
         # TODO maybe generate better models?
+        # TODO test a model where the bound size changes based on a parameter
         yield Model(dx=.01, dt=.01, T_dur=2)
         yield Model(dx=.05, dt=.01, T_dur=3)
         yield Model(dx=.005, dt=.005, T_dur=.5)
@@ -187,19 +188,6 @@ class Model(object):
     def _cache_eye(m, format="csr"):
         """Cache the call to sparse.eye since this decreases runtime by 5%."""
         return sparse.eye(m, format=format)
-    def diffusion_matrix(self, x, t, conditions):
-        """The matrix for the implicit method of solving the diffusion equation.
-
-        - `x` - a length N ndarray representing the domain over which
-          the matrix is to be defined. Usually a contiguous subset of
-          x_domain().
-        - `t` - The timepoint at which the matrix is valid.
-
-        Returns a size NxN scipy sparse array.
-        """
-        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        return self._cache_eye(len(x), format="csr") + mu_matrix + sigma_matrix
     # TODO remove diffusion_matrix methods
     def diffusion_matrix_cn(self, x, t, conditions):
         """The matrix for the implicit method of solving the diffusion equation.
@@ -286,6 +274,8 @@ class Model(object):
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
+    # TODO A bug in inspect.py in the core library ("except
+    # Exception") is making the max_runtime clause die often.
     @paranoidconfig(max_runtime=10)
     def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.
@@ -295,10 +285,6 @@ class Model(object):
         `size` times, and use the result to find a histogram analogous
         to solve.  Returns a sample object.
         """
-
-        # TODO this doesn't support OU models or simulations with
-        # overlays.  It could also be made more efficient by stopping
-        # the simulation once it has crossed threshold.
         corr_times = []
         err_times = []
         undec_count = 0
@@ -348,6 +334,19 @@ class Model(object):
             return False
         # Assuming none of these is the case, return True.
         return True
+
+    @accepts(Self, conditions=Conditions)
+    @returns(Boolean)
+    def can_solve_explicit(self, conditions={}):
+        """Check explicit method stability criterion"""
+        sigma_max = max((self._sigmadep.get_sigma(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
+        return sigma_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
+
+    @accepts(Self)
+    @returns(Boolean)
+    def can_solve_cn(self):
+        """Check whether this model is compatible with Crank-Nicolson solver."""
+        return isinstance(self.get_dependence("bound"), BoundConstant) # If this fails, use the implicit method instead
     
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -407,7 +406,9 @@ class Model(object):
     # TODO integrate CN, currently a separate routine
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions)
     @returns(Solution)
-    def solve_numerical(self, method="cn", conditions={}): # TODO Defaults to cn for backward compatibility
+    @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
+    @requires("method == 'cn' --> self.can_solve_cn()")
+    def solve_numerical(self, method="cn", conditions={}):
         """Solve the DDM model numerically.
 
         Use `method` to solve the DDM.  `method` can either be
@@ -425,17 +426,8 @@ class Model(object):
         method should not fail for any model type.
         """
         if method == "cn":
-            # TODO
             #raise NotImplementedError("Please use solve_numerical_cn for now...")
             return self.solve_numerical_cn(conditions=conditions)
-
-        # Check to make sure the explicit method is stable with 
-        if method == "explicit":
-            # TODO this is technically incorrect, we need to find the max over all t and sigma
-            sigma_max = max((self._sigmadep.get_sigma(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
-            assert sigma_max**2 * self.dt/(self.dx**2) < 1, \
-                "Stability Criteria for dx and dt in explicit method not " \
-                "satisfied. Please use the implicit method instead."
 
         # Initial condition of decision variable
         pdf_curr = self.IC(conditions=conditions)
@@ -478,12 +470,13 @@ class Model(object):
             # Diffusion Matrix for Implicit Method. Here defined as
             # Outer Matrix, and inder matrix is either trivial or an
             # extracted submatrix.
+            mu_matrix = self.get_dependence('mu').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+            sigma_matrix = self.get_dependence('sigma').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
-                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t, conditions=conditions)
+                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + mu_matrix + sigma_matrix
             elif method == "explicit":
-                diffusion_matrix = self.diffusion_matrix(x_list_inbounds, t, conditions=conditions)
                 # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = 2.* np.diag(np.ones(len(x_list_inbounds))) - diffusion_matrix 
+                diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - mu_matrix - sigma_matrix
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
@@ -496,7 +489,7 @@ class Model(object):
             # diffusion matrix again since we don't need a linear
             # approximation.
             if x_index_inner == x_index_outer:
-                pdf_inner = pdf_outer.copy() # TODO don't need copy
+                pdf_inner = pdf_outer
             else:
                 if method == "implicit":
                     pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])

@@ -39,15 +39,27 @@ class Solution(object):
         assert v.conditions in Conditions()
     @staticmethod
     def _generate():
-        from .model import Model # TODO fix hack
+        from .model import Model # Importing here avoids a recursion issue
         m = Model()
-        X = m.t_domain()
-        l = len(X)
+        T = m.t_domain()
+        lT = len(T)
+        X = m.x_domain(conditions={})
+        lX = len(X)
         # All undecided
-        yield Solution(np.zeros(l), np.zeros(l), m, next(Conditions().generate()))
+        yield Solution(np.zeros(lT), np.zeros(lT), m, next(Conditions().generate()))
         # Uniform
-        yield Solution(np.ones(l)/(2*l), np.ones(l)/(2*l), m, next(Conditions().generate()))
-        # TODO add one with pdf_undec
+        yield Solution(np.ones(lT)/(2*lT), np.ones(lT)/(2*lT), m, next(Conditions().generate()))
+        # With uniform undecided probability
+        yield Solution(np.ones(lT)/(3*lT), np.ones(lT)/(3*lT), m, next(Conditions().generate()), pdf_undec=np.ones(lX)/(3*lX))
+        # With uniform undecided probability with collapsing bounds
+        from .models.bound import BoundCollapsingExponential
+        m2 = Model(bound=BoundCollapsingExponential(B=1, tau=1))
+        T2 = m2.t_domain()
+        lT2 = len(T2)
+        X2 = m2.x_domain(conditions={})
+        lX2 = len(X2)
+        yield Solution(np.ones(lT2)/(3*lT2), np.ones(lT2)/(3*lT2), m2, next(Conditions().generate()), pdf_undec=np.ones(lX2)/(3*lX2))
+        
     def __init__(self, pdf_corr, pdf_err, model, conditions, pdf_undec=None):
         """Create a Solution object from the results of a model
         simulation.
@@ -82,11 +94,35 @@ class Solution(object):
         """The error (incorrect) component of the joint PDF."""
         return self.err/self.model.dt
 
-    # TODO This doesn't take non-decision time into consideration
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))
+    @requires("self.undec is not None")
     def pdf_undec(self):
-        """The final state of the simulation, same size as `x_domain()`."""
+        """The final state of the simulation, same size as `x_domain()`.
+
+        If the model contains overlays, this represents the final
+        state of the simulation *before* the overlays are applied.
+        This is because overlays do not specify what to do with the
+        diffusion locations corresponding to undercided probabilities.
+        Additionally, all of the necessary information may not be
+        stored, such as the case with a non-decision time overlay.
+
+        This means that in the case of models with a non-decision time
+        t_nd, this gives the undecided probability at time T_dur +
+        t_nd.
+
+        If no overlays are in the model, then pdf_corr() + pdf_err() +
+        pdf_undec() should always equal 1 (plus or minus floating
+        point errors).
+        """
+        # Do this here to avoid import recursion
+        from .models.overlay import OverlayNone
+        # Common mistake so we want to warn the user of any possible
+        # misunderstanding.
+        if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
+            print("WARNING: Undecided probability accessed for model with overlays."
+                  "Undercided probability applies *before* overlays.  Please see the"
+                  "pdf_undec docs for more information and to prevent misunderstanding.")
         if self.undec is not None:
             return self.undec/self.model.dx
         else:
@@ -145,8 +181,6 @@ class Solution(object):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return fsum((self.corr)*self.model.t_domain()) / self.prob_correct()
 
-    # TODO rewrite this to work more generically with all histograms
-    # TODO use the numpy function "sample" to do this, and then add uniform [0,1) noise
     @accepts(Self, Natural1, seed=Natural0)
     @returns(Sample)
     def resample(self, k=1, seed=0):

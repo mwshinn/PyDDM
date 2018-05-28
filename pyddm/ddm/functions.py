@@ -319,22 +319,41 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                 P.append((new, fit))
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
+# TODO explicitly test this in unit tests
 @accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
 @returns(Solution)
-# The first of these two statements is more readable, but because
-# Python treats generators like functions, you can't use variables
-# from the locals() scope in generators in eval statements in Python.
-# This is a "will not fix" bug.
-#@requires('all([c in sample.conditions.keys() for c in model.required_conditions])')
-# TODO add undecided pdf
-@requires('all(map((lambda x,cond=sample.condition_names() : x in cond), model.required_conditions))')
-@requires('all(map((lambda x,cond=sample.condition_names() : x in cond), conditions))')
-def solve_partial_conditions(model, sample, conditions={}, method=None): # TODO doc
+@requires('all((c in sample.condition_names() for c in model.required_conditions))')
+@requires('all((c in sample.condition_names() for c in conditions))')
+@requires("method == 'explicit' --> model.can_solve_explicit(conditions=conditions)")
+@requires("method == 'cn' --> model.can_solve_cn()")
+def solve_partial_conditions(model, sample, conditions={}, method=None):
+    """Solve a model without specifying the value of all conditions
+
+    This function solves `model` according to the ratio of trials in
+    `sample`.  For example, suppose `sample` has 100 trials with high
+    coherence and 50 with low coherence.  This will then return a
+    solution with 2/3*(PDF high coherence) + 1/3*(PDF low coherence).
+    This is especially useful when comparing a model to a sample which
+    may have many different conditions.
+
+    The `conditions` variable limits the solution to a subset of
+    `sample` which satisfy `conditions`.  The elements of the
+    dictionary `conditions` should be specified as in the
+    Sample.subset() function.
+
+    Optionally, `method` describes the solver to use.  It can be
+    "analytical", "numerical", "cn" (Crank-Nicolson), "implicit"
+    (backward Euler), "explicit" (forward Euler), or None
+    (auto-detect method).
+    """
     T_dur = model.T_dur
     dt = model.dt
     samp = sample.subset(**conditions)
-    model_corr = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
-    model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    #model_corr = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
+    #model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    model_corr = 0*model.t_domain()
+    model_err = 0*model.t_domain()
+    model_undec = -1
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         if method is None:
@@ -351,12 +370,25 @@ def solve_partial_conditions(model, sample, conditions={}, method=None): # TODO 
             sol = model.solve_numerical_explicit(conditions=conds)
         model_corr += len(subset)/len(samp)*sol.pdf_corr()
         model_err += len(subset)/len(samp)*sol.pdf_err()
-        print(sum(model_corr)+sum(model_err))
-    return Solution(model_corr*model.dt, model_err*model.dt, model, conditions)
+        # We can't get the size of the undecided pdf until we have a
+        # specific set of conditions.  Once we do, if the simulation
+        # method doesn't support an undecided probability, set it to
+        # None.  If it does, add it together, making sure they are
+        # always the same size.  (They may not be the same size if the
+        # bound depends on a parameter.)  If they are ever not the
+        # same size, set it to None rather than trying to align them.
+        if sol.undec is not None and isinstance(model_undec, int) and model_undec == -1:
+            model_undec = len(subset)/len(samp)*sol.pdf_undec()
+        if sol.undec is not None and len(model_undec) == len(sol.undec):
+            model_undec += len(subset)/len(samp)*sol.pdf_undec()
+        else:
+            model_undec = None
+    return Solution(model_corr*model.dt, model_err*model.dt, model, conditions, pdf_undec=model_undec)
 
 @accepts(Model)
 @returns(Boolean)
 def hit_boundary(model):
+    """Returns True if any Fitted objects are close to their min/max value"""
     components_list = [model.get_dependence("mu"),
                        model.get_dependence("sigma"),
                        model.get_dependence("bound"),
