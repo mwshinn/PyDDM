@@ -2,6 +2,7 @@ import unittest
 from unittest import TestCase, main
 from string import ascii_letters
 import numpy as np
+from itertools import groupby
 
 import ddm
 
@@ -166,6 +167,42 @@ class TestDependences(TestCase):
         sshift = ddm.models.OverlayDelay(delaytime=.019).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
+    def test_OverlaySimplePause(self):
+        # Should do nothing with no shift
+        s = ddm.Model().solve()
+        assert s == ddm.models.OverlaySimplePause(pausestart=.4, pausestop=.4).apply(s)
+        # Shift should make a gap in the uniform model
+        s = self.FakeUniformModel().solve()
+        smix = ddm.models.OverlaySimplePause(pausestart=.3, pausestop=.6).apply(s)
+        assert len(set(smix.corr).union(set(smix.err))) == 2
+        assert len(list(groupby(smix.corr))) == 3 # Looks like ----____----------
+        # Should start with 0 and then go to constant with pausestart=.3
+        s = self.FakeUniformModel(dt=.01).solve()
+        smix = ddm.models.OverlaySimplePause(pausestart=0, pausestop=.05).apply(s)
+        assert len(set(smix.corr).union(set(smix.err))) == 2
+        assert len(list(groupby(smix.corr))) == 2 # Looks like ____----------
+        assert np.all(smix.corr[0:5] == 0) and smix.corr[6] != 0
+        # Truncate when time bin doesn't align
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlaySimplePause(pausestart=.01, pausestop=.029).apply(s)
+        assert s.corr[1] == sshift.corr[2]
+        assert s.err[1] == sshift.err[2]
+    def test_OverlayBlurredPause(self):
+        # Don't change total probability when there are no undecided responses
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=1), T_dur=10).solve()
+        smix = ddm.models.OverlayBlurredPause(pausestart=.3, pausestop=.6, pauseblurwidth=.1).apply(s)
+        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
+                          np.sum(smix.corr) + np.sum(smix.err))
+        # Make sure responses before the pause aren't affected
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayBlurredPause(pausestart=.02, pausestop=.03, pauseblurwidth=.002).apply(s)
+        assert s.corr[1] == sshift.corr[1] != 0
+        assert s.err[1] == sshift.err[1] != 0
+        # Make sure responses after look like a gamma distribution
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayBlurredPause(pausestart=0, pausestop=.05, pauseblurwidth=.01).apply(s)
+        positive = (sshift.corr[2:] > sshift.err[1:-1]).astype(int) # Excluding first 0 point, should go from + to - slope only once
+        assert positive[0] == 1 and positive[-1] == 0 and len(set(positive)) == 2
     def test_OverlayChain(self):
         # Combine with OverlayNone()
         s = self.FakePointModel(dt=.01).solve()
@@ -208,3 +245,6 @@ class TestDependences(TestCase):
         # s = ddm.Sample(np.asarray([.14, .1, .01]), np.asarray([.66, .16, .89]))
         # assert np.isclose(ddm.models.LossLikelihood(sample=s, dt=m1.dt, T_dur=m1.T_dur).loss(m1),
         #                   ddm.models.LossLikelihood(sample=s, dt=m2.dt, T_dur=m2.T_dur).loss(m2))
+
+
+# TODO test if there is no overlay, then corr + err + undecided = 1

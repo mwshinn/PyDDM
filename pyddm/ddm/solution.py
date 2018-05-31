@@ -33,7 +33,7 @@ class Solution(object):
             assert v.undec in NDArray(d=1, t=Number), "Invalid err histogram"
             assert len(v.undec) == len(v.model.x_domain(conditions=v.conditions))
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
-        assert len(v.corr) == len(v.err), "Histogram lengths must match"
+        assert len(v.corr) == len(v.err) == len(v.model.t_domain()), "Histogram lengths must match"
         assert 0 <= fsum(v.corr.tolist() + v.err.tolist()) <= 1, "Histogram does not integrate " \
             " to 1, not to " + str(fsum(v.corr.tolist() + v.err.tolist()))
         assert v.conditions in Conditions()

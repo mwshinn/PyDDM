@@ -2,8 +2,9 @@ __ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "O
 
 import numpy as np
 from math import fsum
+from scipy.special import gamma as sp_gamma
 
-from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List
+from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0
 
 from .base import Dependence
 from ..solution import Solution
@@ -200,3 +201,93 @@ class OverlayDelay(Overlay):
             newcorr = corr
             newerr = err
         return Solution(newcorr, newerr, m, cond, undec)
+
+@paranoidclass
+class OverlaySimplePause(Overlay):
+    name = "Brief pause in integration by shifting part of the histogram"
+    required_parameters = ['pausestart', 'pausestop']
+    @staticmethod
+    def _test(v):
+        assert v.pausestart in Positive0(), "Invalid start time"
+        assert v.pausestop in Positive0(), "Invalid delay time"
+        assert v.pausestart <= v.pausestop, "Pause start time must be before stop time"
+    @staticmethod
+    def _generate():
+        yield OverlaySimplePause(pausestart=0, pausestop=0)
+        yield OverlaySimplePause(pausestart=.1, pausestop=.2)
+    @accepts(Self, Solution)
+    @returns(Solution)
+    @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
+    @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
+    @ensures("solution.prob_undecided() <= return.prob_undecided()")
+    @ensures('self.pausestart == self.pausestop --> solution == return')
+    def apply(self, solution):
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
+        undec = solution.undec
+        start = int(self.pausestart/m.dt) # truncate
+        stop = int((self.pausestop)/m.dt) # truncate
+        if stop <= start:
+            return solution
+        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
+        newerr = np.zeros(err.shape, dtype=err.dtype)
+        newcorr[0:start] = corr[0:start]
+        newerr[0:start] = err[0:start]
+        print(newcorr[stop:].shape, corr[start:-(stop-start)].shape, start, stop)
+        newcorr[stop:] = corr[start:-(stop-start)]
+        newerr[stop:] = err[start:-(stop-start)]
+        return Solution(newcorr, newerr, m, cond, undec)
+
+@paranoidclass
+class OverlayBlurredPause(Overlay):
+    name = "Brief pause in integration, pause length by gamma distribution"
+    required_parameters = ['pausestart', 'pausestop', 'pauseblurwidth']
+    @staticmethod
+    def _test(v):
+        assert v.pausestart in Positive0(), "Invalid start time"
+        assert v.pausestop in Positive0(), "Invalid stop time"
+        assert v.pauseblurwidth in Positive(), "Invalid width"
+        assert v.pausestart <= v.pausestop, "Pause start time must be before stop time"
+        assert v.pausestart + v.pauseblurwidth/2 <= v.pausestop, "Blur must be shorter than pause"
+    @staticmethod
+    def _generate():
+        yield OverlaySimplePause(pausestart=0, pausestop=0, pauseblurwidth=.1)
+        yield OverlaySimplePause(pausestart=.1, pausestop=.2, pauseblurwidth=.01)
+    @accepts(Self, Solution)
+    @returns(Solution)
+    @ensures("solution.prob_undecided() <= return.prob_undecided()")
+    @ensures('self.pausestart == self.pausestop --> solution == return')
+    def apply(self, solution):
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
+        undec = solution.undec
+        # Make gamma distribution
+        gamma_mean = self.pausestop - self.pausestart
+        gamma_var = pow(self.pauseblurwidth, 2)
+        shape = gamma_mean**2/gamma_var
+        scale = gamma_var/gamma_mean
+        gamma_pdf = lambda t : 1/(sp_gamma(shape)*(scale**shape)) * t**(shape-1) * np.exp(-t/scale)
+        gamma_vals = np.asarray([gamma_pdf(t) for t in m.t_domain() - self.pausestart if t >= 0])
+        sumgamma = np.sum(gamma_vals)
+        gamma_start = next(i for i,t in enumerate(m.t_domain() - self.pausestart) if t >= 0)
+
+        # Generate first part of pdf (before the pause)
+        newcorr = np.zeros(m.t_domain().shape, dtype=corr.dtype)
+        newerr = np.zeros(m.t_domain().shape, dtype=err.dtype)
+        # Generate pdf after the pause
+        for i,t in enumerate(m.t_domain()):
+            #print(np.sum(newcorr)+np.sum(newerr))
+            if 0 <= t < self.pausestart:
+                newcorr[i] = corr[i]
+                newerr[i] = err[i]
+            elif self.pausestart <= t:
+                newcorr[i:] += corr[gamma_start:len(corr)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
+                newerr[i:] += err[gamma_start:len(corr)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
+            else:
+                raise ValueError("Invalid domain")
+        return Solution(newcorr, newerr, m, cond, undec)
+
