@@ -82,6 +82,25 @@ class Solution(object):
             self.err /= 1.00000000001
         self.conditions = conditions
 
+    def __eq__(self, other):
+        if not np.allclose(self.corr, other.corr) or \
+           not np.allclose(self.err, other.err):
+            return False
+        for k in self.conditions:
+            if k not in other.conditions:
+                return False
+            if not np.allclose(self.conditions[k][0], other.conditions[k][0]) or \
+               not np.allclose(self.conditions[k][1], other.conditions[k][1]):
+                return False
+            if len(self.conditions[k]) == 3 and \
+               len(other.conditions[k]) == 3 and \
+               not np.allclose(self.conditions[k][2], other.conditions[k][2]):
+                return False
+        if self.undec is not None:
+            if not np.allclose(self.undec, other.undec):
+                return False
+        return True
+
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))
     def pdf_corr(self):

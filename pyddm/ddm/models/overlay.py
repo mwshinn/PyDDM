@@ -118,15 +118,12 @@ class OverlayUniformMixture(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
-        # These aren't real pdfs since they don't sum to 1, they sum
-        # to 1/self.model.dt.  We can't just sum the correct and error
-        # distributions to find this number because that would exclude
-        # the non-decision trials.
-        pdfsum = 1/m.dt
-        corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur # Assume numpy ndarrays, not lists
-        err = err*(1-self.umixturecoef) + .5*self.umixturecoef/pdfsum/m.T_dur
-        corr[0] = 0
-        err[0] = 0
+        # To make this work with undecided probability, we need to
+        # normalize by the sum of the decided density.  That way, this
+        # function will never touch the undecided pieces.
+        norm = np.sum(corr)+np.sum(err)
+        corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
+        err = err*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
         return Solution(corr, err, m, cond, undec)
 
 @paranoidclass
@@ -153,20 +150,16 @@ class OverlayPoissonMixture(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
-        # These aren't real pdfs since they don't sum to 1, they sum
-        # to 1/self.model.dt.  We can't just sum the correct and error
-        # distributions to find this number because that would exclude
-        # the non-decision trials.
-        pdfsum = 1/m.dt
-        # Pr = lambda ru, rr, P, t : (rr*P)/((rr+ru))*(1-numpy.exp(-1*(rr+ru)*t))
-        # P0 = lambda ru, rr, P, t : P*numpy.exp(-(rr+ru)*t) # Nondecision
-        # Pr' = lambda ru, rr, P, t : (rr*P)*numpy.exp(-1*(rr+ru)*t)
-        # lapses_cdf = lambda t : 1-np.exp(-(2*self.rate)*t)
-        lapses = lambda t : 2*self.rate*np.exp(-2*self.rate*t) if t != 0 else 0
+        # To make this work with undecided probability, we need to
+        # normalize by the sum of the decided density.  That way, this
+        # function will never touch the undecided pieces.
+        norm = np.sum(corr)+np.sum(err)
+        lapses = lambda t : 2*self.rate*np.exp(-1*self.rate*t)
         X = [i*m.dt for i in range(0, len(corr))]
-        Y = np.asarray(list(map(lapses, X)))/pdfsum
-        corr = corr*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y # Assume numpy ndarrays, not lists
-        err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y
+        Y = np.asarray(list(map(lapses, X)))/len(X)
+        Y /= np.sum(Y)
+        corr = corr*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm # Assume numpy ndarrays, not lists
+        err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm
         #print(corr)
         #print(err)
         return Solution(corr, err, m, cond, undec)
@@ -194,7 +187,7 @@ class OverlayDelay(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
-        shifts = int(self.delaytime/m.dt) # round
+        shifts = int(self.delaytime/m.dt) # truncate
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
         newerr = np.zeros(err.shape, dtype=err.dtype)
         if shifts > 0:

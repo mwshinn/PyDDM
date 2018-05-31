@@ -1,0 +1,210 @@
+import unittest
+from unittest import TestCase, main
+from string import ascii_letters
+import numpy as np
+
+import ddm
+
+def fails(f):
+    failed = False
+    try:
+        f()
+    except:
+        failed = True
+    if failed == False:
+        raise ValueError("Error, function did not fail")
+
+class TestDependences(TestCase):
+    def setUp(self):
+        class FakeUniformModel(ddm.Model):
+            def solve(self, conditions={}, *args, **kwargs):
+                corr = self.t_domain()*0+.4/len(self.t_domain())
+                err = self.t_domain()*0+.4/len(self.t_domain())
+                undec = self.x_domain(conditions=conditions)*0+.2/len(self.x_domain(conditions=conditions))
+                return ddm.Solution(corr, err, self, conditions, undec)
+        FakeUniformModel.solve_analytical = FakeUniformModel.solve
+        FakeUniformModel.solve_numerical = FakeUniformModel.solve
+        FakeUniformModel.solve_numerical_cn = FakeUniformModel.solve
+        FakeUniformModel.solve_numerical_implicit = FakeUniformModel.solve
+        FakeUniformModel.solve_numerical_explicit = FakeUniformModel.solve
+        self.FakeUniformModel = FakeUniformModel
+        class FakePointModel(ddm.Model):
+            def solve(self, conditions={}, *args, **kwargs):
+                corr = self.t_domain()*0
+                corr[1] = .8
+                err = self.t_domain()*0
+                err[1] = .2
+                return ddm.Solution(corr, err, self, conditions)
+        FakePointModel.solve_analytical = FakePointModel.solve
+        FakePointModel.solve_numerical = FakePointModel.solve
+        FakePointModel.solve_numerical_cn = FakePointModel.solve
+        FakePointModel.solve_numerical_implicit = FakePointModel.solve
+        FakePointModel.solve_numerical_explicit = FakePointModel.solve
+        self.FakePointModel = FakePointModel
+        class FakeUndecidedModel(ddm.Model):
+            def solve(self, conditions={}, *args, **kwargs):
+                corr = self.t_domain()*0
+                err = self.t_domain()*0
+                undec = self.x_domain(conditions=conditions)*0+1/len(self.x_domain(conditions=conditions))
+                return ddm.Solution(corr, err, self, conditions, undec)
+        FakeUndecidedModel.solve_analytical = FakeUndecidedModel.solve
+        FakeUndecidedModel.solve_numerical = FakeUndecidedModel.solve
+        FakeUndecidedModel.solve_numerical_cn = FakeUndecidedModel.solve
+        FakeUndecidedModel.solve_numerical_implicit = FakeUndecidedModel.solve
+        FakeUndecidedModel.solve_numerical_explicit = FakeUndecidedModel.solve
+        self.FakeUndecidedModel = FakeUndecidedModel
+    def test_Dependence_spec(self):
+        """Ensure classes can inherit properly from Dependence"""
+        # Instantiating directly fails
+        fails(lambda : ddm.models.Dependence())
+        # Fails without all properties
+        class TestDepFail1(ddm.models.Dependence):
+            pass
+        fails(lambda : TestDepFail1())
+        class TestDepFail2(ddm.models.Dependence):
+            depname = "Depname"
+        fails(lambda : TestDepFail2())
+        class TestDepFail3(ddm.models.Dependence):
+            depname = "Depname"
+            name = "Name"
+        fails(lambda : TestDepFail3())
+        class TestDep(ddm.models.Dependence):
+            depname = "Depname"
+            name = "Name"
+            required_parameters = []
+        assert TestDep() is not None
+    def test_Dependence_derived(self):
+        """Ensure derived classes handle parameters properly"""
+        class TestDep(ddm.models.Dependence):
+            depname = "Test dependence"
+        class TestDepComp(TestDep):
+            name = "Test component"
+            required_parameters = ["testparam1", "testparam2"]
+            default_parameters = {"testparam2" : 10}
+        # Not all params specified
+        fails(lambda : TestDepComp())
+        # Using default parameter
+        assert TestDepComp(testparam1=5) is not None
+        # Overriding the default parameter
+        tdc = TestDepComp(testparam1=3, testparam2=4)
+        assert tdc.testparam1 == 3
+        assert tdc.testparam2 == 4
+        assert tdc.required_conditions == []
+        # Ensure class static variable holds
+        tdc = TestDepComp(testparam1=7)
+        assert tdc.testparam1 == 7
+        assert tdc.testparam2 == 10
+            
+    def test_MuReduces(self):
+        """Make sure MuLinear reduces to MuConstant when x and t are 0"""
+        mu_constant_instances = [e for e in ddm.models.MuConstant._generate()]
+        for cinst in mu_constant_instances:
+            linst = ddm.models.MuLinear(mu=cinst.get_mu(t=0), x=0, t=0)
+            for t in [0, .1, .5, 1, 2, 10]:
+                assert linst.get_mu(t=t, x=1) == cinst.get_mu(t=t, x=1)
+    def test_SigmaReduces(self):
+        """Make sure SigmaLinear reduces to SigmaConstant when x and t are 0"""
+        sigma_constant_instances = [e for e in ddm.models.SigmaConstant._generate()]
+        for cinst in sigma_constant_instances:
+            linst = ddm.models.SigmaLinear(sigma=cinst.get_sigma(t=0), x=0, t=0)
+            for t in [0, .1, .5, 1, 2, 10]:
+                assert linst.get_sigma(t=t, x=1) == cinst.get_sigma(t=t, x=1)
+    def test_OverlayNone(self):
+        s = ddm.Model().solve()
+        assert s == ddm.models.OverlayNone().apply(s)
+        s = self.FakeUniformModel().solve()
+        assert s == ddm.models.OverlayNone().apply(s)
+        s = self.FakePointModel().solve()
+        assert s == ddm.models.OverlayNone().apply(s)
+    def test_OverlayUniformMixture(self):
+        # Do nothing with 0 probability
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        smix = ddm.models.OverlayUniformMixture(umixturecoef=0).apply(s)
+        assert s == smix
+        # With mixture coef 1, integrate to 1
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=2), sigma=ddm.models.SigmaConstant(sigma=3)).solve()
+        smix = ddm.models.OverlayUniformMixture(umixturecoef=1).apply(s)
+        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
+        # Should not change uniform distribution
+        s = self.FakeUniformModel(dt=.001).solve()
+        assert s == ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
+        # Don't change total probability
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        smix = ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
+        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
+                          np.sum(smix.corr) + np.sum(smix.err))
+    def test_OverlayPoissonMixture(self):
+        # Do nothing with mixture coef 0
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        smix = ddm.models.OverlayPoissonMixture(pmixturecoef=0, rate=1).apply(s)
+        assert s == smix
+        # With mixture coef 1, integrate to 1
+        s = ddm.Model(mu=ddm.models.MuConstant(mu=2), sigma=ddm.models.SigmaConstant(sigma=3)).solve()
+        smix = ddm.models.OverlayPoissonMixture(pmixturecoef=1, rate=10).apply(s)
+        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
+        # Should be monotonic decreasing on uniform distribution
+        s = self.FakeUniformModel(dt=.001).solve()
+        smix = ddm.models.OverlayPoissonMixture(pmixturecoef=.2, rate=1).apply(s)
+        assert np.all([smix.corr[i-1]-smix.corr[i] > 0 for i in range(1, len(smix.corr))])
+        assert np.all([smix.err[i-1]-smix.err[i] > 0 for i in range(1, len(smix.err))])
+        # Don't change total probability
+        s = ddm.Model(ddm.models.MuConstant(mu=1)).solve()
+        smix = ddm.models.OverlayPoissonMixture(pmixturecoef=.2, rate=7).apply(s)
+        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
+                          np.sum(smix.corr) + np.sum(smix.err))
+    def test_OverlayDelay(self):
+        # Should do nothing with no shift
+        s = ddm.Model().solve()
+        assert s == ddm.models.OverlayDelay(delaytime=0).apply(s)
+        # Shifts a single point distribution
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayDelay(delaytime=.01).apply(s)
+        assert s.corr[1] == sshift.corr[2]
+        assert s.err[1] == sshift.err[2]
+        # Truncate when time bin doesn't align
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayDelay(delaytime=.019).apply(s)
+        assert s.corr[1] == sshift.corr[2]
+        assert s.err[1] == sshift.err[2]
+    def test_OverlayChain(self):
+        # Combine with OverlayNone()
+        s = self.FakePointModel(dt=.01).solve()
+        o = ddm.models.OverlayChain(overlays=[
+                ddm.models.OverlayNone(),
+                ddm.models.OverlayDelay(delaytime=.01),
+                ddm.models.OverlayNone()])
+        sshift = o.apply(s)
+        assert s.corr[1] == sshift.corr[2]
+        assert s.err[1] == sshift.err[2]
+    def test_LossSquaredError(self):
+        # Should be zero for empty sample when all undecided
+        m = self.FakeUndecidedModel()
+        s = ddm.Sample(np.asarray([]), np.asarray([]), non_decision=1)
+        assert ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m) == 0
+        # Can also be determined precisely for the point model
+        m = self.FakePointModel()
+        sol = m.solve()
+        err = ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m)
+        assert np.isclose(err, np.sum(sol.corr)**2 + np.sum(sol.err)**2)
+    def test_LossLikelihood(self):
+        # We can calculate likelihood for this simple case
+        m = self.FakePointModel(dt=.02)
+        sol = m.solve()
+        s = ddm.Sample(np.asarray([.02]), np.asarray([]))
+        expected = -np.log(np.sum(sol.corr)/m.dt)
+        assert np.isclose(expected, ddm.models.LossLikelihood(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m))
+        # And for the uniform case we can assert equivalence
+        m = self.FakeUniformModel()
+        s1 = ddm.Sample(np.asarray([.02, .05, .07, .12]), np.asarray([.33, .21]))
+        s2 = ddm.Sample(np.asarray([.13, .1, .02]), np.asarray([.66, .15, .89]))
+        assert np.isclose(ddm.models.LossLikelihood(sample=s1, dt=m.dt, T_dur=m.T_dur).loss(m),
+                          ddm.models.LossLikelihood(sample=s2, dt=m.dt, T_dur=m.T_dur).loss(m))
+        # TODO I think this reveals we should be doing
+        # (len(x_domain())-1) instead of len(x_domain()).  Multiple of 2 somewhere.
+        # And it should not depend on dt since it is comparing to the pdf
+        # m1 = self.FakeUniformModel(dt=.02)
+        # m2 = self.FakeUniformModel(dt=.01)
+        # print(m1.solve().pdf_corr(), m2.solve().pdf_corr())
+        # s = ddm.Sample(np.asarray([.14, .1, .01]), np.asarray([.66, .16, .89]))
+        # assert np.isclose(ddm.models.LossLikelihood(sample=s, dt=m1.dt, T_dur=m1.T_dur).loss(m1),
+        #                   ddm.models.LossLikelihood(sample=s, dt=m2.dt, T_dur=m2.T_dur).loss(m2))

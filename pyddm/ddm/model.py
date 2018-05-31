@@ -275,7 +275,9 @@ class Model(object):
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
     # TODO A bug in inspect.py in the core library ("except
-    # Exception") is making the max_runtime clause die often.
+    # Exception") is making the max_runtime clause die often.  Use
+    # Signature.from_callable() as a workaround.  See:
+    # https://github.com/python/cpython/blob/3.6/Lib/inspect.py
     @paranoidconfig(max_runtime=10)
     def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.

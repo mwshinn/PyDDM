@@ -122,11 +122,11 @@ class LossSquaredError(LossFunction):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
         this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
-        return np.sum((this-self.target)**2)
+        return np.sum((this-self.target)**2)*self.dt**2
 
 @paranoidclass
 class LossLikelihood(LossFunction):
-    name = "Likelihood"
+    name = "Negative log likelihood"
     @staticmethod
     def _test(v):
         assert v.dt in Positive0()
@@ -150,13 +150,10 @@ class LossLikelihood(LossFunction):
             maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
             assert maxt <= self.T_dur, "Simulation time T_dur not long enough for these data"
             # Find the integers which correspond to the timepoints in
-            # the pdfs.  Exclude all data points where this index
-            # rounds to 0 because this is always 0 in the pdf (no
-            # diffusion has happened yet) and you can't take the log
-            # of 0.  Also don't group them into the first bin because
-            # this creates bias.
-            corr = [int(round(e/dt)) for e in s.corr if int(round(e/dt)) > 0]
-            err = [int(round(e/dt)) for e in s.err if int(round(e/dt)) > 0]
+            # the pdfs.  Also don't group them into the first bin
+            # because this creates bias.
+            corr = [int(round(e/dt)) for e in s.corr]
+            err = [int(round(e/dt)) for e in s.err]
             nondec = self.sample.non_decision
             self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
     @accepts(Self, Model)

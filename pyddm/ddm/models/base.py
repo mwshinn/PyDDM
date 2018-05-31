@@ -76,7 +76,7 @@ class Dependence(object): # TODO Base this on ABC
         assert hasattr(self, "required_parameters"), "Dependence needs a list of required params"
         # Check/set parameters
         if hasattr(self, "default_parameters"):
-            args = self.default_parameters
+            args = self.default_parameters.copy()
             args.update(kwargs)
         else:
             args = kwargs
