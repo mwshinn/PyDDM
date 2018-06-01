@@ -1,4 +1,4 @@
-__ALL__ = ["InitialCondition", "ICPointSourceCenter", "ICUniform"]
+__ALL__ = ["InitialCondition", "ICPointSourceCenter", "ICUniform", "ICArbitrary"]
 
 import numpy as np
 
@@ -69,3 +69,27 @@ class ICUniform(InitialCondition):
         pdf = 1/(len(x))*np.ones((len(x)))
         return pdf
 
+@accepts(NDArray(d=1))
+@returns(InitialCondition)
+@requires('math.fsum(dist) == 1')
+def ICArbitrary(dist):
+    """Generate an IC object from an arbitrary distribution.
+
+    `dist` should be a 1 dimensional numpy array which sums to 1.
+
+    Note that ICArbitrary is a function, not an InitialCondition
+    object, so it cannot be passed directly.  It returns an instance
+    of a an InitialCondition object which can be passed.  So in place
+    of, e.g. ICUniform().  In practice, the user should not notice a
+    difference, and this function can thus be used in place of an
+    InitialCondition object.
+    """
+    class ICArbitrary(InitialCondition):
+        """Initial condition from an arbitrary distribution"""
+        name = "Arbitrary distribution"
+        required_parameters = []
+        def get_IC(self, x, _prevdist=dist, *args, **kwargs):
+            print(len(x), len(_prevdist))
+            assert len(x) == len(_prevdist)
+            return _prevdist
+    return ICArbitrary()

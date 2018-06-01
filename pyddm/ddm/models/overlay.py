@@ -1,4 +1,4 @@
-__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayDelay"]
+__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayDelay", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
 from math import fsum

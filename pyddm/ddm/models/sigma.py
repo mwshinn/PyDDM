@@ -57,6 +57,7 @@ class Sigma(Dependence):
         Returns a sparse NxN numpy matrix.
         """
         sigma = self.get_sigma(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
+        print(sigma, type(sigma))
         if np.isscalar(sigma):
             return self._cached_sparse_diags([ 1.0*sigma**2 * dt/dx**2,
                                               -0.5*sigma**2 * dt/dx**2,

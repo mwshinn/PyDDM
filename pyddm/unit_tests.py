@@ -110,6 +110,20 @@ class TestDependences(TestCase):
             linst = ddm.models.SigmaLinear(sigma=cinst.get_sigma(t=0), x=0, t=0)
             for t in [0, .1, .5, 1, 2, 10]:
                 assert linst.get_sigma(t=t, x=1) == cinst.get_sigma(t=t, x=1)
+    def test_ICArbitrary(self):
+        """Test arbitrary starting conditions from a distribution"""
+        # Make sure we get out the same distribution we put in
+        m = ddm.Model()
+        unif = ddm.models.ICUniform()
+        unif_a = ddm.models.ICArbitrary(unif.get_IC(m.x_domain({})))
+        assert np.all(unif.get_IC(m.x_domain({})) == unif_a.get_IC(m.x_domain({})))
+        point = ddm.models.ICPointSourceCenter()
+        point_a = ddm.models.ICArbitrary(point.get_IC(m.x_domain({})))
+        assert np.all(point.get_IC(m.x_domain({})) == point_a.get_IC(m.x_domain({})))
+        # Make sure the distribution integrates to 1
+        fails(lambda : ddm.models.ICArbitrary(np.asarray([.1, .1, 0, 0, 0])))
+        fails(lambda : ddm.models.ICArbitrary(np.asarray([0, .6, .6, 0])))
+        assert ddm.models.ICArbitrary(np.asarray([1]))
     def test_OverlayNone(self):
         s = ddm.Model().solve()
         assert s == ddm.models.OverlayNone().apply(s)
