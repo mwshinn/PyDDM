@@ -68,7 +68,7 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s1, correct=False)
     plot_solution_pdf(s2, correct=False)
 
-def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=None):
+def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=None, method=None):
     # Avoid stupid errors with mutable objects
     if conditions is None:
         conditions = {}
@@ -99,7 +99,7 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
         ax1.plot(data_t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
         ax2.plot(data_t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
     if model:
-        s = solve_partial_conditions(model, sample_cond, conditions=conditions)
+        s = solve_partial_conditions(model, sample_cond, conditions=conditions, method=method)
         ax1.plot(t_domain, s.pdf_corr(), lw=2, color='red')
         ax2.plot(t_domain, s.pdf_err(), lw=2, color='red')
     ax1.axis([0, T_dur, 0, None])

@@ -62,8 +62,8 @@ class Mu(Dependence):
                                               -0.5*dt/dx * mu],
                                              [1, -1], shape=(len(x), len(x)), format="csr")
         else:
-            return self._cached_sparse_diags([ 0.5*dt/dx * mu[:-1],
-                                              -0.5*dt/dx * mu[1:]],
+            return self._cached_sparse_diags([ 0.5*dt/dx * mu[1:],
+                                              -0.5*dt/dx * mu[:-1]],
                                              [1, -1], format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
