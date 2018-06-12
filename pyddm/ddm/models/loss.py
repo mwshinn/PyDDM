@@ -1,4 +1,4 @@
-__all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC', 'LossLikelihoodMixture']
+__all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC']
 
 import numpy as np
 
@@ -165,10 +165,6 @@ class LossLikelihood(LossFunction):
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
-            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]+MIN_LIKELIHOOD))
-            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]+MIN_LIKELIHOOD))
-            if sols[k].prob_undecided() > 0:
-                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
             # nans come from negative values in the pdfs, which in
             # turn come from the dx parameter being set too low.  This
             # comes up when fitting, because sometimes the algorithm
@@ -177,9 +173,13 @@ class LossLikelihood(LossFunction):
             # 0.  We will issue a warning now, but throwing an
             # exception may be the better way to handle this to make
             # sure it doesn't go unnoticed.
-            if np.isnan(loglikelihood):
+            if np.any(sols[k].pdf_corr()<0) or np.any(sols[k].pdf_err()<0):
                 print("Warning: parameter values too extreme for dx.")
                 return np.inf
+            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]+MIN_LIKELIHOOD))
+            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]+MIN_LIKELIHOOD))
+            if sols[k].prob_undecided() > 0:
+                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
 @paranoidclass
@@ -203,29 +203,3 @@ class LossBIC(LossLikelihood):
     def loss(self, model):
         loglikelihood = -LossLikelihood.loss(self, model)
         return np.log(self.samplesize)*self.nparams - 2*loglikelihood
-
-@paranoidclass
-class LossLikelihoodMixture(LossLikelihood):
-    name = "Likelihood with 2% uniform noise"
-    @staticmethod
-    def _generate():
-        yield LossLikelihoodMixture(sample=next(Sample._generate()), dt=.01, T_dur=2)
-    @accepts(Self, Model)
-    @returns(Number)
-    @requires("model.dt == self.dt and model.T_dur == self.T_dur")
-    def loss(self, model):
-        assert model.dt == self.dt and model.T_dur == self.T_dur
-        sols = self.cache_by_conditions(model)
-        loglikelihood = 0
-        for k in sols.keys():
-            solpdfcorr = sols[k].pdf_corr()
-            solpdfcorr[solpdfcorr<0] = 0 # Numerical errors cause this to be negative sometimes
-            solpdferr = sols[k].pdf_err()
-            solpdferr[solpdferr<0] = 0 # Numerical errors cause this to be negative sometimes
-            pdfcorr = solpdfcorr*.98 + .01*np.ones(1+int(self.T_dur/self.dt))/self.T_dur*self.dt # .98 and .01, not .98 and .02, because we have both correct and error
-            pdferr = solpdferr*.98 + .01*np.ones(1+int(self.T_dur/self.dt))/self.T_dur*self.dt
-            loglikelihood += np.sum(np.log(pdfcorr[self.hist_indexes[k][0]]))
-            loglikelihood += np.sum(np.log(pdferr[self.hist_indexes[k][1]]))
-            if sols[k].prob_undecided() > 0:
-                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
-        return -loglikelihood
