@@ -69,6 +69,27 @@ def plot_compare_solutions(s1, s2):
     plot_solution_pdf(s2, correct=False)
 
 def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=None, method=None):
+    """Visually assess model fit.
+
+    This function plots a model on top of data, primarily for the
+    purpose of assessing the model fit.  The plot can be configured
+    with the following arguments:
+
+    - `model` - The model object to plot.  None of the parameters
+      should be "Fittable" instances, they should all be either
+      "Fitted" or numbers.
+    - `sample` - A sample, normally the sample used to fit the model.
+    - `fig` - A matplotlib figure object.  If not passed, the current
+      figure will be used.
+    - `conditions` - Optionally restrict the conditions of the model
+      to those specified, in a format which could be passed to
+      Sample.subset.
+    - `data_dt` - Bin size to use for the data histogram.  Defaults to
+      the model's dt.
+    - `method` - Optionally the method to use to solve the model,
+      either "analytical", "numerical" "cn", "implicit", "explicit",
+      or None (auto-select, the default).
+    """
     # Avoid stupid errors with mutable objects
     if conditions is None:
         conditions = {}

@@ -73,8 +73,8 @@ class BoundCollapsingLinear(Bound):
 
     Takes two parameters: 
 
-    `B` - the bound at time t = 0.
-    `t` - the slope, i.e. the coefficient of time, should be greater
+    - `B` - the bound at time t = 0.
+    - `t` - the slope, i.e. the coefficient of time, should be greater
     than zero.
     """
     name = "collapsing_linear"
@@ -99,8 +99,8 @@ class BoundCollapsingExponential(Bound):
 
     Takes two parameters: 
 
-    `B` - the bound at time t = 0.
-    `tau` - the time constant for the collapse, should be greater than
+    - `B` - the bound at time t = 0.
+    - `tau` - the time constant for the collapse, should be greater than
     zero.
     """
     name = "collapsing_exponential"

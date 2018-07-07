@@ -11,7 +11,7 @@ setup(
     maintainer_email = 'maxwell.shinn@yale.edu',
     license = 'MIT',
     python_requires='>=3.5',
-    packages = ['ddm'],
+    packages = ['ddm', 'ddm.models'],
     install_requires = ['numpy', 'scipy', 'matplotlib', 'paranoid-scientist'],
     classifiers = [
         'Development Status :: 5 - Production/Stable',
