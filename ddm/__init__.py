@@ -5,6 +5,8 @@ from .model import Model, Fittable, Fitted
 from .sample import Sample
 from .solution import Solution
 
+from ._version import __version__
+
 # Some default functions for paranoid scientist
 import paranoid
 import math

@@ -23,10 +23,12 @@ project = 'PyDDM'
 copyright = '2018, Maxwell Shinn, Norman Lam'
 author = 'Maxwell Shinn, Norman Lam'
 
+exec(open("../ddm/_version.py", "r").read()) # get __version__ variable
+
 # The short X.Y version
-version = ''
+version = ".".join(__version__.split(".")[0:-1])
 # The full version, including alpha/beta/rc tags
-release = '1.0'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
