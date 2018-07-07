@@ -1,15 +1,26 @@
-from distutils.core import setup
+from setuptools import setup
 
 from ddm._version import __version__
 
 setup(
-    name = 'PyDDM',
+    name = 'pyddm',
     version = __version__,
     description = 'Extensible drift diffusion modeling for Python',
     author = 'Max Shinn, Norman Lam',
     maintainer = 'Max Shinn',
     maintainer_email = 'maxwell.shinn@yale.edu',
-    packages = ['ddm', 'ddm.models'],
-    py_modules = ['ddm.functions', 'ddm.model', 'ddm.parameters', 'ddm.analytic', 'ddm.plot'],
-    requires = ['numpy', 'scipy', 'matplotlib']
+    license = 'MIT',
+    python_requires='>=3.5',
+    packages = ['ddm'],
+    install_requires = ['numpy', 'scipy', 'matplotlib', 'paranoid-scientist'],
+    classifiers = [
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Topic :: Education :: Testing',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Physics',
+        'Topic :: Scientific/Engineering :: Medical Science Apps.',
+        'Topic :: Scientific/Engineering :: Bio-Informatics']
 )
