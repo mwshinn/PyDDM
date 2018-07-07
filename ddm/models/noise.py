@@ -1,4 +1,4 @@
-__ALL__ = ["Noise", "NoiseConstant", "NoiseLinear"]
+__all__ = ["Noise", "NoiseConstant", "NoiseLinear"]
 
 import numpy as np
 from scipy import sparse
@@ -12,14 +12,9 @@ class Noise(Dependence):
     """Subclass this to specify how diffusion rate/noise varies with position and time.
 
     This abstract class provides the methods which define a dependence
-    of noise on x and t.  To subclass it, implement get_matrix and
-    get_flux.  All subclasses must include a parameter noise in
-    required_parameters, which is the diffusion rate/noise at the
-    start of the simulation.
-
-    Also, since it inherits from Dependence, subclasses must also
-    assign a `name` and `required_parameters` (see documentation for
-    Dependence.)
+    of noise on x and t.  To subclass it, implement get_noise.  Since
+    it inherits from Dependence, subclasses must also assign a `name`
+    and `required_parameters` (see documentation for Dependence.)
     """
     depname = "Noise"
     def _cached_sparse_diags(self, *args, **kwargs):
@@ -44,7 +39,7 @@ class Noise(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
-    @accepts(Self, x=NDArray(d=1), t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
     @returns(sparse.spmatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
@@ -56,6 +51,9 @@ class Noise(Dependence):
         `conditions` should be the conditions at which to calculate noise
 
         Returns a sparse NxN numpy matrix.
+
+        There is generally no need to redefine this method in
+        subclasses.
         """
         noise = self.get_noise(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(noise):
@@ -80,9 +78,46 @@ class Noise(Dependence):
         Note that under the central scheme we want to use x at
         half-grid from the boundary. This is however cleaner and
         justifiable using forward/backward scheme.
+
+        There is generally no need to redefine this method in
+        subclasses.
         """
         return 0.5*dt/dx**2 * self.get_noise(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)**2
     def get_noise(self, conditions, **kwargs):
+        """Calculate the instantaneous noise (diffusion rate).
+
+        This function must be redefined in subclasses.
+
+        It may take several arguments:
+
+        - `t` - The time at which noise should be calculated
+        - `x` - The particle position (or 1-dimensional NDArray of
+          particle positions) at which noise should be calculated
+        - `conditions` - A dictionary describing the task conditions
+
+        It should return a number or an NDArray (the same as `x`)
+        indicating the noise (diffusion rate) at that particular time,
+        position(s), and task conditions.
+
+        Definitions of this method in subclasses should only have
+        arguments for needed variables and should always be followed
+        by "**kwargs".  For example, if the function does not depend
+        on `t` or `x` but does depend on task conditions, this should
+        be:
+
+          | def get_noise(self, conditions, **kwargs):
+
+        Of course, the function would still work properly if `x` were
+        included as an argument, but this convention allows PyDDM to
+        automatically select the best simulation methods for the
+        model.
+
+        If a function depends on `x`, it should return a scalar if `x`
+        is a scalar, or an NDArray of the same size as `x` if `x` is
+        an NDArray.  If the function does not depend on `x`, it should
+        return a scalar.  (The purpose of this is a dramatic speed
+        increase by using numpy vectorization.)
+        """
         raise NotImplementedError
 
 @paranoidclass

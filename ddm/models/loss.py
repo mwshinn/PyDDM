@@ -54,10 +54,14 @@ class LossFunction(object):
         The optional `setup` function is executed at the end of the
         initializaiton.  It is executed only once at the beginning of
         the fitting procedure.
+
+        This function may optionally be redefined in subclasses.
         """
         pass
     def loss(self, model):
         """Compute the value of the loss function for the given model.
+
+        This function must be redefined in subclasses.
 
         `model` should be a Model object.  This should return a
         floating point value, where smaller values mean a better fit
@@ -80,7 +84,8 @@ class LossFunction(object):
         found within the sample.
 
         This is a convenience function for defining new loss
-        functions.
+        functions.  There is generally no need to redefine this
+        function in subclasses.
         """
         cache = {}
         conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
@@ -96,7 +101,8 @@ class LossFunction(object):
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
-    name = "Squared Difference"
+    """Squared-error loss function"""
+    name = "Squared Error"
     @staticmethod
     def _test(v):
         assert v.dt in Positive0()
@@ -126,6 +132,7 @@ class LossSquaredError(LossFunction):
 
 @paranoidclass
 class LossLikelihood(LossFunction):
+    """Likelihood loss function"""
     name = "Negative log likelihood"
     @staticmethod
     def _test(v):
@@ -184,6 +191,7 @@ class LossLikelihood(LossFunction):
 
 @paranoidclass
 class LossBIC(LossLikelihood):
+    """BIC loss function"""
     name = "Use BIC loss function, functionally equivalent to LossLikelihood"
     @staticmethod
     def _test(v):

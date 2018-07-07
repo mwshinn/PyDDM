@@ -1,4 +1,4 @@
-__ALL__ = ["InitialCondition", "ICPointSourceCenter", "ICUniform", "ICArbitrary"]
+__all__ = ["InitialCondition", "ICPointSourceCenter", "ICUniform", "ICArbitrary"]
 
 import numpy as np
 
@@ -20,6 +20,8 @@ class InitialCondition(Dependence):
     depname = "IC"
     def get_IC(self, x, dx, **kwargs):
         """Get the initial conditions (a PDF) withsupport `x`.
+
+        This function must be redefined in subclasses.
 
         `x` is a length N ndarray representing the support of the
         initial condition PDF, i.e. the x-domain.  This returns a

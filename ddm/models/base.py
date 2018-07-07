@@ -1,4 +1,4 @@
-__ALL__ = ["Dependence"]
+__all__ = ["Dependence"]
 
 import paranoid
 

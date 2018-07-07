@@ -422,7 +422,8 @@ class Model(object):
 
         Normally, the explicit method should not be used. Also note
         the stability criteria for explicit method is:
-            noise^2/2 * dt/dx^2 < 1/2
+
+          | noise^2/2 * dt/dx^2 < 1/2
 
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.

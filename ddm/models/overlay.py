@@ -1,4 +1,4 @@
-__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlaySimplePause", "OverlayBlurredPause"]
+__all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
 from math import fsum
@@ -25,15 +25,31 @@ class Overlay(Dependence):
     """
     depname = "Overlay"
     def apply(self, solution):
-        """Apply the overlay to a solution.
+        """Apply the overlay to a Solution object.
 
-        `solution` should be a Solution object.  Return a new solution
-        object.
+        This function must be redefined in subclasses.
+
+        This function takes a Solution object as its argument and
+        returns a Solution object which was modified in some way.
+        Often times, this will be by modifying `solution.corr` and
+        `solution.err`.  See the documentation for Solution for more
+        information about this object.
+
+        Note that while this does not take `conditions` as an
+        argument, conditions may still be accessed via
+        `solution.conditions`.
+
+        Conceptually, this function performs some transformation on
+        the simulated response time (first passage time)
+        distributions.  It is especially useful for non-decision times
+        and mixture models, potentially in a parameter-dependent or
+        condition-dependent manner.
         """
         raise NotImplementedError
 
 @paranoidclass
 class OverlayNone(Overlay):
+    """No overlay.  An identity function for Solutions."""
     name = "None"
     required_parameters = []
     @staticmethod
@@ -52,6 +68,23 @@ class OverlayNone(Overlay):
 # Dependence constructor, but just in case...
 @paranoidclass
 class OverlayChain(Overlay):
+    """Join together multiple overlays.
+
+    Unlike other model components, Overlays are not mutually
+    exclusive.  It is possible to transform the output solution many
+    times.  Thus, this allows joining together multiple Overlay
+    objects into a single object.
+
+    It accepts one parameter: `overlays`.  This should be a list of
+    Overlay objects, in the order which they should be applied to the
+    Solution object.
+    
+    One key technical caveat is that the overlays which are chained
+    together may not have the same parameter names.  Parameter names
+    must be given different names in order to be a part of the same
+    overlay.  This allows those parameters to be accessed by their
+    name inside of an OverlayChain object.
+    """
     name = "Chain overlay"
     required_parameters = ["overlays"]
     @staticmethod
@@ -99,6 +132,15 @@ class OverlayChain(Overlay):
 
 @paranoidclass
 class OverlayUniformMixture(Overlay):
+    """A uniform mixture distribution.
+
+    The output distribution should be umixturecoef*100 percent uniform
+    distribution and (1-umixturecoef)*100 percent of the distribution
+    to which this overlay is applied.
+
+    A mixture with the uniform distribution can be used to confer
+    robustness when fitting using likelihood.
+    """
     name = "Uniform distribution mixture model"
     required_parameters = ["umixturecoef"]
     @staticmethod
@@ -129,6 +171,19 @@ class OverlayUniformMixture(Overlay):
 
 @paranoidclass
 class OverlayPoissonMixture(Overlay):
+    """An exponential mixture distribution.
+
+    The output distribution should be pmixturecoef*100 percent exponential
+    distribution and (1-umixturecoef)*100 percent of the distribution
+    to which this overlay is applied.
+
+    A mixture with the exponential distribution can be used to confer
+    robustness when fitting using likelihood.
+
+    Note that this is called OverlayPoissonMixture and not
+    OverlayExponentialMixture because the exponential distribution is
+    formed from a Poisson process, i.e. modeling a uniform lapse rate.
+    """
     name = "Poisson distribution mixture model (lapse rate)"
     required_parameters = ["pmixturecoef", "rate"]
     @staticmethod
@@ -167,6 +222,11 @@ class OverlayPoissonMixture(Overlay):
 
 @paranoidclass
 class OverlayNonDecision(Overlay):
+    """Add a non-decision time
+
+    This shifts the reaction time distribution by `nondectime` seconds
+    in order to create a non-decision time.
+    """
     name = "Add a non-decision by shifting the histogram"
     required_parameters = ["nondectime"]
     @staticmethod
@@ -253,8 +313,8 @@ class OverlayBlurredPause(Overlay):
         assert v.pausestart + v.pauseblurwidth/2 <= v.pausestop, "Blur must be shorter than pause"
     @staticmethod
     def _generate():
-        yield OverlaySimplePause(pausestart=0, pausestop=0, pauseblurwidth=.1)
-        yield OverlaySimplePause(pausestart=.1, pausestop=.2, pauseblurwidth=.01)
+        yield OverlayBlurredPause(pausestart=0, pausestop=.1, pauseblurwidth=.1)
+        yield OverlayBlurredPause(pausestart=.1, pausestop=.2, pauseblurwidth=.01)
     @accepts(Self, Solution)
     @returns(Solution)
     @ensures("solution.prob_undecided() <= return.prob_undecided()")

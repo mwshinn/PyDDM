@@ -19,10 +19,33 @@ class Bound(Dependence):
     Dependence.)
     """
     depname = "Bound"
-    ## Second effect of Collapsing Bounds: Collapsing Center: Positive
-    ## and Negative states are closer to each other over time.
     def get_bound(self, t, conditions, **kwargs):
-        """Return the bound at time `t`."""
+        """Calculate the bounds which particles cross to determine response time.
+
+        This function must be redefined in subclasses.
+
+        It may take up to two arguments:
+
+        - `t` - The time at which bound should be calculated
+        - `conditions` - A dictionary describing the task conditions
+
+        It should return a non-negative number indicating the upper
+        bound at that particular time, and task conditions.  The lower
+        bound is taken to be the negative of the upper bound.
+
+        Definitions of this method in subclasses should only have
+        arguments for needed variables and should always be followed
+        by "**kwargs".  For example, if the function does not depend
+        on task conditions but does depend on time, this should
+        be:
+
+          | def get_bound(self, t, **kwargs):
+
+        Of course, the function would still work properly if
+        `conditions` were included as an argument, but this convention
+        allows PyDDM to automatically select the best simulation
+        methods for the model.
+        """
         raise NotImplementedError
 
 @paranoidclass
