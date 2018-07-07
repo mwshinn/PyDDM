@@ -89,7 +89,6 @@ def ICArbitrary(dist):
         name = "Arbitrary distribution"
         required_parameters = []
         def get_IC(self, x, _prevdist=dist, *args, **kwargs):
-            print(len(x), len(_prevdist))
             assert len(x) == len(_prevdist)
             return _prevdist
     return ICArbitrary()

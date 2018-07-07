@@ -7,6 +7,7 @@ import scipy.sparse.linalg
 from .base import Dependence
 from paranoid import *
 
+@paranoidclass
 class Mu(Dependence):
     """Subclass this to specify how drift rate varies with position and time.
 

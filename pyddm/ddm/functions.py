@@ -379,7 +379,7 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
         # same size, set it to None rather than trying to align them.
         if sol.undec is not None and isinstance(model_undec, int) and model_undec == -1:
             model_undec = len(subset)/len(samp)*sol.pdf_undec()
-        if sol.undec is not None and len(model_undec) == len(sol.undec):
+        if sol.undec is not None and model_undec is not None and len(model_undec) == len(sol.undec):
             model_undec += len(subset)/len(samp)*sol.pdf_undec()
         else:
             model_undec = None

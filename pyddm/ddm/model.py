@@ -266,7 +266,7 @@ class Model(object):
             s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + mu3*h + s3*dw)) # Should this be 1/2*s3*dw?
             dx = h*(mu1 + 2*mu2 + 2*mu3 + mu4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
             pos.append(pos[i-1] + dx)
-            B = self.get_dependence("bound").get_bound(T[i], conditions=conditions)
+            B = self.get_dependence("bound").get_bound(t=T[i], conditions=conditions)
             if pos[i] > B or pos[i] < -B:
                 break
 
@@ -295,7 +295,7 @@ class Model(object):
                 print("Simulating trial %i" % s)
             timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32))
             T_finish = self.t_domain()[len(timecourse) - 1]
-            B = self.get_dependence("bound").get_bound(T_finish, conditions=conditions)
+            B = self.get_dependence("bound").get_bound(t=T_finish, conditions=conditions)
             # Correct for the fact that the particle could have
             # crossed at any point between T_finish-dt and T_finish.
             dt_correction = self.dt/2
@@ -451,7 +451,7 @@ class Model(object):
                 break
             
             # Boundary at current time-step.
-            bound = self.get_dependence('bound').get_bound(t, conditions=conditions)
+            bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions)
 
             # Now figure out which x positions are still within
             # the (collapsing) bound.
@@ -538,7 +538,6 @@ class Model(object):
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
 
-        # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
 
     def solve_numerical_explicit(self, *args, **kwargs):
@@ -600,7 +599,7 @@ class Model(object):
             # some densities remaining in the channel.
             if sum(pdf_curr[:])>0.0001:
                 ## Define the boundaries at current time.
-                bound = self.get_dependence('bound').get_bound(t, conditions=conditions) # Boundary at current time-step.
+                bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions) # Boundary at current time-step.
 
                 # Now figure out which x positions are still within
                 # the (collapsing) bound.

@@ -7,6 +7,7 @@ import scipy.sparse.linalg
 from .base import Dependence
 from paranoid import *
 
+@paranoidclass
 class Sigma(Dependence):
     """Subclass this to specify how diffusion rate/noise varies with position and time.
 

@@ -5,7 +5,7 @@ __all__ = ["Dependence", "Mu", "MuConstant", "MuLinear", "Sigma",
            "Overlay", "OverlayNone", "OverlayChain",
            "OverlayUniformMixture", "OverlayPoissonMixture",
            "OverlayDelay", "LossFunction", "LossSquaredError",
-           "LossLikelihood", "LossBIC", "LossLikelihoodMixture"]
+           "LossLikelihood", "LossBIC"]
 
 from .base import *
 from .mu import *

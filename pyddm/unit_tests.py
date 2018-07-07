@@ -262,3 +262,4 @@ class TestDependences(TestCase):
 
 
 # TODO test if there is no overlay, then corr + err + undecided = 1
+# TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
