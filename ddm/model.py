@@ -8,8 +8,8 @@ import inspect
 
 from . import parameters as param
 from .analytic import analytic_ddm
-from .models.mu import MuConstant, Mu
-from .models.sigma import SigmaConstant, Sigma
+from .models.drift import DriftConstant, Drift
+from .models.noise import NoiseConstant, Noise
 from .models.ic import ICPointSourceCenter, InitialCondition
 from .models.bound import BoundConstant, BoundCollapsingLinear, Bound
 from .models.overlay import OverlayNone, Overlay
@@ -24,7 +24,7 @@ from paranoid.decorators import accepts, returns, requires, ensures, paranoidcla
 sparse.csr_matrix.check_format = lambda self, full_check=True : True
     
 # "Model" describes how a variable is dependent on other variables.
-# Principally, we want to know how mu and sigma depend on x and t.
+# Principally, we want to know how drift and noise depend on x and t.
 # `name` is the type of dependence (e.g. "linear") for methods which
 # implement the algorithms, and any parameters these algorithms could
 # need should be passed as kwargs. To compare to legacy code, the
@@ -40,8 +40,8 @@ class Model(object):
 
     Each model simulation depends on five key components:
     
-    - A description of how drift rate (mu) changes throughout the simulation.
-    - A description of how variability (sigma) changes throughout the simulation.
+    - A description of how drift rate (drift) changes throughout the simulation.
+    - A description of how variability (noise) changes throughout the simulation.
     - A description of how the boundary changes throughout the simulation.
     - Starting conditions for the model
     - Specific details of a task which cause dynamic changes in the model (e.g. a stimulus intensity change)
@@ -52,8 +52,8 @@ class Model(object):
     """
     @staticmethod
     def _test(v):
-        assert v.get_dependence("mu") in Generic(Mu)
-        assert v.get_dependence("sigma") in Generic(Sigma)
+        assert v.get_dependence("drift") in Generic(Drift)
+        assert v.get_dependence("noise") in Generic(Noise)
         assert v.get_dependence("bound") in Generic(Bound)
         assert v.get_dependence("IC") in Generic(InitialCondition)
         assert v.get_dependence("overlay") in Generic(Overlay)
@@ -69,8 +69,8 @@ class Model(object):
         yield Model(dx=.01, dt=.01, T_dur=2)
         yield Model(dx=.05, dt=.01, T_dur=3)
         yield Model(dx=.005, dt=.005, T_dur=.5)
-    def __init__(self, mu=MuConstant(mu=0),
-                 sigma=SigmaConstant(sigma=1),
+    def __init__(self, drift=DriftConstant(drift=0),
+                 noise=NoiseConstant(noise=1),
                  bound=BoundConstant(B=1),
                  IC=ICPointSourceCenter(),
                  overlay=OverlayNone(), name="",
@@ -78,12 +78,12 @@ class Model(object):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
-        the drift rate (`mu`), noise (`sigma`), and bounds (`bound`)
+        the drift rate (`drift`), noise (`noise`), and bounds (`bound`)
         change over time, and the initial conditions (`IC`).
 
-        These five components are given by the parameters `mu`,
-        `sigma`, `bound`, and `IC`, respectively.  They should be
-        types which inherit from the types Mu, Sigma, Bound, and
+        These five components are given by the parameters `drift`,
+        `noise`, `bound`, and `IC`, respectively.  They should be
+        types which inherit from the types Drift, Noise, Bound, and
         InitialCondition, respectively.  They default to constant
         unitary values.
 
@@ -97,17 +97,17 @@ class Model(object):
         """
         assert isinstance(name, str)
         self.name = name
-        assert isinstance(mu, Mu)
-        self._mudep = mu
-        assert isinstance(sigma, Sigma)
-        self._sigmadep = sigma
+        assert isinstance(drift, Drift)
+        self._driftdep = drift
+        assert isinstance(noise, Noise)
+        self._noisedep = noise
         assert isinstance(bound, Bound)
         self._bounddep = bound
         assert isinstance(IC, InitialCondition)
         self._IC = IC
         assert isinstance(overlay, Overlay)
         self._overlay = overlay
-        self.dependencies = [self._mudep, self._sigmadep, self._bounddep, self._IC, self._overlay]
+        self.dependencies = [self._driftdep, self._noisedep, self._bounddep, self._IC, self._overlay]
         self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
         self.dx = dx
         self.dt = dt
@@ -115,8 +115,8 @@ class Model(object):
     # Get a string representation of the model
     def __repr__(self, pretty=False):
         # Use a list so they can be sorted
-        allobjects = [("name", self.name), ("mu", self.get_dependence('mu')),
-                      ("sigma", self.get_dependence('sigma')), ("bound", self.get_dependence('bound')),
+        allobjects = [("name", self.name), ("drift", self.get_dependence('drift')),
+                      ("noise", self.get_dependence('noise')), ("bound", self.get_dependence('bound')),
                       ("IC", self.get_dependence('ic')),
                       ("overlay", self.get_dependence('overlay')), ("dx", self.dx),
                       ("dt", self.dt), ("T_dur", self.T_dur)]
@@ -159,10 +159,10 @@ class Model(object):
 
     def get_dependence(self, name):
         """Return the dependence object given by the string `name`."""
-        if name.lower() in ["mu", "mudep", "_mudep"]:
-            return self._mudep
-        elif name.lower() in ["sigma", "sigmadep", "_sigmadep"]:
-            return self._sigmadep
+        if name.lower() in ["drift", "driftdep", "_driftdep"]:
+            return self._driftdep
+        elif name.lower() in ["noise", "noisedep", "_noisedep"]:
+            return self._noisedep
         elif name.lower() in ["b", "bound", "bounddep", "_bounddep"]:
             return self._bounddep
         elif name.lower() in ["ic", "initialcondition", "_ic"]:
@@ -199,9 +199,9 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        return self._cache_eye(len(x), format="csr") + 0.5*mu_matrix + 0.5*sigma_matrix
+        drift_matrix = self.get_dependence('drift').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        noise_matrix = self.get_dependence('noise').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        return self._cache_eye(len(x), format="csr") + 0.5*drift_matrix + 0.5*noise_matrix
     def diffusion_matrix_prev_cn(self, x, t, conditions):
         """The matrix for the implicit method of solving the diffusion equation.
 
@@ -212,14 +212,14 @@ class Model(object):
 
         Returns a size NxN scipy sparse array.
         """
-        mu_matrix = self.get_dependence('mu').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        sigma_matrix = self.get_dependence('sigma').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        return self._cache_eye(len(x), format="csr") - 0.5*mu_matrix - 0.5*sigma_matrix
+        drift_matrix = self.get_dependence('drift').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        noise_matrix = self.get_dependence('noise').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+        return self._cache_eye(len(x), format="csr") - 0.5*drift_matrix - 0.5*noise_matrix
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
-        mu_flux = self.get_dependence('mu').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
-        sigma_flux = self.get_dependence('sigma').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
-        return mu_flux + sigma_flux
+        drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
+        noise_flux = self.get_dependence('noise').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
+        return drift_flux + noise_flux
     def IC(self, conditions):
         """The initial distribution at t=0.
 
@@ -254,17 +254,17 @@ class Model(object):
             h = self.dt
             rn = rng.randn()
             dw = np.sqrt(self.dt)*rn
-            fm = lambda x,t : self.get_dependence("mu").get_mu(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
-            fs = lambda x,t : self.get_dependence("sigma").get_sigma(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
-            mu1 = fm(t=T[i-1], x=pos[i-1])
+            fm = lambda x,t : self.get_dependence("drift").get_drift(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
+            fs = lambda x,t : self.get_dependence("noise").get_noise(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
+            drift1 = fm(t=T[i-1], x=pos[i-1])
             s1  = fs(t=T[i-1], x=pos[i-1])
-            mu2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + mu1*h/2 + s1*dw/2)) # Should be dw/sqrt(2)?
-            s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + mu1*h/2 + s1*dw/2))
-            mu3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + mu2*h/2 + s2*dw/2))
-            s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + mu2*h/2 + s2*dw/2))
-            mu4 = fm(t=(T[i-1]+h), x=(pos[i-1] + mu3*h + s3*dw)) # Should this be 1/2*s3*dw?
-            s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + mu3*h + s3*dw)) # Should this be 1/2*s3*dw?
-            dx = h*(mu1 + 2*mu2 + 2*mu3 + mu4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
+            drift2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2)) # Should be dw/sqrt(2)?
+            s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2))
+            drift3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
+            s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
+            drift4 = fm(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
+            s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
+            dx = h*(drift1 + 2*drift2 + 2*drift3 + drift4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
             pos.append(pos[i-1] + dx)
             B = self.get_dependence("bound").get_bound(t=T[i], conditions=conditions)
             if pos[i] > B or pos[i] < -B:
@@ -318,15 +318,15 @@ class Model(object):
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
         mt = self.get_model_type()
-        # First check to make sure mu doesn't vary with time or
+        # First check to make sure drift doesn't vary with time or
         # particle location
-        mu_valid = False
-        mufuncsig = inspect.signature(mt["Mu"].get_mu)
-        if "t" in mufuncsig.parameters or "x" in mufuncsig.parameters:
+        drift_valid = False
+        driftfuncsig = inspect.signature(mt["Drift"].get_drift)
+        if "t" in driftfuncsig.parameters or "x" in driftfuncsig.parameters:
             return False
-        # Check sigma to make sure it doesn't vary with time or particle location
-        sigmafuncsig = inspect.signature(mt["Sigma"].get_sigma)
-        if "t" in sigmafuncsig.parameters or "x" in sigmafuncsig.parameters:
+        # Check noise to make sure it doesn't vary with time or particle location
+        noisefuncsig = inspect.signature(mt["Noise"].get_noise)
+        if "t" in noisefuncsig.parameters or "x" in noisefuncsig.parameters:
             return False
         # Check to make sure bound is one that we can solve for
         if not mt["Bound"]in [BoundConstant, BoundCollapsingLinear]:
@@ -341,8 +341,8 @@ class Model(object):
     @returns(Boolean)
     def can_solve_explicit(self, conditions={}):
         """Check explicit method stability criterion"""
-        sigma_max = max((self._sigmadep.get_sigma(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
-        return sigma_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
+        noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
+        return noise_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
 
     @accepts(Self)
     @returns(Boolean)
@@ -381,12 +381,12 @@ class Model(object):
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
-                                                       self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions), self.t_domain())
         elif isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("mu").get_mu(t=0, conditions=conditions),
-                                                       self.get_dependence("sigma").get_sigma(t=0, conditions=conditions),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions),
                                                        self.t_domain(), -self.get_dependence("bound").t) # TODO why must this be negative? -MS
 
@@ -422,7 +422,7 @@ class Model(object):
 
         Normally, the explicit method should not be used. Also note
         the stability criteria for explicit method is:
-            sigma^2/2 * dt/dx^2 < 1/2
+            noise^2/2 * dt/dx^2 < 1/2
 
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
@@ -472,13 +472,13 @@ class Model(object):
             # Diffusion Matrix for Implicit Method. Here defined as
             # Outer Matrix, and inder matrix is either trivial or an
             # extracted submatrix.
-            mu_matrix = self.get_dependence('mu').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-            sigma_matrix = self.get_dependence('sigma').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+            drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+            noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + mu_matrix + sigma_matrix
+                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + drift_matrix + noise_matrix
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - mu_matrix - sigma_matrix
+                diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - drift_matrix - noise_matrix
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
@@ -498,7 +498,7 @@ class Model(object):
                 elif method == "explicit":
                     pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
 
-            # Pdfs out of bound is consideered decisions made.
+            # Pdfs out of bound is considered decisions made.
             pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
                               + weight_inner * np.sum(pdf_prev[:x_index_inner])
             pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \

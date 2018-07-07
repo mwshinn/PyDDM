@@ -6,7 +6,7 @@ Simple example
 
 The following simulates a simple DDM with constant drift.
 :class:`.Model` is the object which represents a DDM.  Its default
-behavior can be changed through :class:`.Mu`, :class:`.Sigma`,
+behavior can be changed through :class:`.Drift`, :class:`.Noise`,
 :class:`.Bound`, :class:`.InitialCondition`, and :class:`.Overlay`
 objects, which specify the behavior of each of these model components.
 For example, the following is a DDM with drift 2.2, noise 1.5, bound
@@ -14,14 +14,14 @@ For example, the following is a DDM with drift 2.2, noise 1.5, bound
 It can be represented by::
 
   from ddm import Model
-  from ddm.models import MuConstant, SigmaConstant, BoundConstant, OverlayDelay
+  from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision
   from ddm.functions import fit_adjust_model, display_model
 
   model = Model(name='Simple model',
-                mu=MuConstant(mu=2.2),
-                sigma=SigmaConstant(sigma=1.5),
+                drift=DriftConstant(drift=2.2),
+                noise=NoiseConstant(noise=1.5),
                 bound=BoundConstant(B=1.1),
-                overlay=OverlayDelay(delay=.1),
+                overlay=OverlayNonDecision(nondectime=.1),
                 dx=.001, dt=.01, T_dur=2)
 
   display_model(model)
@@ -48,10 +48,10 @@ is supposed to have.  We fit the model to the generated data using BIC::
   from ddm.models import LossBIC
   from ddm.functions import fit_adjust_model
   model_fit = Model(name='Simple model (fitted)',
-                    mu=MuConstant(mu=Fittable(minval=0, maxval=4)),
-                    sigma=SigmaConstant(sigma=Fittable(minval=.5, maxval=4)),
+                    drift=DriftConstant(drift=Fittable(minval=0, maxval=4)),
+                    noise=NoiseConstant(noise=Fittable(minval=.5, maxval=4)),
                     bound=BoundConstant(B=1.1),
-                    overlay=OverlayDelay(delay=Fittable(minval=0, maxval=1)),
+                    overlay=OverlayNonDecision(nondectime=Fittable(minval=0, maxval=1)),
                     dx=.001, dt=.01, T_dur=2)
 
   fit_adjust_model(samp, model_fit,
@@ -140,8 +140,8 @@ Fitting a model to data
 Now that we have loaded these data, we can fit a model to them.
 
 First, we want to let the drift rate vary with the coherence.  To do
-so, we must subclass :class:`.Mu`.  Each subclass must contain a name
-(a short description of how mu varies), required parameters (a list of
+so, we must subclass :class:`.Drift`.  Each subclass must contain a name
+(a short description of how drift varies), required parameters (a list of
 the parameters that must be passed when we initialize our subclass,
 i.e. parameters which are passed to the constructor), and required
 conditions (a list of conditions that must be present in any data when
@@ -149,38 +149,38 @@ we fit data to the model).  We can easily define a model that fits our
 needs::
 
   import ddm.models
-  class MuCoherence(ddm.models.Mu):
+  class DriftCoherence(ddm.models.Drift):
       name = "Drift depends linearly on coherence"
-      required_parameters = ["mucoh"] # <-- Parameters we want to include in the model
+      required_parameters = ["driftcoh"] # <-- Parameters we want to include in the model
       required_conditions = ["coh"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
       
-      # We must always define the get_mu function, which is used to compute the instantaneous value of mu.
-      def get_mu(self, conditions, **kwargs):
-          return self.mucoh * conditions['coh']
+      # We must always define the get_drift function, which is used to compute the instantaneous value of drift.
+      def get_drift(self, conditions, **kwargs):
+          return self.driftcoh * conditions['coh']
 
 Then, we can construct a model which uses this and fit the data to the
 model::
 
   from ddm import Model, Fittable
   from ddm.functions import fit_adjust_model, display_model
-  from ddm.models import SigmaConstant, BoundConstant, OverlayChain, OverlayDelay, OverlayPoissonMixture
-  model_rs = Model(name='Roitman data, mu varies with coherence',
-                   mu=MuCoherence(mucoh=Fittable(minval=0, maxval=20)),
-                   sigma=SigmaConstant(sigma=1),
+  from ddm.models import NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture
+  model_rs = Model(name='Roitman data, drift varies with coherence',
+                   drift=DriftCoherence(driftcoh=Fittable(minval=0, maxval=20)),
+                   noise=NoiseConstant(noise=1),
                    bound=BoundConstant(B=Fittable(minval=.1, maxval=1.5)),
                    # Since we can only have one overlay, we use
                    # OverlayChain to string together multiple overlays.
-                   # They are applied sequentially in order.  OverlayDelay
+                   # They are applied sequentially in order.  OverlayNonDecision
                    # implements a non-decision time by shifting the
                    # resulting distribution of response times by
-                   # `delaytime` seconds.
-                   overlay=OverlayChain(overlays=[OverlayDelay(delaytime=Fittable(minval=0, maxval=.4)),
+                   # `nondectime` seconds.
+                   overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=Fittable(minval=0, maxval=.4)),
                                                   OverlayPoissonMixture(pmixturecoef=.02,
                                                                         rate=1)]),
                    dx=.001, dt=.01, T_dur=2)
   
   # Fitting this will also be fast because PyDDM can automatically
-  # determine that MuCoherence will allow an analytical solution.
+  # determine that DriftCoherence will allow an analytical solution.
   fit_model_rs = fit_adjust_model(sample=roitman_sample, m=model_rs)
   display_model(fit_model_rs)
 
@@ -205,7 +205,7 @@ See :doc:`modelgui` for more info.
 Going further
 -------------
 
-Just as we created MuCoherence above (by inheriting from :class:`.Mu`)
+Just as we created DriftCoherence above (by inheriting from :class:`.Drift`)
 to modify the drift rate based on coherence, we can modify other
 portions of the model.  See :doc:`recipes` for more examples.  Also
 see the :doc:`apidoc/index` for more specific details about overloading

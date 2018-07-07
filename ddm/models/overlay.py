@@ -1,4 +1,4 @@
-__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayDelay", "OverlaySimplePause", "OverlayBlurredPause"]
+__ALL__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
 from math import fsum
@@ -61,7 +61,7 @@ class OverlayChain(Overlay):
     def _generate():
         yield OverlayChain(overlays=[OverlayNone()])
         yield OverlayChain(overlays=[OverlayUniformMixture(umixturecoef=.3), OverlayPoissonMixture(pmixturecoef=.2, rate=.7)])
-        yield OverlayChain(overlays=[OverlayDelay(delaytime=.1), OverlayPoissonMixture(pmixturecoef=.1, rate=1), OverlayUniformMixture(umixturecoef=.1)])
+        yield OverlayChain(overlays=[OverlayNonDecision(nondectime=.1), OverlayPoissonMixture(pmixturecoef=.1, rate=1), OverlayUniformMixture(umixturecoef=.1)])
     def __init__(self, **kwargs):
         Overlay.__init__(self, **kwargs)
         object.__setattr__(self, "required_parameters", [])
@@ -166,17 +166,17 @@ class OverlayPoissonMixture(Overlay):
         return Solution(corr, err, m, cond, undec)
 
 @paranoidclass
-class OverlayDelay(Overlay):
-    name = "Add a delay by shifting the histogram"
-    required_parameters = ["delaytime"]
+class OverlayNonDecision(Overlay):
+    name = "Add a non-decision by shifting the histogram"
+    required_parameters = ["nondectime"]
     @staticmethod
     def _test(v):
-        assert v.delaytime in Number(), "Invalid delay time"
+        assert v.nondectime in Number(), "Invalid non-decision time"
     @staticmethod
     def _generate():
-        yield OverlayDelay(delaytime=0)
-        yield OverlayDelay(delaytime=.5)
-        yield OverlayDelay(delaytime=-.5)
+        yield OverlayNonDecision(nondectime=0)
+        yield OverlayNonDecision(nondectime=.5)
+        yield OverlayNonDecision(nondectime=-.5)
     @accepts(Self, Solution)
     @returns(Solution)
     @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
@@ -188,7 +188,7 @@ class OverlayDelay(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
-        shifts = int(self.delaytime/m.dt) # truncate
+        shifts = int(self.nondectime/m.dt) # truncate
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
         newerr = np.zeros(err.shape, dtype=err.dtype)
         if shifts > 0:
@@ -209,7 +209,7 @@ class OverlaySimplePause(Overlay):
     @staticmethod
     def _test(v):
         assert v.pausestart in Positive0(), "Invalid start time"
-        assert v.pausestop in Positive0(), "Invalid delay time"
+        assert v.pausestop in Positive0(), "Invalid non-decision time"
         assert v.pausestart <= v.pausestop, "Pause start time must be before stop time"
     @staticmethod
     def _generate():

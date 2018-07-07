@@ -10,7 +10,7 @@ class Sample(object):
 
     Similarly to Solution, this is a glorified container for three
     items: a list of correct reaction times, a list of error reaction
-    times, and the number of non-decision trials.  Each can have
+    times, and the number of undecided trials.  Each can have
     different properties associated with it, known as "conditions"
     elsewhere in this codebase.  This is to specifiy the experimental
     parameters of the trial, to allow fitting of stimuli by (for
@@ -21,8 +21,8 @@ class Sample(object):
     be a tuple of length two or three.  The first element of the tuple
     should be a list of length equal to the number of correct trials,
     and the second should be equal to the number of error trials.  If
-    there are any non-decision trials, the third argument should
-    contain a list of length equal to `non_decision`.
+    there are any undecided trials, the third argument should
+    contain a list of length equal to `undecided`.
 
     Optionally, additional data can be associated with each
     independent data point.  These should be passed as keyword
@@ -31,11 +31,11 @@ class Sample(object):
     first two should be lists of properties for the correct and error
     reaction times, where the properties correspond to reaction times
     in the correct or error lists.  Optionally, a third list of length
-    equal to the number of non-decision trials gives a list of
-    conditions for these trials.  If multiple properties are passed as
-    keyword arguments, the ordering of the non-decision time
-    properties (in addition to those of the correct and error
-    distributions) will correspond to one another.
+    equal to the number of undecided trials gives a list of conditions
+    for these trials.  If multiple properties are passed as keyword
+    arguments, the ordering of the undecided properties (in addition
+    to those of the correct and error distributions) will correspond
+    to one another.
     """
     @classmethod
     def _test(cls, v):
@@ -45,18 +45,18 @@ class Sample(object):
     @staticmethod
     def _generate():
         aa = lambda x : np.asarray(x)
-        yield Sample(aa([.1, .2, .3]), aa([.2, .3, .4]), non_decision=0)
-        yield Sample(aa([.1, .2, .3]), aa([]), non_decision=0)
-        yield Sample(aa([]), aa([.2, .3, .4]), non_decision=0)
-        yield Sample(aa([.1, .2, .3]), aa([.2, .3, .4]), non_decision=5)
+        yield Sample(aa([.1, .2, .3]), aa([.2, .3, .4]), undecided=0)
+        yield Sample(aa([.1, .2, .3]), aa([]), undecided=0)
+        yield Sample(aa([]), aa([.2, .3, .4]), undecided=0)
+        yield Sample(aa([.1, .2, .3]), aa([.2, .3, .4]), undecided=5)
         
-    def __init__(self, sample_corr, sample_err, non_decision=0, **kwargs):
+    def __init__(self, sample_corr, sample_err, undecided=0, **kwargs):
         assert sample_corr in NDArray(d=1, t=Number), "sample_corr not a numpy array, it is " + str(type(sample_corr))
         assert sample_err in NDArray(d=1, t=Number), "sample_err not a numpy array, it is " + str(type(sample_err))
-        assert non_decision in Natural0(), "non-decision not a natural number"
+        assert undecided in Natural0(), "undecided not a natural number"
         self.corr = sample_corr
         self.err = sample_err
-        self.non_decision = non_decision
+        self.undecided = undecided
         # Values should not change
         self.corr.flags.writeable = False
         self.err.flags.writeable = False
@@ -74,20 +74,20 @@ class Sample(object):
             v[0].flags.writeable = False
             v[1].flags.writeable = False
             if len(v) == 3:
-                assert len(v[2]) == non_decision
+                assert len(v[2]) == undecided
             else:
-                assert non_decision == 0
+                assert undecided == 0
         self.conditions = kwargs
     def __len__(self):
         """The number of samples"""
-        return len(self.corr) + len(self.err) + self.non_decision
+        return len(self.corr) + len(self.err) + self.undecided
     def __iter__(self):
         """Iterate through each reaction time, with no regard to whether it was a correct or error trial."""
         return np.concatenate([self.corr, self.err]).__iter__()
     def __eq__(self, other):
         if not np.allclose(self.corr, other.corr) or \
            not np.allclose(self.err, other.err) or \
-           self.non_decision != other.non_decision:
+           self.undecided != other.undecided:
             return False
         for k in self.conditions:
             if k not in other.conditions:
@@ -104,7 +104,7 @@ class Sample(object):
         assert sorted(self.conditions.keys()) == sorted(other.conditions.keys()), "Canot add with unlike conditions"
         corr = np.concatenate([self.corr, other.corr])
         err = np.concatenate([self.err, other.err])
-        non_decision = self.non_decision + other.non_decision
+        undecided = self.undecided + other.undecided
         conditions = {}
         for k in self.conditions.keys():
             sc = self.conditions
@@ -114,7 +114,7 @@ class Sample(object):
             bothn = np.concatenate([sc[k][2] if len(sc[k]) == 3 else [],
                                     oc[k][2] if len(oc[k]) == 3 else []])
             conditions[k] = (bothc, bothe, bothn)
-        return Sample(corr, err, non_decision, **conditions)
+        return Sample(corr, err, undecided, **conditions)
     @staticmethod
     @accepts(NDArray(d=2, t=Number), List(String))
     @returns(Self)
@@ -133,7 +133,7 @@ class Sample(object):
         should be conditions.  `column_names` should be a list of
         length m of strings indicating the names of the conditions.
         The order of the names should correspond to the order of the
-        columns.  This function does not yet work with no-decision
+        columns.  This function does not yet work with undecided
         trials.
         """
         c = data[:,1].astype(bool)
@@ -165,7 +165,7 @@ class Sample(object):
         with the name `correct_column_name` should be whether the
         trial was correct or an error (1 == correct, 0 == error).  Any
         remaining columns should be conditions.  This function does
-        not yet work with no-decision trials.
+        not yet work with undecided trials.
         """
         c = df[correct_column_name].astype(bool)
         nc = (1-df[correct_column_name]).astype(bool)
@@ -209,27 +209,27 @@ class Sample(object):
         """
         mask_corr = np.ones(len(self.corr)).astype(bool)
         mask_err = np.ones(len(self.err)).astype(bool)
-        mask_non = np.ones(self.non_decision).astype(bool)
+        mask_undec = np.ones(self.undecided).astype(bool)
         for k,v in kwargs.items():
             if hasattr(v, '__call__'):
                 mask_corr = np.logical_and(mask_corr, [v(i) for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [v(i) for i in  self.conditions[k][1]])
-                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [v(i) for i in self.conditions[k][2]])
+                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [v(i) for i in self.conditions[k][2]])
             elif hasattr(v, '__contains__'):
                 mask_corr = np.logical_and(mask_corr, [i in v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
-                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i in v for i in self.conditions[k][2]])
+                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [i in v for i in self.conditions[k][2]])
             else:
                 mask_corr = np.logical_and(mask_corr, [i == v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i == v for i in self.conditions[k][1]])
-                mask_non = [] if self.non_decision == 0 else np.logical_and(mask_non, [i == v for i in self.conditions[k][2]])
+                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [i == v for i in self.conditions[k][2]])
         filtered_conditions = {k : (np.asarray(list(itertools.compress(v[0], mask_corr))),
                                     np.asarray(list(itertools.compress(v[1], mask_err))),
-                                    (np.asarray(list(itertools.compress(v[2], mask_non))) if len(v) == 3 else np.asarray([])))
+                                    (np.asarray(list(itertools.compress(v[2], mask_undec))) if len(v) == 3 else np.asarray([])))
                                for k,v in self.conditions.items()}
         return Sample(np.asarray(list(itertools.compress(self.corr, list(mask_corr)))),
                       np.asarray(list(itertools.compress(self.err, list(mask_err)))),
-                      sum(mask_non),
+                      sum(mask_undec),
                       **filtered_conditions)
     @accepts(Self)
     @returns(List(String))
@@ -329,7 +329,7 @@ class Sample(object):
     @returns(Range(0, 1))
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
-        return self.non_decision/len(self)
+        return self.undecided/len(self)
 
     @accepts(Self)
     @returns(Range(0, 1))

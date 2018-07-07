@@ -13,8 +13,8 @@ from scipy.optimize import minimize, basinhopping, differential_evolution, Optim
 from .parameters import dx as default_dx, dt as default_dt
 from .model import Model, Solution, Fitted, Fittable
 from .sample import Sample
-from .models.mu import MuConstant
-from .models.sigma import SigmaConstant
+from .models.drift import DriftConstant
+from .models.noise import NoiseConstant
 from .models.ic import ICPointSourceCenter
 from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
@@ -44,8 +44,8 @@ def models_close(m1, m2, tol=.1):
     return True
 
 def fit_model(sample,
-              mu=MuConstant(mu=0),
-              sigma=SigmaConstant(sigma=1),
+              drift=DriftConstant(drift=0),
+              noise=NoiseConstant(noise=1),
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               dt=default_dt, dx=default_dx, fitparams=None,
@@ -58,7 +58,7 @@ def fit_model(sample,
     
     The data `sample` should be a Sample object of the reaction times
     to fit in seconds (NOT milliseconds).  This function will generate
-    a model using the `mu`, `sigma`, `bound`, and `IC`
+    a model using the `drift`, `noise`, `bound`, and `IC`
     parameters to specify the model.  At least one of these should
     have a parameter which is a "Fittable()" instance, as this will be
     the parameter to be fit.
@@ -92,7 +92,7 @@ def fit_model(sample,
 
     `name` gives the name of the model after it is fit.
 
-    Returns a "Model()" object with the specified `mu`, `sigma`,
+    Returns a "Model()" object with the specified `drift`, `noise`,
     `bound`, and `IC`.
     """
     
@@ -105,7 +105,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(name=name, mu=mu, sigma=sigma, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
     return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
 
 
@@ -153,8 +153,8 @@ def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
     # parameters, named "setters".
-    components_list = [m.get_dependence("mu"),
-                       m.get_dependence("sigma"),
+    components_list = [m.get_dependence("drift"),
+                       m.get_dependence("noise"),
                        m.get_dependence("bound"),
                        m.get_dependence("IC"),
                        m.get_dependence("overlay")]
@@ -389,8 +389,8 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
 @returns(Boolean)
 def hit_boundary(model):
     """Returns True if any Fitted objects are close to their min/max value"""
-    components_list = [model.get_dependence("mu"),
-                       model.get_dependence("sigma"),
+    components_list = [model.get_dependence("drift"),
+                       model.get_dependence("noise"),
                        model.get_dependence("bound"),
                        model.get_dependence("IC"),
                        model.get_dependence("overlay")]

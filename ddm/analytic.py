@@ -3,7 +3,7 @@ import numpy as np
 def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     '''
     Calculate the reaction time distribution of a Drift Diffusion model
-    with linear boundaries, zero drift, and sigma = 1.
+    with linear boundaries, zero drift, and noise = 1.
 
     The upper boundary is y(t) = a1 + b1*t
     The lower boundary is y(t) = a2 + b2*t
@@ -48,13 +48,13 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     dist = dist*(dist>0) # make sure non-negative
     return dist
 
-def analytic_ddm(mu, sigma, b, teval, b_slope=0):
+def analytic_ddm(drift, noise, b, teval, b_slope=0):
     '''
     Calculate the reaction time distribution of a Drift Diffusion model
     Parameters
     -------------------------------------------------------------------
-    mu    : Drift rate
-    sigma : Noise intensity
+    drift : Drift rate
+    noise : Noise intensity
     B     : Constant boundary
     teval : The array of time points where the reaction time distribution is evaluated
     b_slope : (Optional) If provided, then the upper boundary is B(t) = b + b_slope*t,
@@ -64,16 +64,16 @@ def analytic_ddm(mu, sigma, b, teval, b_slope=0):
     dist_cor : Reaction time distribution at teval for correct trials
     dist_err : Reaction time distribution at teval for error trials
     '''
-    # Scale B, mu, and (implicitly) sigma so new sigma is 1
-    b       /= sigma
-    mu      /= sigma
-    b_slope /= sigma
+    # Scale B, drift, and (implicitly) noise so new noise is 1
+    b       /= noise
+    drift   /= noise
+    b_slope /= noise
 
     # Get valid time points (before two bounds collapsed)
     teval_valid = teval[b+b_slope*teval>0]
 
-    dist_cor = analytic_ddm_linbound(b, -mu+b_slope, -b, -mu-b_slope, teval_valid)
-    dist_err = analytic_ddm_linbound(b,  mu+b_slope, -b,  mu-b_slope, teval_valid)
+    dist_cor = analytic_ddm_linbound(b, -drift+b_slope, -b, -drift-b_slope, teval_valid)
+    dist_err = analytic_ddm_linbound(b,  drift+b_slope, -b,  drift-b_slope, teval_valid)
 
     # For invalid time points, set the probability to be a very small number
     if len(teval_valid) < len(teval):

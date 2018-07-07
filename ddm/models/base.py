@@ -57,8 +57,8 @@ class Dependence(object): # TODO Base this on ABC
         if cls is Dependence:
             raise paranoid.NoGeneratorError("Cannot generate directly from Dependence objects")
         # Call the _generate methods of each subclass, e.g. call
-        # MuConstant._generate() if the _generate() function is called
-        # from Mu (i.e. cls == Mu).
+        # DriftConstant._generate() if the _generate() function is called
+        # from Drift (i.e. cls == Drift).
         subs = cls.__subclasses__()
         for s in subs:
             if hasattr(s, "_generate") and callable(s._generate):

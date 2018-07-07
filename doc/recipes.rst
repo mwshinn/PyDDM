@@ -2,7 +2,8 @@ Examples and Recipes
 =========================
 
 Here are a list of common model features and how to implement them in
-PyDDM.
+PyDDM.  If you have a simple and clear example, please contact us to
+have it added.
 
 
 Collapsing Bounds
@@ -15,7 +16,7 @@ already exist in PyDDM.
 Leaky/Unstable integrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Leaky/unstable integrators are implemented in :class:`.MuLinear`.  For
+Leaky/unstable integrators are implemented in :class:`.DriftLinear`.  For
 a leaky integrator, set the parameter `x` to be less than 0.  For an
 unstable integrator, set the parameter `x` to be greater than 0.
 
@@ -26,57 +27,57 @@ In order to use the same parameter for multiple different components
 of the model, pass the same :class:`.Fittable` instance to both.  As a
 concrete example, suppose we want both the drift rate and the variance
 to increase by some factor `boost` at time `tboost`.  We could make
-:class:`.Mu` and :class:`.Sigma` objects as follows::
+:class:`.Drift` and :class:`.Noise` objects as follows::
 
-  from ddm.models import Mu, Sigma
-  class MuBoost(Mu):
-      name = "Mu with a time-delayed boost"
-      required_parameters = ["mubase", "muboost", "tboost"]
+  from ddm.models import Drift, Noise
+  class DriftBoost(Drift):
+      name = "Drift with a time-delayed boost"
+      required_parameters = ["driftbase", "driftboost", "tboost"]
       required_conditions = []
-      def get_mu(self, t, conditions, **kwargs):
+      def get_drift(self, t, conditions, **kwargs):
           if t < self.tboost:
-              return self.mubase
+              return self.driftbase
           elif t >= self.tboost:
-              return self.mubase * self.muboost
+              return self.driftbase * self.driftboost
   
-  class SigmaBoost(Sigma):
-      name = "Sigma with a time-delayed boost"
-      required_parameters = ["sigmabase", "sigmaboost", "tboost"]
+  class NoiseBoost(Noise):
+      name = "Noise with a time-delayed boost"
+      required_parameters = ["noisebase", "noiseboost", "tboost"]
       required_conditions = []
-      def get_mu(self, t, conditions, **kwargs):
+      def get_drift(self, t, conditions, **kwargs):
           if t < self.tboost:
-              return self.sigmabase
+              return self.noisebase
           elif t >= self.tboost:
-              return self.sigmabase * self.sigmaboost
+              return self.noisebase * self.noiseboost
 
 Now, we can define a model to fit with::
 
   from ddm import Model, Fittable
   t_boost = Fittable(minval=0, maxval=1)
   boost = Fittable(minval=1, maxval=3)
-  m = Model(mu=MuBoost(mubase=Fittable(minval=.1, maxval=3),
-                       muboost=boost,
+  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
+                       driftboost=boost,
                        tboost=t_boost),
-            sigma=SigmaBoost(sigmabase=Fittable(minval=.2, maxval=1.5),
-                       sigmaboost=boost,
+            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
+                       noiseboost=boost,
                        tboost=t_boost),
             T_dur=3, dt=.001, dx=.001)
  
-This will ensure that the value of `muboost` is always equal to the
-value of `sigmaboost`, and that the value of `tboost` in Mu is always
-equal to the value of `tboost` in Sigma.
+This will ensure that the value of `driftboost` is always equal to the
+value of `noiseboost`, and that the value of `tboost` in Drift is always
+equal to the value of `tboost` in Noise.
             
 Note that this is **not the same** as::
 
-  m = Model(mu=MuBoost(mubase=Fittable(minval=.1, maxval=3),
-                       muboost=Fittable(minval=1, maxval=3),
+  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
+                       driftboost=Fittable(minval=1, maxval=3),
                        tboost=Fittable(minval=0, maxval=1)),
-            sigma=SigmaBoost(sigmabase=Fittable(minval=.2, maxval=1.5),
-                       sigmaboost=Fittable(minval=1, maxval=3),
+            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
+                       noiseboost=Fittable(minval=1, maxval=3),
                        tboost=Fittable(minval=0, maxval=1)),
             T_dur=3, dt=.001, dx=.001)
 
-In the latter case, `muboost` and `sigmaboost` will be fit to
+In the latter case, `driftboost` and `noiseboost` will be fit to
 different values, and the two `tboost` parameters will not be equal.
 
 Parallelization
@@ -118,30 +119,30 @@ The pulse paradigm, where evidence is presented for a fixed amount of
 time only, is common in behavioral neuroscience.  For simplicity, let
 us first model it without coherence dependence::
 
-  from ddm.models import Mu
-  class MuPulse(Mu):
-      name = "Mu for a pulse paradigm"
-      required_parameters = ["start", "duration", "mu"]
+  from ddm.models import Drift
+  class DriftPulse(Drift):
+      name = "Drift for a pulse paradigm"
+      required_parameters = ["start", "duration", "drift"]
       required_conditions = []
-      def get_mu(self, t, conditions, **kwargs):
+      def get_drift(self, t, conditions, **kwargs):
           if self.start <= t <= self.start + self.duration:
-              return self.mu
+              return self.drift
           return 0
 
-Here, `mu` is the strength of the evidence integration during the
+Here, `drift` is the strength of the evidence integration during the
 pulse, `start` is the time of the pulse onset, and `duration` is the
 duration of the pulse.
 
 This can easily be modified to make it coherence dependent, where
 `coherence` is the coherence in the :class:`.Sample`::
 
-  from ddm.models import Mu
-  class MuPulseCoh(Mu):
-      name = "Mu for a coherence-dependent pulse paradigm"
-      required_parameters = ["start", "duration", "mu"]
+  from ddm.models import Drift
+  class DriftPulseCoh(Drift):
+      name = "Drift for a coherence-dependent pulse paradigm"
+      required_parameters = ["start", "duration", "drift"]
       required_conditions = ["coherence"]
-      def get_mu(self, t, conditions, **kwargs):
+      def get_drift(self, t, conditions, **kwargs):
           if self.start <= t <= self.start + self.duration:
-              return self.mu * conditions["coherence"]
+              return self.drift * conditions["coherence"]
           return 0
 

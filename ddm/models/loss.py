@@ -154,8 +154,8 @@ class LossLikelihood(LossFunction):
             # because this creates bias.
             corr = [int(round(e/dt)) for e in s.corr]
             err = [int(round(e/dt)) for e in s.err]
-            nondec = self.sample.non_decision
-            self.hist_indexes[frozenset(comb.items())] = (corr, err, nondec)
+            undec = self.sample.undecided
+            self.hist_indexes[frozenset(comb.items())] = (corr, err, undec)
     @accepts(Self, Model)
     @returns(Number)
     @requires("model.dt == self.dt and model.T_dur == self.T_dur")

@@ -3,10 +3,10 @@ from distutils.core import setup
 from ddm._version import __version__
 
 setup(
-    name = 'pyddm',
+    name = 'PyDDM',
     version = __version__,
     description = 'Extensible drift diffusion modeling for Python',
-    author = 'Norman Lam',
+    author = 'Max Shinn, Norman Lam',
     maintainer = 'Max Shinn',
     maintainer_email = 'maxwell.shinn@yale.edu',
     packages = ['ddm', 'ddm.models'],

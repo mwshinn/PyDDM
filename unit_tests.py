@@ -96,20 +96,20 @@ class TestDependences(TestCase):
         assert tdc.testparam1 == 7
         assert tdc.testparam2 == 10
             
-    def test_MuReduces(self):
-        """Make sure MuLinear reduces to MuConstant when x and t are 0"""
-        mu_constant_instances = [e for e in ddm.models.MuConstant._generate()]
-        for cinst in mu_constant_instances:
-            linst = ddm.models.MuLinear(mu=cinst.get_mu(t=0), x=0, t=0)
+    def test_DriftReduces(self):
+        """Make sure DriftLinear reduces to DriftConstant when x and t are 0"""
+        drift_constant_instances = [e for e in ddm.models.DriftConstant._generate()]
+        for cinst in drift_constant_instances:
+            linst = ddm.models.DriftLinear(drift=cinst.get_drift(t=0), x=0, t=0)
             for t in [0, .1, .5, 1, 2, 10]:
-                assert linst.get_mu(t=t, x=1) == cinst.get_mu(t=t, x=1)
-    def test_SigmaReduces(self):
-        """Make sure SigmaLinear reduces to SigmaConstant when x and t are 0"""
-        sigma_constant_instances = [e for e in ddm.models.SigmaConstant._generate()]
-        for cinst in sigma_constant_instances:
-            linst = ddm.models.SigmaLinear(sigma=cinst.get_sigma(t=0), x=0, t=0)
+                assert linst.get_drift(t=t, x=1) == cinst.get_drift(t=t, x=1)
+    def test_NoiseReduces(self):
+        """Make sure NoiseLinear reduces to NoiseConstant when x and t are 0"""
+        noise_constant_instances = [e for e in ddm.models.NoiseConstant._generate()]
+        for cinst in noise_constant_instances:
+            linst = ddm.models.NoiseLinear(noise=cinst.get_noise(t=0), x=0, t=0)
             for t in [0, .1, .5, 1, 2, 10]:
-                assert linst.get_sigma(t=t, x=1) == cinst.get_sigma(t=t, x=1)
+                assert linst.get_noise(t=t, x=1) == cinst.get_noise(t=t, x=1)
     def test_ICArbitrary(self):
         """Test arbitrary starting conditions from a distribution"""
         # Make sure we get out the same distribution we put in
@@ -133,28 +133,28 @@ class TestDependences(TestCase):
         assert s == ddm.models.OverlayNone().apply(s)
     def test_OverlayUniformMixture(self):
         # Do nothing with 0 probability
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=0).apply(s)
         assert s == smix
         # With mixture coef 1, integrate to 1
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=2), sigma=ddm.models.SigmaConstant(sigma=3)).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=1).apply(s)
         assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
         # Should not change uniform distribution
         s = self.FakeUniformModel(dt=.001).solve()
         assert s == ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
         # Don't change total probability
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
     def test_OverlayPoissonMixture(self):
         # Do nothing with mixture coef 0
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=1)).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=0, rate=1).apply(s)
         assert s == smix
         # With mixture coef 1, integrate to 1
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=2), sigma=ddm.models.SigmaConstant(sigma=3)).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=1, rate=10).apply(s)
         assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
         # Should be monotonic decreasing on uniform distribution
@@ -163,22 +163,22 @@ class TestDependences(TestCase):
         assert np.all([smix.corr[i-1]-smix.corr[i] > 0 for i in range(1, len(smix.corr))])
         assert np.all([smix.err[i-1]-smix.err[i] > 0 for i in range(1, len(smix.err))])
         # Don't change total probability
-        s = ddm.Model(ddm.models.MuConstant(mu=1)).solve()
+        s = ddm.Model(ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=.2, rate=7).apply(s)
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
-    def test_OverlayDelay(self):
+    def test_OverlayNonDecision(self):
         # Should do nothing with no shift
         s = ddm.Model().solve()
-        assert s == ddm.models.OverlayDelay(delaytime=0).apply(s)
+        assert s == ddm.models.OverlayNonDecision(nondectime=0).apply(s)
         # Shifts a single point distribution
         s = self.FakePointModel(dt=.01).solve()
-        sshift = ddm.models.OverlayDelay(delaytime=.01).apply(s)
+        sshift = ddm.models.OverlayNonDecision(nondectime=.01).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
         # Truncate when time bin doesn't align
         s = self.FakePointModel(dt=.01).solve()
-        sshift = ddm.models.OverlayDelay(delaytime=.019).apply(s)
+        sshift = ddm.models.OverlayNonDecision(nondectime=.019).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
     def test_OverlaySimplePause(self):
@@ -203,7 +203,7 @@ class TestDependences(TestCase):
         assert s.err[1] == sshift.err[2]
     def test_OverlayBlurredPause(self):
         # Don't change total probability when there are no undecided responses
-        s = ddm.Model(mu=ddm.models.MuConstant(mu=1), T_dur=10).solve()
+        s = ddm.Model(drift=ddm.models.DriftConstant(drift=1), T_dur=10).solve()
         smix = ddm.models.OverlayBlurredPause(pausestart=.3, pausestop=.6, pauseblurwidth=.1).apply(s)
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
@@ -222,7 +222,7 @@ class TestDependences(TestCase):
         s = self.FakePointModel(dt=.01).solve()
         o = ddm.models.OverlayChain(overlays=[
                 ddm.models.OverlayNone(),
-                ddm.models.OverlayDelay(delaytime=.01),
+                ddm.models.OverlayNonDecision(nondectime=.01),
                 ddm.models.OverlayNone()])
         sshift = o.apply(s)
         assert s.corr[1] == sshift.corr[2]
@@ -230,7 +230,7 @@ class TestDependences(TestCase):
     def test_LossSquaredError(self):
         # Should be zero for empty sample when all undecided
         m = self.FakeUndecidedModel()
-        s = ddm.Sample(np.asarray([]), np.asarray([]), non_decision=1)
+        s = ddm.Sample(np.asarray([]), np.asarray([]), undecided=1)
         assert ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m) == 0
         # Can also be determined precisely for the point model
         m = self.FakePointModel()

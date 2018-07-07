@@ -11,11 +11,11 @@ class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
 
     This is a glorified container for a joint pdf, between the
-    response options (correct, error, and no decision) and the
-    response time distribution associated with each.  It stores a copy
-    of the response time distribution for both the correct case and
-    the incorrect case, and the rest of the properties can be
-    calculated from there.  
+    response options (correct, error, and undecided) and the response
+    time distribution associated with each.  It stores a copy of the
+    response time distribution for both the correct case and the
+    incorrect case, and the rest of the properties can be calculated
+    from there.
 
     It also stores a full deep copy of the model used to simulate it.
     This is most important for storing, e.g. the dt and the name
@@ -208,7 +208,7 @@ class Solution(object):
         `k` is the number of TRIALS, not the number of samples.  Since
         we are only showing the distribution from the correct trials,
         we guarantee that, for an identical seed, the sum of the two
-        return values will be less than `k`.  If no non-decision
+        return values will be less than `k`.  If no undecided
         trials exist, the sum of return values will be equal to `k`.
 
         This relies on the assumption that reaction time cannot be

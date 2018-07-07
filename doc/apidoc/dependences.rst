@@ -9,18 +9,18 @@ Base
    :show-inheritance:
 
 
-Drift rate (mu)
+Drift rate
 ---------------
 
-.. automodule:: ddm.models.mu
+.. automodule:: ddm.models.drift
    :members:
    :show-inheritance:
 
 
-Noise (sigma)
+Noise
 -------------
 
-.. automodule:: ddm.models.sigma
+.. automodule:: ddm.models.noise
    :members:
    :show-inheritance:
 

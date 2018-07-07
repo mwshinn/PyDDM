@@ -145,8 +145,8 @@ def model_gui(model,
     # name.)  Create a list of functions to set the value of these
     # parameters, named "setters".
     if model:
-        components_list = [model.get_dependence("mu"),
-                           model.get_dependence("sigma"),
+        components_list = [model.get_dependence("drift"),
+                           model.get_dependence("noise"),
                            model.get_dependence("bound"),
                            model.get_dependence("IC"),
                            model.get_dependence("overlay")]
