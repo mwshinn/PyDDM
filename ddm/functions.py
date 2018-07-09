@@ -3,8 +3,6 @@ Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
 
-from __future__ import print_function, unicode_literals, absolute_import, division
-
 import copy
 
 import numpy as np
@@ -282,6 +280,9 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     `lmbda` is the lambda parameter (note the spelling difference) and
     `mu` is the mu parameter for the ES.  If `copyparents` is True,
     use (`lmbda` + `mu`), and if it is False, use (`lmbda`, `mu`).
+
+    The purpose of this is if you already have a good model, but you
+    want to test the local space to see if you can make it better.
     """
     assert isinstance(lmbda, int) and isinstance(mu, int), "Bad lambda and mu"
     assert lmbda/mu == lmbda//mu, "Lambda must be a multiple of mu"
@@ -321,7 +322,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 
 # TODO explicitly test this in unit tests
 @accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
-@returns(Solution)
+# @returns(Solution) # This doesn't actually return a solution, only a solution-like object
 @requires('all((c in sample.condition_names() for c in model.required_conditions))')
 @requires('all((c in sample.condition_names() for c in conditions))')
 @requires("method == 'explicit' --> model.can_solve_explicit(conditions=conditions)")

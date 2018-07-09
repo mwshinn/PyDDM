@@ -66,8 +66,8 @@ class Sample(object):
             # Make sure shape and type are correct
             assert isinstance(v, tuple)
             assert len(v) in [2, 3]
-            assert v[0] in NDArray(d=1, t=Number)
-            assert v[1] in NDArray(d=1, t=Number)
+            assert v[0] in NDArray(d=1)
+            assert v[1] in NDArray(d=1)
             assert len(v[0]) == len(self.corr)
             assert len(v[1]) == len(self.err)
             # Make read-only
@@ -238,7 +238,7 @@ class Sample(object):
         return list(self.conditions.keys())
     @accepts(Self, String)
     @requires('cond in self.condition_names()')
-    @returns(List(Number))
+    @returns(List(Unchecked))
     def condition_values(self, cond):
         """The values of a condition that have at least one element in the sample.
 
@@ -246,7 +246,10 @@ class Sample(object):
         observed values.  Returns a list of these values.
         """
         cs = self.conditions
-        return sorted(list(set(cs[cond][0]).union(set(cs[cond][1]))))
+        cvs = set(cs[cond][0]).union(set(cs[cond][1]))
+        if len(cs[cond]) == 3:
+            cvs = cvs.union(set(cs[cond][2]))
+        return sorted(list(cvs))
     def condition_combinations(self, required_conditions=None):
         """Get all values for set conditions and return every combination of them.
 

@@ -4,6 +4,8 @@ from string import ascii_letters
 import numpy as np
 from itertools import groupby
 
+from numpy import asarray as aa
+
 import ddm
 
 def fails(f):
@@ -121,9 +123,9 @@ class TestDependences(TestCase):
         point_a = ddm.models.ICArbitrary(point.get_IC(m.x_domain({})))
         assert np.all(point.get_IC(m.x_domain({})) == point_a.get_IC(m.x_domain({})))
         # Make sure the distribution integrates to 1
-        fails(lambda : ddm.models.ICArbitrary(np.asarray([.1, .1, 0, 0, 0])))
-        fails(lambda : ddm.models.ICArbitrary(np.asarray([0, .6, .6, 0])))
-        assert ddm.models.ICArbitrary(np.asarray([1]))
+        fails(lambda : ddm.models.ICArbitrary(aa([.1, .1, 0, 0, 0])))
+        fails(lambda : ddm.models.ICArbitrary(aa([0, .6, .6, 0])))
+        assert ddm.models.ICArbitrary(aa([1]))
     def test_OverlayNone(self):
         s = ddm.Model().solve()
         assert s == ddm.models.OverlayNone().apply(s)
@@ -230,7 +232,7 @@ class TestDependences(TestCase):
     def test_LossSquaredError(self):
         # Should be zero for empty sample when all undecided
         m = self.FakeUndecidedModel()
-        s = ddm.Sample(np.asarray([]), np.asarray([]), undecided=1)
+        s = ddm.Sample(aa([]), aa([]), undecided=1)
         assert ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m) == 0
         # Can also be determined precisely for the point model
         m = self.FakePointModel()
@@ -241,13 +243,13 @@ class TestDependences(TestCase):
         # We can calculate likelihood for this simple case
         m = self.FakePointModel(dt=.02)
         sol = m.solve()
-        s = ddm.Sample(np.asarray([.02]), np.asarray([]))
+        s = ddm.Sample(aa([.02]), aa([]))
         expected = -np.log(np.sum(sol.corr)/m.dt)
         assert np.isclose(expected, ddm.models.LossLikelihood(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m))
         # And for the uniform case we can assert equivalence
         m = self.FakeUniformModel()
-        s1 = ddm.Sample(np.asarray([.02, .05, .07, .12]), np.asarray([.33, .21]))
-        s2 = ddm.Sample(np.asarray([.13, .1, .02]), np.asarray([.66, .15, .89]))
+        s1 = ddm.Sample(aa([.02, .05, .07, .12]), aa([.33, .21]))
+        s2 = ddm.Sample(aa([.13, .1, .02]), aa([.66, .15, .89]))
         assert np.isclose(ddm.models.LossLikelihood(sample=s1, dt=m.dt, T_dur=m.T_dur).loss(m),
                           ddm.models.LossLikelihood(sample=s2, dt=m.dt, T_dur=m.T_dur).loss(m))
         # TODO I think this reveals we should be doing
@@ -256,10 +258,80 @@ class TestDependences(TestCase):
         # m1 = self.FakeUniformModel(dt=.02)
         # m2 = self.FakeUniformModel(dt=.01)
         # print(m1.solve().pdf_corr(), m2.solve().pdf_corr())
-        # s = ddm.Sample(np.asarray([.14, .1, .01]), np.asarray([.66, .16, .89]))
+        # s = ddm.Sample(aa([.14, .1, .01]), aa([.66, .16, .89]))
         # assert np.isclose(ddm.models.LossLikelihood(sample=s, dt=m1.dt, T_dur=m1.T_dur).loss(m1),
         #                   ddm.models.LossLikelihood(sample=s, dt=m2.dt, T_dur=m2.T_dur).loss(m2))
+    def test_BIC(self):
+        # -2*Likelihood == BIC for a sample size of 1
+        m = self.FakePointModel(dt=.02)
+        sol = m.solve()
+        s = ddm.Sample(aa([.02]), aa([]))
+        expected = -np.log(np.sum(sol.corr)/m.dt)
+        assert np.isclose(ddm.models.LossBIC(sample=s, dt=m.dt, T_dur=m.T_dur, nparams=1, samplesize=1).loss(m),
+                          2*ddm.models.LossLikelihood(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m))
 
+
+class TestSample(TestCase):
+    def setUp(self):
+        self.samps = {
+            # Empty sample
+            "empty": ddm.Sample(aa([]), aa([]), 0),
+            # Simple sample
+            "simple": ddm.Sample(aa([1, 2]), aa([.5, .7]), 0),
+            # Sample with conditions
+            "conds": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
+                                cond1=(aa([1, 1, 2]), aa([]))),
+            # Sample with conditions and explicitly showing undecided
+            "condsexp": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
+                                   cond1=(aa([1, 1, 2]), aa([]), aa([]))),
+            # Sample with undecided
+            "undec": ddm.Sample(aa([1, 2]), aa([.5, .7]), 2),
+            # Sample with undecided and conditions
+            "undeccond": ddm.Sample(aa([1, 2, 3]), aa([]), 3,
+                                    cond1=(aa([1, 1, 2]), aa([]), aa([2, 2, 1]))),
+            # For the adding test
+            "adda": ddm.Sample(aa([1]), aa([2, 4]), 3,
+                               cond1=(aa(["a"]), aa(["a", "b"]), aa(["a", "b", "b"]))),
+            "addb": ddm.Sample(aa([1.5, 2, 1]), aa([]), 1,
+                               cond1=(aa(["b", "b", "c"]), aa([]), aa(["d"]))),
+            # Two conditions
+            "two": ddm.Sample(aa([1]), aa([2]), 1,
+                               conda=(aa(["a"]), aa(["b"]), aa(["a"])),
+                               condb=(aa([1]), aa([2]), aa([2]))),
+        }
+    def test_add(self):
+        s1 = self.samps["adda"]
+        s2 = self.samps["addb"]
+        s = s1 + s2
+        assert len(s) == 10
+        assert s.condition_names() == ["cond1"]
+        assert s.condition_values("cond1") == ["a", "b", "c", "d"]
+        assert s.prob_undecided() == .4
+        assert s.prob_correct() == .4
+        assert s.prob_error() == .2
+        # Try to add to the empty sample
+        assert self.samps["empty"] + self.samps["undec"] == self.samps["undec"]
+        assert self.samps["empty"] + self.samps["simple"] == self.samps["simple"]
+    def test_condition_values(self):
+        assert self.samps["conds"].condition_values("cond1") == [1, 2]
+        assert self.samps["condsexp"].condition_values("cond1") == [1, 2]
+        assert self.samps["undeccond"].condition_values("cond1") == [1, 2]
+        assert self.samps["adda"].condition_values("cond1") == ["a", "b"]
+        assert self.samps["addb"].condition_values("cond1") == ["b", "c", "d"]
+        assert self.samps["two"].condition_values("conda") == ["a", "b"]
+        assert self.samps["two"].condition_values("condb") == [1, 2]
+    def test_condition_combinations(self):
+        assert self.samps["conds"].condition_combinations([]) == [{}]
+        assert self.samps["conds"].condition_combinations(None) == [{"cond1": 1}, {"cond1": 2}]
+        assert self.samps["conds"].condition_combinations("cond1") == [{"cond1": 1}, {"cond1": 2}]
+        assert self.samps["conds"].condition_combinations("cond1") == [{"cond1": 1}, {"cond1": 2}]
+        conds_two = self.samps["two"].condition_combinations()
+        exp_conds_two = [{"conda": "a", "condb": 1},
+                         {"conda": "b", "condb": 2},
+                         {"conda": "a", "condb": 2}]
+        assert all(a in exp_conds_two for a in conds_two)
+        assert all(a in conds_two for a in exp_conds_two)
+        
 
 # TODO test if there is no overlay, then corr + err + undecided = 1
 # TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
