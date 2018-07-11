@@ -295,7 +295,6 @@ class OverlaySimplePause(Overlay):
         newerr = np.zeros(err.shape, dtype=err.dtype)
         newcorr[0:start] = corr[0:start]
         newerr[0:start] = err[0:start]
-        print(newcorr[stop:].shape, corr[start:-(stop-start)].shape, start, stop)
         newcorr[stop:] = corr[start:-(stop-start)]
         newerr[stop:] = err[start:-(stop-start)]
         return Solution(newcorr, newerr, m, cond, undec)

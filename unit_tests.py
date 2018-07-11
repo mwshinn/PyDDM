@@ -3,16 +3,18 @@ from unittest import TestCase, main
 from string import ascii_letters
 import numpy as np
 from itertools import groupby
+from math import fsum
+import pandas
 
 from numpy import asarray as aa
 
 import ddm
 
-def fails(f):
+def fails(f, exception=BaseException):
     failed = False
     try:
         f()
-    except:
+    except exception as e:
         failed = True
     if failed == False:
         raise ValueError("Error, function did not fail")
@@ -178,6 +180,11 @@ class TestDependences(TestCase):
         sshift = ddm.models.OverlayNonDecision(nondectime=.01).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
+        # Shift the other way
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayNonDecision(nondectime=-.01).apply(s)
+        assert s.corr[1] == sshift.corr[0]
+        assert s.err[1] == sshift.err[0]
         # Truncate when time bin doesn't align
         s = self.FakePointModel(dt=.01).solve()
         sshift = ddm.models.OverlayNonDecision(nondectime=.019).apply(s)
@@ -229,6 +236,9 @@ class TestDependences(TestCase):
         sshift = o.apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
+        assert o.nondectime == .01
+        o.nondectime = .3
+        assert o.nondectime == .3
     def test_LossSquaredError(self):
         # Should be zero for empty sample when all undecided
         m = self.FakeUndecidedModel()
@@ -312,6 +322,10 @@ class TestSample(TestCase):
         # Try to add to the empty sample
         assert self.samps["empty"] + self.samps["undec"] == self.samps["undec"]
         assert self.samps["empty"] + self.samps["simple"] == self.samps["simple"]
+    def test_eqality(self):
+        # Equality and inequality with multiple conditions
+        assert self.samps["adda"] != self.samps["addb"]
+        assert self.samps["adda"] == self.samps["adda"]
     def test_condition_values(self):
         assert self.samps["conds"].condition_values("cond1") == [1, 2]
         assert self.samps["condsexp"].condition_values("cond1") == [1, 2]
@@ -321,17 +335,128 @@ class TestSample(TestCase):
         assert self.samps["two"].condition_values("conda") == ["a", "b"]
         assert self.samps["two"].condition_values("condb") == [1, 2]
     def test_condition_combinations(self):
+        # If we want nothing
         assert self.samps["conds"].condition_combinations([]) == [{}]
+        # If nothing matches
+        assert self.samps["conds"].condition_combinations(["xyz"]) == [{}]
+        # If we want everything
         assert self.samps["conds"].condition_combinations(None) == [{"cond1": 1}, {"cond1": 2}]
-        assert self.samps["conds"].condition_combinations("cond1") == [{"cond1": 1}, {"cond1": 2}]
-        assert self.samps["conds"].condition_combinations("cond1") == [{"cond1": 1}, {"cond1": 2}]
+        # Limit to one condition
+        assert self.samps["conds"].condition_combinations(["cond1"]) == [{"cond1": 1}, {"cond1": 2}]
+        # More conditions
         conds_two = self.samps["two"].condition_combinations()
         exp_conds_two = [{"conda": "a", "condb": 1},
                          {"conda": "b", "condb": 2},
                          {"conda": "a", "condb": 2}]
         assert all(a in exp_conds_two for a in conds_two)
         assert all(a in conds_two for a in exp_conds_two)
+    def test_pdfs(self):
+        dt = .02
+        for n,s in self.samps.items():
+            if n == "empty": continue
+            assert np.isclose(fsum([fsum(s.pdf_corr(T_dur=4, dt=dt))*dt, fsum(s.pdf_err(T_dur=4, dt=dt))*dt, s.prob_undecided()]), 1)
+            assert np.isclose(fsum(s.pdf_corr(T_dur=4, dt=dt)*dt), s.prob_correct())
+            assert np.isclose(fsum(s.pdf_err(T_dur=4, dt=dt)*dt), s.prob_error())
+            if s.prob_undecided() == 0:
+                assert s.prob_correct() == s.prob_correct_forced()
+                assert s.prob_error() == s.prob_error_forced()
+            assert len(s.pdf_corr(T_dur=4, dt=dt)) == len(s.t_domain(T_dur=4, dt=dt))
+    def test_iter(self):
+        itr = self.samps["conds"].items(correct=True)
+        assert next(itr) == (1, {"cond1": 1})
+        assert next(itr) == (2, {"cond1": 1})
+        assert next(itr) == (3, {"cond1": 2})
+        fails(lambda : next(itr), StopIteration)
+        itr = self.samps["two"].items(correct=False)
+        assert next(itr) == (2, {"conda": "b", "condb": 2})
+    def test_subset(self):
+        # Basic access
+        assert len(self.samps['conds'].subset(cond1=2)) == 1
+        # The elements being accessed
+        assert list(self.samps['conds'].subset(cond1=1).corr) == [1, 2]
+        # An empty subset with two conditions
+        assert len(self.samps['two'].subset(conda="b", condb=1)) == 0
+        # A non-epty subset with two conditions
+        assert len(self.samps['two'].subset(conda="a", condb=1)) == 1
+        # Querying only one condition when more conditions exist
+        assert len(self.samps['two'].subset(conda="a")) == 2
+        # Query by list
+        assert len(self.samps['two'].subset(conda=["a", "z"])) == 2
+        # Query by function
+        assert len(self.samps['two'].subset(conda=lambda x : True if x=="a" else False)) == 2
+    def test_from_numpy_array(self):
+        simple_ndarray = np.asarray([[1, 1], [.5, 0], [.7, 0], [2, 1]])
+        assert ddm.Sample.from_numpy_array(simple_ndarray, []) == self.samps['simple']
+        conds_ndarray = np.asarray([[1, 1, 1], [2, 1, 1], [3, 1, 2]])
+        assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['conds']
+        assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['condsexp']
+    def test_from_pandas(self):
+        simple_df = pandas.DataFrame({'corr': [1, 0, 0, 1], 'resptime': [1, .5, .7, 2]})
+        print(simple_df)
+        assert ddm.Sample.from_pandas_dataframe(simple_df, 'resptime', 'corr') == self.samps['simple']
+        cond_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': [1, 1, 2]})
+        assert ddm.Sample.from_pandas_dataframe(cond_df, 'rt', 'c') == self.samps['conds']
+        assert ddm.Sample.from_pandas_dataframe(cond_df, correct_column_name='c', rt_column_name='rt') == self.samps['condsexp']
+
+class TestSolution(TestCase):
+    def setUp(self):
+        class DriftSimple(ddm.Drift):
+            name = "Test drift"
+            required_conditions = ['coher']
+            required_parameters = []
+            def get_drift(self, conditions, **kwargs):
+                return conditions["coher"]
+        class DriftSimpleStringArg(ddm.Drift):
+            name = "Test drift"
+            required_conditions = ['type']
+            required_parameters = []
+            def get_drift(self, conditions, **kwargs):
+                if conditions['type'] == "a":
+                    return .3
+                else:
+                    return .1
+        # No undecided
+        self.quick_ana = ddm.Model(T_dur=2, dt=.02).solve_analytical()
+        # Includes undecided
+        self.quick_cn = ddm.Model(T_dur=.5).solve_numerical_cn()
+        # No undecided, with parameters
+        self.params_ana = ddm.Model(drift=DriftSimple(), T_dur=2.5, dt=.005).solve_analytical({"coher": .3})
+        # Includes undecided, with parameters
+        self.params_cn = ddm.Model(drift=DriftSimple(), T_dur=.5).solve_numerical_cn(conditions={"coher": .1})
+        # Dependence with a string argument
+        self.params_strarg = ddm.Model(drift=DriftSimpleStringArg(), T_dur=.5).solve_analytical(conditions={"type": "a"})
+        self.all_sols = [self.quick_ana, self.quick_cn, self.params_ana, self.params_cn, self.params_strarg]
+    def test_pdfs(self):
+        # For each test model
+        for s in self.all_sols:
+            dt = s.model.dt
+            # Distribution sums to 1
+            assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, s.prob_undecided()]), 1)
+            # Correct and error probabilities are sensible
+            assert np.isclose(fsum(s.pdf_corr()*dt), s.prob_correct())
+            assert np.isclose(fsum(s.pdf_err()*dt), s.prob_error())
+            if s.prob_undecided() == 0:
+                assert s.prob_correct() == s.prob_correct_forced()
+            # Correct time domain
+            assert len(s.pdf_corr()) == len(s.model.t_domain())
+        # pdf_undec with pdf_corr and pdf_err sums to one if pdf_undec exists
+        for s in [self.quick_cn, self.params_cn]:
+            dx = s.model.dx
+            # Allow better tolerance since accuracy isn't perfect for undecided pdf
+            assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+
+class TestMisc(TestCase):
+    def test_analytic_lin_collapse(self):
+        # Will collapse to 0 by t=1
+        b = ddm.models.bound.BoundCollapsingLinear(B=1, t=1)
+        m = ddm.Model(bound=b, T_dur=2)
+        s = m.solve()
+        assert len(s.pdf_corr()) == len(m.t_domain())
         
 
+
+        
 # TODO test if there is no overlay, then corr + err + undecided = 1
 # TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
+# TODO test solution.resample in integration testing
+# TODO test loss parallelization?

@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 
-from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked
+from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Or, Nothing
 from paranoid.decorators import *
 
 @paranoidclass
@@ -92,12 +92,17 @@ class Sample(object):
         for k in self.conditions:
             if k not in other.conditions:
                 return False
-            if not np.allclose(self.conditions[k][0], other.conditions[k][0]) or \
-               not np.allclose(self.conditions[k][1], other.conditions[k][1]):
+            if np.issubdtype(self.conditions[k][0].dtype, np.floating) and \
+               np.issubdtype(self.conditions[k][0].dtype, np.floating):
+                compare_func = np.allclose
+            else:
+                compare_func = lambda x,y: np.all(x == y)
+            if not compare_func(self.conditions[k][0], other.conditions[k][0]) or \
+               not compare_func(self.conditions[k][1], other.conditions[k][1]):
                 return False
             if len(self.conditions[k]) == 3 and \
                len(other.conditions[k]) == 3 and \
-               not np.allclose(self.conditions[k][2], other.conditions[k][2]):
+               not compare_func(self.conditions[k][2], other.conditions[k][2]):
                 return False
         return True
     def __add__(self, other):
@@ -152,7 +157,7 @@ class Sample(object):
     @requires('df.shape[1] >= 2')
     @requires('rt_column_name in df')
     @requires('correct_column_name in df')
-    @requires('set(df[correct_column_name]) == {0, 1}')
+    @requires('len(np.setdiff1d(df[correct_column_name], [0, 1])) == 0')
     @requires('all(df[rt_column_name].astype("float") == df[rt_column_name])')
     @ensures('len(df) == len(return)')
     def from_pandas_dataframe(df, rt_column_name, correct_column_name):
@@ -250,6 +255,8 @@ class Sample(object):
         if len(cs[cond]) == 3:
             cvs = cvs.union(set(cs[cond][2]))
         return sorted(list(cvs))
+    @accepts(Self, Or(Nothing, List(String)))
+    @returns(List(Dict(String, Unchecked)))
     def condition_combinations(self, required_conditions=None):
         """Get all values for set conditions and return every combination of them.
 
@@ -273,7 +280,7 @@ class Sample(object):
         for p in itertools.product(*conditions):
             if len(self.subset(**dict(zip(names, p)))) != 0:
                 combs.append(dict(zip(names, p)))
-        if len(combs) == 0:
+        if len(combs) == 0: # Generally not needed since iterools.product does this
             return [{}]
         return combs
 
@@ -363,7 +370,7 @@ class _Sample_Iter_Wraper(object):
         self.correct = correct
     def __iter__(self):
         return self
-    def next(self):
+    def __next__(self):
         if self.i == len(self.sample):
             raise StopIteration
         self.i += 1

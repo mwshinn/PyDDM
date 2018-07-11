@@ -89,12 +89,17 @@ class Solution(object):
         for k in self.conditions:
             if k not in other.conditions:
                 return False
-            if not np.allclose(self.conditions[k][0], other.conditions[k][0]) or \
-               not np.allclose(self.conditions[k][1], other.conditions[k][1]):
+            if np.issubdtype(self.conditions[k][0].dtype, np.floating) and \
+               np.issubdtype(self.conditions[k][0].dtype, np.floating):
+                compare_func = np.allclose
+            else:
+                compare_func = lambda x,y: np.all(np.equal(x,y))
+            if not compare_func(self.conditions[k][0], other.conditions[k][0]) or \
+               not compare_func(self.conditions[k][1], other.conditions[k][1]):
                 return False
             if len(self.conditions[k]) == 3 and \
                len(other.conditions[k]) == 3 and \
-               not np.allclose(self.conditions[k][2], other.conditions[k][2]):
+               not compare_func(self.conditions[k][2], other.conditions[k][2]):
                 return False
         if self.undec is not None:
             if not np.allclose(self.undec, other.undec):
