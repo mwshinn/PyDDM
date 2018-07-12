@@ -250,7 +250,10 @@ def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
         x_fit = evolution_strategy(_fit_model, x_0, **fitparams)
     else:
         raise NotImplementedError("Invalid method")
-    m._fitfunval = x_fit.fun # Save the value of the objective function # TODO make this not private
+    res = FitResult(method=method, loss=lf.name, value=x_fit.fun,
+                    nparams=len(params), samplesize=len(sample),
+                    mess=(x_fit.message if "message" in x_fit.__dict__ else ""))
+    m.fitresult = res
     print("Params", x_fit.x, "gave", x_fit.fun)
     for x,s in zip(x_fit.x, setters):
         s(m, x)

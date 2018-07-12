@@ -16,6 +16,7 @@ from .models.overlay import OverlayNone, Overlay
 from .models.paranoid_types import Conditions
 from .sample import Sample
 from .solution import Solution
+from .fitresult import FitResult, FitResultEmpty
 
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
@@ -62,6 +63,7 @@ class Model(object):
         assert v.T_dur in Positive()
         assert v.name in String()
         assert v.required_conditions in List(String)
+        assert v.fitresult in Generic(FitResult)
     @staticmethod
     def _generate():
         # TODO maybe generate better models?
@@ -112,6 +114,7 @@ class Model(object):
         self.dx = dx
         self.dt = dt
         self.T_dur = T_dur
+        self.fitresult = FitResultEmpty() # If the model was fit, store the status here
     # Get a string representation of the model
     def __repr__(self, pretty=False):
         # Use a list so they can be sorted
