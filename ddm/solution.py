@@ -223,12 +223,20 @@ class Solution(object):
         reaction times, and the second element is a list of error
         reaction times.
         """
+        # Exclude the last point in the t domain because we will add
+        # uniform noise to the sample and this would put us over the
+        # model's T_dur.
+        shorter_t_domain = self.model.t_domain()[:-1]
+        shorter_pdf_corr = self.pdf_corr()[:-1]
+        shorter_pdf_corr[-1] += self.pdf_corr()[-1]
+        shorter_pdf_err = self.pdf_err()[:-1]
+        shorter_pdf_err[-1] += self.pdf_err()[-1]
         # Concatenate the correct and error distributions as well as
         # their probabilities, and add an undecided component on the
         # end.  Shift the error t domain by the maximum plus one.
-        shift = np.max(self.model.t_domain())+1
-        combined_domain = list(self.model.t_domain()) + list(self.model.t_domain()+shift) + [-1]
-        combined_probs = list(self.pdf_corr()*self.model.dt) + list(self.pdf_err()*self.model.dt) + [self.prob_undecided()]
+        shift = np.max(shorter_t_domain)+1
+        combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
+        combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
         assert fsum(combined_probs) == 1, "Distribution sums to %f rather than 1" % fsum(combined_probs)
         # Each point x on the pdf represents the space from x to x+dt.
         # So sample and then add uniform noise to each element.

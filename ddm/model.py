@@ -68,9 +68,10 @@ class Model(object):
     def _generate():
         # TODO maybe generate better models?
         # TODO test a model where the bound size changes based on a parameter
-        yield Model(dx=.01, dt=.01, T_dur=2)
-        yield Model(dx=.05, dt=.01, T_dur=3)
-        yield Model(dx=.005, dt=.005, T_dur=.5)
+        #yield Model(dx=.01, dt=.01, T_dur=2)
+        yield Model() # Default model
+        yield Model(dx=.05, dt=.01, T_dur=3) # Non-default numerics
+        #yield Model(dx=.005, dt=.005, T_dur=.5)
     def __init__(self, drift=DriftConstant(drift=0),
                  noise=NoiseConstant(noise=1),
                  bound=BoundConstant(B=1),

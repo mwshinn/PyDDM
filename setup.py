@@ -12,7 +12,7 @@ setup(
     license = 'MIT',
     python_requires='>=3.5',
     packages = ['ddm', 'ddm.models'],
-    install_requires = ['numpy', 'scipy', 'matplotlib', 'paranoid-scientist'],
+    install_requires = ['numpy', 'scipy', 'matplotlib', 'paranoid-scientist >= 0.1.3'],
     classifiers = [
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
