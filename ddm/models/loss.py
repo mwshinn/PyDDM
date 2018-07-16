@@ -66,7 +66,6 @@ class LossFunction(object):
         `model` should be a Model object.  This should return a
         floating point value, where smaller values mean a better fit
         of the model to the data.
-
         """
         raise NotImplementedError
     def cache_by_conditions(self, model):

@@ -192,33 +192,6 @@ class Model(object):
     def _cache_eye(m, format="csr"):
         """Cache the call to sparse.eye since this decreases runtime by 5%."""
         return sparse.eye(m, format=format)
-    # TODO remove diffusion_matrix methods
-    def diffusion_matrix_cn(self, x, t, conditions):
-        """The matrix for the implicit method of solving the diffusion equation.
-
-        - `x` - a length N ndarray representing the domain over which
-          the matrix is to be defined. Usually a contiguous subset of
-          x_domain().
-        - `t` - The timepoint at which the matrix is valid.
-
-        Returns a size NxN scipy sparse array.
-        """
-        drift_matrix = self.get_dependence('drift').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        noise_matrix = self.get_dependence('noise').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        return self._cache_eye(len(x), format="csr") + 0.5*drift_matrix + 0.5*noise_matrix
-    def diffusion_matrix_prev_cn(self, x, t, conditions):
-        """The matrix for the implicit method of solving the diffusion equation.
-
-        - `x` - a length N ndarray representing the domain over which
-          the matrix is to be defined. Usually a contiguous subset of
-          x_domain().
-        - `t` - The timepoint at which the matrix is valid.
-
-        Returns a size NxN scipy sparse array.
-        """
-        drift_matrix = self.get_dependence('drift').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        noise_matrix = self.get_dependence('noise').get_matrix(x=x, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-        return self._cache_eye(len(x), format="csr") - 0.5*drift_matrix - 0.5*noise_matrix
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
         drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
@@ -278,11 +251,7 @@ class Model(object):
 
     @accepts(Self, Conditions, Natural1)
     @returns(Sample)
-    # TODO A bug in inspect.py in the core library ("except
-    # Exception") is making the max_runtime clause die often.  Use
-    # Signature.from_callable() as a workaround.  See:
-    # https://github.com/python/cpython/blob/3.6/Lib/inspect.py
-    @paranoidconfig(max_runtime=10)
+    @paranoidconfig(max_runtime=2)
     def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.
 
@@ -348,11 +317,16 @@ class Model(object):
         noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
         return noise_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
 
-    @accepts(Self)
+    @accepts(Self, conditions=Conditions)
     @returns(Boolean)
-    def can_solve_cn(self):
-        """Check whether this model is compatible with Crank-Nicolson solver."""
-        return isinstance(self.get_dependence("bound"), BoundConstant) # If this fails, use the implicit method instead
+    def can_solve_cn(self, conditions={}):
+        """Check whether this model is compatible with Crank-Nicolson solver.
+
+        All bound functions which do not depend on time are compatible."""
+        boundfuncsig = inspect.signature(self.get_dependence("bound").get_bound)
+        if "t" in boundfuncsig.parameters:
+            return False
+        return True
     
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -421,8 +395,11 @@ class Model(object):
         "explicit", "implicit", or "cn" (for Crank-Nicolson).  This is
         the core DDM solver of this library.
 
-        Implicit is the default and should work well in most cases and
-        is generally stable.
+        Crank-Nicolson is the default and works for any model with
+        constant bounds.
+
+        Implicit is the fallback method.  It should work well in most
+        cases and is generally stable.
 
         Normally, the explicit method should not be used. Also note
         the stability criteria for explicit method is:
@@ -433,7 +410,6 @@ class Model(object):
         method should not fail for any model type.
         """
         if method == "cn":
-            #raise NotImplementedError("Please use solve_numerical_cn for now...")
             return self.solve_numerical_cn(conditions=conditions)
 
         # Initial condition of decision variable
@@ -545,13 +521,19 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
 
-    def solve_numerical_explicit(self, *args, **kwargs):
-        return self.solve_numerical(*args, method="explicit", **kwargs)
+    @accepts(Self)
+    @returns(Solution)
+    @requires("self.can_solve_explicit(conditions=conditions)")
+    def solve_numerical_explicit(self, conditions={}, **kwargs):
+        return self.solve_numerical(method="explicit", conditions=conditions, **kwargs)
 
-    def solve_numerical_implicit(self, *args, **kwargs):
-        return self.solve_numerical(*args, method="implicit", **kwargs)
+    @accepts(Self)
+    @returns(Solution)
+    def solve_numerical_implicit(self, conditions={}, **kwargs):
+        return self.solve_numerical(method="implicit", conditions=conditions, **kwargs)
 
     @accepts(Self, conditions=Conditions)
+    @requires("self.can_solve_cn(conditions=conditions)")
     @returns(Solution)
     def solve_numerical_cn(self, conditions={}):
         """Solve the DDM model numerically.
@@ -560,8 +542,7 @@ class Model(object):
         timepoint.  Results are then compiled together.  This is the
         core DDM solver of this library.
 
-        It returns a Solution object describing the joint PDF.  This
-        method should not fail for any model type.
+        It returns a Solution object describing the joint PDF.
         """
         ### Initialization: Lists
         pdf_curr = self.IC(conditions=conditions) # Initial condition
@@ -591,7 +572,6 @@ class Model(object):
         weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
         weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
         x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
-        diffusion_matrix = self.diffusion_matrix_cn(x_list_inbounds, 0, conditions=conditions)
 
 
         # Looping through time and updating the pdf.
@@ -634,8 +614,17 @@ class Model(object):
                 # Outer Matrix, and inder matrix is either trivial or an
                 # extracted submatrix.
                 # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.         ## Crank-Nicolson
-                diffusion_matrix_prev = self.diffusion_matrix_prev_cn(x_list_inbounds_prev, np.maximum(0,t-self.dt), conditions=conditions)
-                diffusion_matrix = self.diffusion_matrix_cn(x_list_inbounds, t, conditions=conditions)
+                drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
+                                                                       dt=self.dt, dx=self.dx, conditions=conditions)
+                noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
+                                                                       t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + 0.5*drift_matrix + 0.5*noise_matrix
+
+                drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
+                                                                            dt=self.dt, dx=self.dx, conditions=conditions)
+                noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
+                                                                            dt=self.dt, dx=self.dx, conditions=conditions)
+                diffusion_matrix_prev = self._cache_eye(len(x_list_inbounds), format="csr") - 0.5*drift_matrix_prev - 0.5*noise_matrix_prev
 
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
