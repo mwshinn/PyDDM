@@ -21,6 +21,8 @@ def fails(f, exception=BaseException):
 
 class TestDependences(TestCase):
     def setUp(self):
+        """Create fake models which act like models but are actually much simpler."""
+        # Fake model which solves to be a uniform distribution
         class FakeUniformModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
                 corr = self.t_domain()*0+.4/len(self.t_domain())
@@ -33,6 +35,7 @@ class TestDependences(TestCase):
         FakeUniformModel.solve_numerical_implicit = FakeUniformModel.solve
         FakeUniformModel.solve_numerical_explicit = FakeUniformModel.solve
         self.FakeUniformModel = FakeUniformModel
+        # Fake model which solves to be a single point
         class FakePointModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
                 corr = self.t_domain()*0
@@ -46,6 +49,7 @@ class TestDependences(TestCase):
         FakePointModel.solve_numerical_implicit = FakePointModel.solve
         FakePointModel.solve_numerical_explicit = FakePointModel.solve
         self.FakePointModel = FakePointModel
+        # Fake model which has all trials undecided
         class FakeUndecidedModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
                 corr = self.t_domain()*0
@@ -101,21 +105,21 @@ class TestDependences(TestCase):
         assert tdc.testparam2 == 10
             
     def test_DriftReduces(self):
-        """Make sure DriftLinear reduces to DriftConstant when x and t are 0"""
+        """DriftLinear reduces to DriftConstant when x and t are 0"""
         drift_constant_instances = [e for e in ddm.models.DriftConstant._generate()]
         for cinst in drift_constant_instances:
             linst = ddm.models.DriftLinear(drift=cinst.get_drift(t=0), x=0, t=0)
             for t in [0, .1, .5, 1, 2, 10]:
                 assert linst.get_drift(t=t, x=1) == cinst.get_drift(t=t, x=1)
     def test_NoiseReduces(self):
-        """Make sure NoiseLinear reduces to NoiseConstant when x and t are 0"""
+        """NoiseLinear reduces to NoiseConstant when x and t are 0"""
         noise_constant_instances = [e for e in ddm.models.NoiseConstant._generate()]
         for cinst in noise_constant_instances:
             linst = ddm.models.NoiseLinear(noise=cinst.get_noise(t=0), x=0, t=0)
             for t in [0, .1, .5, 1, 2, 10]:
                 assert linst.get_noise(t=t, x=1) == cinst.get_noise(t=t, x=1)
     def test_ICArbitrary(self):
-        """Test arbitrary starting conditions from a distribution"""
+        """Arbitrary starting conditions from a distribution"""
         # Make sure we get out the same distribution we put in
         m = ddm.Model()
         unif = ddm.models.ICUniform()
@@ -129,6 +133,7 @@ class TestDependences(TestCase):
         fails(lambda : ddm.models.ICArbitrary(aa([0, .6, .6, 0])))
         assert ddm.models.ICArbitrary(aa([1]))
     def test_OverlayNone(self):
+        """No overlay"""
         s = ddm.Model().solve()
         assert s == ddm.models.OverlayNone().apply(s)
         s = self.FakeUniformModel().solve()
@@ -136,6 +141,7 @@ class TestDependences(TestCase):
         s = self.FakePointModel().solve()
         assert s == ddm.models.OverlayNone().apply(s)
     def test_OverlayUniformMixture(self):
+        """Uniform mixture model overlay: a uniform distribution plus the model's solved distribution"""
         # Do nothing with 0 probability
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=0).apply(s)
@@ -153,6 +159,7 @@ class TestDependences(TestCase):
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
     def test_OverlayPoissonMixture(self):
+        """Poisson mixture model overlay: an exponential distribution plus the model's solved distribution"""
         # Do nothing with mixture coef 0
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=0, rate=1).apply(s)
@@ -172,6 +179,7 @@ class TestDependences(TestCase):
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
     def test_OverlayNonDecision(self):
+        """Non-decision time shifts the histogram"""
         # Should do nothing with no shift
         s = ddm.Model().solve()
         assert s == ddm.models.OverlayNonDecision(nondectime=0).apply(s)
@@ -191,6 +199,7 @@ class TestDependences(TestCase):
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
     def test_OverlaySimplePause(self):
+        """Pause at some point in the trial and then continue, leaving 0 probability in the gap"""
         # Should do nothing with no shift
         s = ddm.Model().solve()
         assert s == ddm.models.OverlaySimplePause(pausestart=.4, pausestop=.4).apply(s)
@@ -211,6 +220,7 @@ class TestDependences(TestCase):
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
     def test_OverlayBlurredPause(self):
+        """Like OverlaySimplePause but with a gamma distribution on delay times"""
         # Don't change total probability when there are no undecided responses
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=1), T_dur=10).solve()
         smix = ddm.models.OverlayBlurredPause(pausestart=.3, pausestop=.6, pauseblurwidth=.1).apply(s)
@@ -227,6 +237,7 @@ class TestDependences(TestCase):
         positive = (sshift.corr[2:] > sshift.err[1:-1]).astype(int) # Excluding first 0 point, should go from + to - slope only once
         assert positive[0] == 1 and positive[-1] == 0 and len(set(positive)) == 2
     def test_OverlayChain(self):
+        """Combine multiple overlays in sequence"""
         # Combine with OverlayNone()
         s = self.FakePointModel(dt=.01).solve()
         o = ddm.models.OverlayChain(overlays=[
@@ -240,6 +251,7 @@ class TestDependences(TestCase):
         o.nondectime = .3
         assert o.nondectime == .3
     def test_LossSquaredError(self):
+        """Squared error loss function"""
         # Should be zero for empty sample when all undecided
         m = self.FakeUndecidedModel()
         s = ddm.Sample(aa([]), aa([]), undecided=1)
@@ -250,6 +262,7 @@ class TestDependences(TestCase):
         err = ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m)
         assert np.isclose(err, np.sum(sol.corr)**2 + np.sum(sol.err)**2)
     def test_LossLikelihood(self):
+        """Likelihood loss function"""
         # We can calculate likelihood for this simple case
         m = self.FakePointModel(dt=.02)
         sol = m.solve()
@@ -272,6 +285,7 @@ class TestDependences(TestCase):
         # assert np.isclose(ddm.models.LossLikelihood(sample=s, dt=m1.dt, T_dur=m1.T_dur).loss(m1),
         #                   ddm.models.LossLikelihood(sample=s, dt=m2.dt, T_dur=m2.T_dur).loss(m2))
     def test_BIC(self):
+        """BIC loss function"""
         # -2*Likelihood == BIC for a sample size of 1
         m = self.FakePointModel(dt=.02)
         sol = m.solve()
@@ -310,6 +324,7 @@ class TestSample(TestCase):
                                condb=(aa([1]), aa([2]), aa([2]))),
         }
     def test_add(self):
+        """Adding two samples together"""
         s1 = self.samps["adda"]
         s2 = self.samps["addb"]
         s = s1 + s2
@@ -323,10 +338,12 @@ class TestSample(TestCase):
         assert self.samps["empty"] + self.samps["undec"] == self.samps["undec"]
         assert self.samps["empty"] + self.samps["simple"] == self.samps["simple"]
     def test_eqality(self):
+        """Two samples are equal iff they are the same"""
         # Equality and inequality with multiple conditions
         assert self.samps["adda"] != self.samps["addb"]
         assert self.samps["adda"] == self.samps["adda"]
     def test_condition_values(self):
+        """Condition_values method"""
         assert self.samps["conds"].condition_values("cond1") == [1, 2]
         assert self.samps["condsexp"].condition_values("cond1") == [1, 2]
         assert self.samps["undeccond"].condition_values("cond1") == [1, 2]
@@ -335,6 +352,7 @@ class TestSample(TestCase):
         assert self.samps["two"].condition_values("conda") == ["a", "b"]
         assert self.samps["two"].condition_values("condb") == [1, 2]
     def test_condition_combinations(self):
+        """Condition combinations are a cartesian product of condition values"""
         # If we want nothing
         assert self.samps["conds"].condition_combinations([]) == [{}]
         # If nothing matches
@@ -351,6 +369,7 @@ class TestSample(TestCase):
         assert all(a in exp_conds_two for a in conds_two)
         assert all(a in conds_two for a in exp_conds_two)
     def test_pdfs(self):
+        """Produce valid distributions which sum to one"""
         dt = .02
         for n,s in self.samps.items():
             if n == "empty": continue
@@ -362,6 +381,7 @@ class TestSample(TestCase):
                 assert s.prob_error() == s.prob_error_forced()
             assert len(s.pdf_corr(T_dur=4, dt=dt)) == len(s.t_domain(T_dur=4, dt=dt))
     def test_iter(self):
+        """The iterator .items() goes through correct or error trials and their conditions"""
         itr = self.samps["conds"].items(correct=True)
         assert next(itr) == (1, {"cond1": 1})
         assert next(itr) == (2, {"cond1": 1})
@@ -370,6 +390,7 @@ class TestSample(TestCase):
         itr = self.samps["two"].items(correct=False)
         assert next(itr) == (2, {"conda": "b", "condb": 2})
     def test_subset(self):
+        """Filter a sample by some conditions"""
         # Basic access
         assert len(self.samps['conds'].subset(cond1=2)) == 1
         # The elements being accessed
@@ -385,12 +406,14 @@ class TestSample(TestCase):
         # Query by function
         assert len(self.samps['two'].subset(conda=lambda x : True if x=="a" else False)) == 2
     def test_from_numpy_array(self):
+        """Create a sample from a numpy array"""
         simple_ndarray = np.asarray([[1, 1], [.5, 0], [.7, 0], [2, 1]])
         assert ddm.Sample.from_numpy_array(simple_ndarray, []) == self.samps['simple']
         conds_ndarray = np.asarray([[1, 1, 1], [2, 1, 1], [3, 1, 2]])
         assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['conds']
         assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['condsexp']
     def test_from_pandas(self):
+        """Create a sample from a pandas dataframe"""
         simple_df = pandas.DataFrame({'corr': [1, 0, 0, 1], 'resptime': [1, .5, .7, 2]})
         print(simple_df)
         assert ddm.Sample.from_pandas_dataframe(simple_df, 'resptime', 'corr') == self.samps['simple']
@@ -427,6 +450,7 @@ class TestSolution(TestCase):
         self.params_strarg = ddm.Model(drift=DriftSimpleStringArg(), T_dur=.5).solve_analytical(conditions={"type": "a"})
         self.all_sols = [self.quick_ana, self.quick_cn, self.params_ana, self.params_cn, self.params_strarg]
     def test_pdfs(self):
+        """Make sure we produce valid distributions from solutions"""
         # For each test model
         for s in self.all_sols:
             dt = s.model.dt
@@ -447,6 +471,7 @@ class TestSolution(TestCase):
 
 class TestMisc(TestCase):
     def test_analytic_lin_collapse(self):
+        """Make sure linearly collapsing bounds stops at 0"""
         # Will collapse to 0 by t=1
         b = ddm.models.bound.BoundCollapsingLinear(B=1, t=1)
         m = ddm.Model(bound=b, T_dur=2)
