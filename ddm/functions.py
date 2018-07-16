@@ -1,7 +1,8 @@
-'''
-Simulation code for Drift Diffusion Model
-Author: Norman Lam (norman.lam@yale.edu)
-'''
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
 
 __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',

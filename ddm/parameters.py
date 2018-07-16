@@ -1,7 +1,8 @@
-'''
-Simulation code for Drift Diffusion Model
-Author: Norman Lam (norman.lam@yale.edu)
-'''
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
 
 # Default simulaiton parameters.  These can be overridden by user
 # code on a per-model basis.

@@ -1,3 +1,9 @@
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
+
 from functools import lru_cache
 
 import numpy as np

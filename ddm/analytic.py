@@ -1,3 +1,10 @@
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+#           2018 Gangyu Robert Yang
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
+
 import numpy as np
 
 def analytic_ddm_linbound(a1, b1, a2, b2, teval):
@@ -15,8 +22,6 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     Reference:
     Anderson, Theodore W. "A modification of the sequential probability ratio test
     to reduce the sample size." The Annals of Mathematical Statistics (1960): 165-197.
-
-    Code: Guangyu Robert Yang 2013
     '''
     # Avoid dividing by zero
     teval[teval==0] = 1e-30

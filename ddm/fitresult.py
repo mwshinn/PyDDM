@@ -1,3 +1,9 @@
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
+
 from paranoid.decorators import paranoidclass, accepts, returns
 from paranoid.types import Number, Self, String, Unchecked, Dict, Or, Nothing
 
