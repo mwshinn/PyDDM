@@ -4,6 +4,7 @@ from .models import *
 from .model import Model, Fittable, Fitted
 from .sample import Sample
 from .solution import Solution
+from .functions import *
 
 from ._version import __version__
 

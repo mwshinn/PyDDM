@@ -3,6 +3,10 @@ Simulation code for Drift Diffusion Model
 Author: Norman Lam (norman.lam@yale.edu)
 '''
 
+__all__ = ['models_close', 'fit_model', 'fit_adjust_model',
+           'evolution_strategy', 'solve_partial_conditions',
+           'hit_boundary', 'dependence_hit_boundary', 'display_model']
+
 import copy
 
 import numpy as np
@@ -21,6 +25,8 @@ from .models.loss import LossLikelihood
 from paranoid.types import Boolean, Number, String, Set
 from paranoid.decorators import accepts, returns, requires, ensures
 from .models.paranoid_types import Conditions
+
+from .fitresult import FitResult
 
 @accepts(Model, Model, tol=Number)
 @requires("m1.get_model_type() == m2.get_model_type()")

@@ -489,7 +489,7 @@ class Model(object):
             if method == "implicit":
                 pdf_outer = sparse.linalg.spsolve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
             elif method == "explicit":
-                pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer]).A.squeeze()
+                pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer]).squeeze()
             # If the bounds are the same the bound perfectly
             # aligns with the grid), we don't need so solve the
             # diffusion matrix again since we don't need a linear
