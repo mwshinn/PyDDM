@@ -1,6 +1,13 @@
+# Copyright 2018 Max Shinn <maxwell.shinn@yale.edu>
+#           2018 Norman Lam <norman.lam@yale.edu>
+# 
+# This file is part of PyDDM, and is available under the MIT license.
+# Please see LICENSE.txt in the root directory for more information.
+
 from setuptools import setup
 
-from ddm._version import __version__
+with open("ddm/_version.py") as f:
+    exec(f.read())
 
 setup(
     name = 'pyddm',
