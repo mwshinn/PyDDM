@@ -37,7 +37,12 @@ class InitialCondition(Dependence):
 
 @paranoidclass
 class ICPointSourceCenter(InitialCondition):
-    """Initial condition: a dirac delta function in the center of the domain."""
+    """Initial condition: a dirac delta function in the center of the domain.
+
+    Example usage:
+
+    | ic = ICPointSourceCenter()
+    """
     name = "point_source_center"
     required_parameters = []
     @staticmethod
@@ -58,7 +63,12 @@ class ICPointSourceCenter(InitialCondition):
 
 @paranoidclass
 class ICUniform(InitialCondition):
-    """Initial condition: a uniform distribution."""
+    """Initial condition: a uniform distribution.
+
+    Example usage:
+
+    | ic = ICUniform()
+    """
     name = "uniform"
     required_parameters = []
     @staticmethod
@@ -91,6 +101,13 @@ def ICArbitrary(dist):
     of, e.g. ICUniform().  In practice, the user should not notice a
     difference, and this function can thus be used in place of an
     InitialCondition object.
+
+    Example usage:
+
+    | import scipy.stats
+    | ic = ICPointSourceCenter(dist=scipy.stats.binom.pmf(n=200, p=.4, k=range(0, 201))) # Binomial distribution
+    | import numpy as np
+    | ic = ICPointSourceCenter(dist=np.asarray([0]*100+[1]+[0]*100)) # Equivalent to ICPointSourceCenter for dx=.01
     """
     class ICArbitrary(InitialCondition):
         """Initial condition from an arbitrary distribution"""

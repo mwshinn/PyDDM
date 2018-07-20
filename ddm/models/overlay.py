@@ -55,7 +55,12 @@ class Overlay(Dependence):
 
 @paranoidclass
 class OverlayNone(Overlay):
-    """No overlay.  An identity function for Solutions."""
+    """No overlay.  An identity function for Solutions.
+
+    Example usage:
+
+    | overlay = OverlayNone()
+    """
     name = "None"
     required_parameters = []
     @staticmethod
@@ -90,6 +95,12 @@ class OverlayChain(Overlay):
     must be given different names in order to be a part of the same
     overlay.  This allows those parameters to be accessed by their
     name inside of an OverlayChain object.
+
+    Example usage:
+
+    | overlay = OverlayChain(overlays=[OverlayNone(), OverlayNone(), OverlayNone()]) # Still equivalent to OverlayNone
+    | overlay = OverlayChain(overlays=[OverlayPoissonMixture(pmixturecoef=.01, rate=1), 
+    |                                  OverlayUniformMixture(umixturecoef=.01)]) # Apply a Poission mixture and then a Uniform mixture
     """
     name = "Chain overlay"
     required_parameters = ["overlays"]
@@ -146,6 +157,10 @@ class OverlayUniformMixture(Overlay):
 
     A mixture with the uniform distribution can be used to confer
     robustness when fitting using likelihood.
+
+    Example usage:
+
+    | overlay = OverlayUniformMixture(umixturecoef=.01)
     """
     name = "Uniform distribution mixture model"
     required_parameters = ["umixturecoef"]
@@ -189,6 +204,10 @@ class OverlayPoissonMixture(Overlay):
     Note that this is called OverlayPoissonMixture and not
     OverlayExponentialMixture because the exponential distribution is
     formed from a Poisson process, i.e. modeling a uniform lapse rate.
+
+    Example usage:
+
+    | overlay = OverlayPoissonMixture(pmixturecoef=.02, rate=1)
     """
     name = "Poisson distribution mixture model (lapse rate)"
     required_parameters = ["pmixturecoef", "rate"]
@@ -232,6 +251,10 @@ class OverlayNonDecision(Overlay):
 
     This shifts the reaction time distribution by `nondectime` seconds
     in order to create a non-decision time.
+
+    Example usage:
+
+    | overlay = OverlayNonDecision(nondectime=.2)
     """
     name = "Add a non-decision by shifting the histogram"
     required_parameters = ["nondectime"]

@@ -127,7 +127,12 @@ class DriftConstant(Drift):
 
     Only take one parameter: drift, the constant drift rate.
 
-    Note that this is a special case of DriftLinear."""
+    Note that this is a special case of DriftLinear.
+
+    Example usage:
+
+    | drift = DriftConstant(drift=0.3)
+    """
     name = "constant"
     required_parameters = ["drift"]
     @staticmethod
@@ -153,6 +158,12 @@ class DriftLinear(Drift):
     - `drift` - The starting drift rate
     - `x` - The coefficient by which drift varies with x
     - `t` - The coefficient by which drift varies with t
+
+    Example usage:
+
+    | drift = DriftLinear(drift=0.5, t=0, x=-1) # Leaky integrator
+    | drift = DriftLinear(drift=0.8, t=0, x=0.4) # Unstable integrator
+    | drift = DriftLinear(drift=0, t=1, x=0.4) # Urgency function
     """
     name = "linear_xt"
     required_parameters = ["drift", "x", "t"]

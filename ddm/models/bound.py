@@ -58,7 +58,12 @@ class Bound(Dependence):
 class BoundConstant(Bound):
     """Bound dependence: bound is constant throuhgout the simulation.
 
-    Takes only one parameter: `B`, the constant bound."""
+    Takes only one parameter: `B`, the constant bound.
+
+    Example usage:
+
+    | bound = BoundConstant(B=1.5) # Bound at 1.5 and -1.5
+    """
     name = "constant"
     required_parameters = ["B"]
     @staticmethod
@@ -82,13 +87,17 @@ class BoundCollapsingLinear(Bound):
     - `B` - the bound at time t = 0.
     - `t` - the slope, i.e. the coefficient of time, should be greater
     than zero.
+
+    Example usage:
+
+    | bound = BoundCollapsingLinear(B=1, t=.5) # Collapsing at .5 units per second
     """
     name = "collapsing_linear"
     required_parameters = ["B", "t"]
     @staticmethod
     def _test(v):
         assert v.B in Positive()
-        assert v.t in Number()
+        assert v.t in Positive0()
     @staticmethod
     def _generate():
         yield BoundCollapsingLinear(B=1, t=1)
@@ -108,6 +117,10 @@ class BoundCollapsingExponential(Bound):
     - `B` - the bound at time t = 0.
     - `tau` - the time constant for the collapse, should be greater than
     zero.
+
+    Example usage:
+
+    | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 2.1
     """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]

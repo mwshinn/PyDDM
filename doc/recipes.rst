@@ -17,8 +17,8 @@ Leaky/Unstable integrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Leaky/unstable integrators are implemented in :class:`.DriftLinear`.  For
-a leaky integrator, set the parameter `x` to be less than 0.  For an
-unstable integrator, set the parameter `x` to be greater than 0.
+a leaky integrator, set the parameter ``x`` to be less than 0.  For an
+unstable integrator, set the parameter ``x`` to be greater than 0.
 
 Shared parameters
 ~~~~~~~~~~~~~~~~~
@@ -26,7 +26,7 @@ Shared parameters
 In order to use the same parameter for multiple different components
 of the model, pass the same :class:`.Fittable` instance to both.  As a
 concrete example, suppose we want both the drift rate and the variance
-to increase by some factor `boost` at time `tboost`.  We could make
+to increase by some factor ``boost`` at time ``tboost``.  We could make
 :class:`.Drift` and :class:`.Noise` objects as follows::
 
   from ddm.models import Drift, Noise
@@ -63,9 +63,9 @@ Now, we can define a model to fit with::
                        tboost=t_boost),
             T_dur=3, dt=.001, dx=.001)
  
-This will ensure that the value of `driftboost` is always equal to the
-value of `noiseboost`, and that the value of `tboost` in Drift is always
-equal to the value of `tboost` in Noise.
+This will ensure that the value of ``driftboost`` is always equal to the
+value of ``noiseboost``, and that the value of ``tboost`` in Drift is always
+equal to the value of ``tboost`` in Noise.
             
 Note that this is **not the same** as::
 
@@ -77,8 +77,8 @@ Note that this is **not the same** as::
                        tboost=Fittable(minval=0, maxval=1)),
             T_dur=3, dt=.001, dx=.001)
 
-In the latter case, `driftboost` and `noiseboost` will be fit to
-different values, and the two `tboost` parameters will not be equal.
+In the latter case, ``driftboost`` and ``noiseboost`` will be fit to
+different values, and the two ``tboost`` parameters will not be equal.
 
 Parallelization
 ~~~~~~~~~~~~~~~
@@ -91,7 +91,7 @@ To use parallelization, first set up the parallel pool::
   from pathos.multiprocessing import Pool
   pool = Pool(3) # Fit with 3 cpus
 
-Then, pass the `pool` object to the :func:`fit_adjust_model` function;
+Then, pass the ``pool`` object to the :func:`fit_adjust_model` function;
 for example, to parallelize the example from the quickstart::
 
   fit_model_rs = fit_adjust_model(sample=roitman_sample, m=model_rs, pool=pool)
@@ -129,12 +129,12 @@ us first model it without coherence dependence::
               return self.drift
           return 0
 
-Here, `drift` is the strength of the evidence integration during the
-pulse, `start` is the time of the pulse onset, and `duration` is the
+Here, ``drift`` is the strength of the evidence integration during the
+pulse, ``start`` is the time of the pulse onset, and ``duration`` is the
 duration of the pulse.
 
 This can easily be modified to make it coherence dependent, where
-`coherence` is the coherence in the :class:`.Sample`::
+``coherence`` is the coherence in the :class:`.Sample`::
 
   from ddm.models import Drift
   class DriftPulseCoh(Drift):
@@ -146,3 +146,16 @@ This can easily be modified to make it coherence dependent, where
               return self.drift * conditions["coherence"]
           return 0
 
+Sine wave evidence
+~~~~~~~~~~~~~~~~~~
+
+Suppose we have a task where evidence varies according to
+a sine wave which has a different frequency on different trials::
+
+  import numpy as np
+  class DriftSine(ddm.Drift):
+      name = "Sine-wave bounds"
+      required_conditions = ["frequency"]
+      required_parameters = ["offset"]
+      def get_drift(self, t, conditions, **kwargs):
+          return np.sin(t*conditions["frequency"]*2*np.pi)+self.offset

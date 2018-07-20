@@ -132,7 +132,12 @@ class NoiseConstant(Noise):
 
     Only take one parameter: noise, the diffusion rate.
 
-    Note that this is a special case of NoiseLinear."""
+    Note that this is a special case of NoiseLinear.
+
+    Example usage:
+
+    | noise = NoiseConstant(noise=0.5)
+    """
     name = "constant"
     required_parameters = ["noise"]
     @staticmethod
@@ -159,6 +164,10 @@ class NoiseLinear(Noise):
     - `noise` - The starting diffusion rate/noise
     - `x` - The coefficient by which noise varies with x
     - `t` - The coefficient by which noise varies with t
+
+    Example usage:
+
+    | noise = NoiseLinear(noise=0.5, x=0, t=.1) # Noise increases over time
     """
     name = "linear_xt"
     required_parameters = ["noise", "x", "t"]

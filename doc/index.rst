@@ -1,24 +1,38 @@
-.. PyDDM documentation master file, created by
-   sphinx-quickstart on Mon Apr  2 15:47:43 2018.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 PyDDM
 =================================
 
 Overview
 --------
 
-[Paragraph]
+PyDDM is a simulator and modeling framework for drift-diffusion models
+(DDM), with a focus on cognitive neuroscience.
 
 Key features include:
 
-- Solving for response time histograms directly using the
-  Fokker-Planck equation
-- Analytical solutions and/or particle simulations for compatible
+- Models solved numerically using Crank-Nicolson to solve the
+  Fokker-Planck equation (Backward Euler, analytical solutions, and
+  particle simulations also available)
+- Arbitrary functions for drift rate, noise, bounds, and initial
+  position distribution
+- Arbitrary loss function and fitting method for parameter fitting
+- Optional multiprocessor support
+- Optional GUI for debugging and gaining an intuition for different
   models
-- Easily building models in a component-wise fashion
-- Source code checked using Paranoid Scientist
+- Convenient and extensible object oriented API allows building models
+  in a component-wise fashion
+- Verified accuracy of simulations using novel program verification
+  techniques
+
+See the
+`documentation <https://pyddm.readthedocs.io/en/latest/index.html>`_,
+`FAQs <https://pyddm.readthedocs.io/en/latest/faqs.html>`_,
+or
+`tutorial <https://pyddm.readthedocs.io/en/latest/quickstart.html>`_
+for more information.
+
+Please note that PyDDM is still beta software so you may experience
+some glitches or uninformative error messages.  Please report any
+problems to the `bug tracker <https://github.com/mwshinn/pyddm/issues>`_.
 
 
 .. toctree::
