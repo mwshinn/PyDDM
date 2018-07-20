@@ -531,18 +531,20 @@ class Model(object):
     @returns(Solution)
     @requires("self.can_solve_explicit(conditions=conditions)")
     def solve_numerical_explicit(self, conditions={}, **kwargs):
+        """Solve the model using the explicit method (Forward Euler)."""
         return self.solve_numerical(method="explicit", conditions=conditions, **kwargs)
 
     @accepts(Self)
     @returns(Solution)
     def solve_numerical_implicit(self, conditions={}, **kwargs):
+        """Solve the model using the implicit method (Backward Euler)."""
         return self.solve_numerical(method="implicit", conditions=conditions, **kwargs)
 
     @accepts(Self, conditions=Conditions)
     @requires("self.can_solve_cn(conditions=conditions)")
     @returns(Solution)
     def solve_numerical_cn(self, conditions={}):
-        """Solve the DDM model numerically.
+        """Solve the DDM model numerically using Crank-Nicolson.
 
         This uses the Crank Nicolson method to solve the DDM at each
         timepoint.  Results are then compiled together.  This is the

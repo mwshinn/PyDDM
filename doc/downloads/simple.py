@@ -1,3 +1,6 @@
+# Simple demonstration of PyDDM.
+
+# Create a simple model with constant drift, noise, and bounds.
 from ddm import Model
 from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision
 from ddm.functions import fit_adjust_model, display_model
@@ -9,11 +12,17 @@ model = Model(name='Simple model',
               overlay=OverlayNonDecision(nondectime=.1),
               dx=.001, dt=.01, T_dur=2)
 
+# Solve the model, i.e. simulate the differential equations to
+# generate a probability distribution solution.
 display_model(model)
 sol = model.solve()
 
+# Now, sample from the model solution to create a new generated
+# sample.
 samp = sol.resample(1000)
 
+# Fit a model identical to the one described above on the newly
+# generated data so show that parameters can be recovered.
 from ddm import Fittable
 from ddm.models import LossBIC
 from ddm.functions import fit_adjust_model

@@ -15,14 +15,14 @@ It can be represented by:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 1-13
+   :lines: 4-13, 17-18
 
 Solution objects represent PDFs of the solved model.  We can generate
 data from this solved model with:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 15
+   :lines: 22
   
 To fit the outputs, we first create a model with special
 :class:`.Fittable` objects in all the parameters we would like to be
@@ -38,7 +38,7 @@ is supposed to have.  We fit the model to the generated data using BIC:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 17-31
+   :lines: 26-40
 
 :download:`Download this full example <downloads/simple.py>`
            

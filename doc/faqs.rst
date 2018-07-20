@@ -4,7 +4,7 @@ FAQs
 How do I know if my model will run analytically or numerically?
 ---------------------------------------------------------------
 
-The function :func:`Model.sovle` will automatically choose the best
+The function :func:`~ddm.model.Model.solve` will automatically choose the best
 solver for your model.  Solves, in order of preference, are
 
 1. Analytical
@@ -13,9 +13,9 @@ solver for your model.  Solves, in order of preference, are
 
 The analytical solver requires that Drift and Noise do not depend on
 time or particle position, and that the initial position is fixed at
-zero (ICPointSourceCenter).  Additionally, they require either Bounds
+zero (:class:`.ICPointSourceCenter`).  Additionally, they require either Bounds
 which do not depend on time, or alternatively linearly collapsing
-bounds using BoundCollapsingLinear.  (Parameterized linearly
+bounds using :class:`.BoundCollapsingLinear`.  (Parameterized linearly
 collapsing bounds are not currently supported.)
 
 The Crank-Nicolson solver requires that Bounds do not depend on time,
@@ -26,16 +26,16 @@ models and thus serves as a fallback.
 
 Particle simulations and Forward Euler (explicit method) are also
 available, but must be explicitly called via
-:func:`Model.solve_numerical_explicit` and
-:func:`Model.simulated_solution`.  They will never be chosen
+:func:`~ddm.model.Model.solve_numerical_explicit` and
+:func:`~ddm.model.Model.simulated_solution`.  They will never be chosen
 automatically.
 
 For custom models, these are specified by including ``x`` or ``t`` in
 the argument list.
 
 
-What arguments do :func:`get_drift`, :func:`get_noise`, etc. take?
-------------------------------------------------------------------
+What arguments do :func:`~ddm.models.drift.Drift.get_drift`, :func:`~ddm.models.noise.Noise.get_noise`, etc. take?
+------------------------------------------------------------------------------------------------------------------
 
 The most appropriate solver is selected by PyDDM by examining the
 variables on which different model components depend.  For models
@@ -98,9 +98,9 @@ In this case, our bound does depend on ``t``, so it **must** be
 included in the function signature.
 
 Why do I get "Paranoid" errors?
------------------------------
+-------------------------------
 
-`Paranoid Scientist <http://paranoid-scientist.readthedocs.io>` is a
+`Paranoid Scientist <http://paranoid-scientist.readthedocs.io>`_ is a
 library for verifying the accuracy of scientific software.  It is used
 to check the entry and exit conditions of functions.
 

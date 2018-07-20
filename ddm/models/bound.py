@@ -62,7 +62,7 @@ class BoundConstant(Bound):
 
     Example usage:
 
-    | bound = BoundConstant(B=1.5) # Bound at 1.5 and -1.5
+      | bound = BoundConstant(B=1.5) # Bound at 1.5 and -1.5
     """
     name = "constant"
     required_parameters = ["B"]
@@ -90,7 +90,7 @@ class BoundCollapsingLinear(Bound):
 
     Example usage:
 
-    | bound = BoundCollapsingLinear(B=1, t=.5) # Collapsing at .5 units per second
+      | bound = BoundCollapsingLinear(B=1, t=.5) # Collapsing at .5 units per second
     """
     name = "collapsing_linear"
     required_parameters = ["B", "t"]
@@ -120,7 +120,7 @@ class BoundCollapsingExponential(Bound):
 
     Example usage:
 
-    | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 2.1
+      | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 2.1
     """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]

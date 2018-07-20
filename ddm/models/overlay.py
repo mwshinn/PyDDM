@@ -59,7 +59,7 @@ class OverlayNone(Overlay):
 
     Example usage:
 
-    | overlay = OverlayNone()
+      | overlay = OverlayNone()
     """
     name = "None"
     required_parameters = []
@@ -98,9 +98,9 @@ class OverlayChain(Overlay):
 
     Example usage:
 
-    | overlay = OverlayChain(overlays=[OverlayNone(), OverlayNone(), OverlayNone()]) # Still equivalent to OverlayNone
-    | overlay = OverlayChain(overlays=[OverlayPoissonMixture(pmixturecoef=.01, rate=1), 
-    |                                  OverlayUniformMixture(umixturecoef=.01)]) # Apply a Poission mixture and then a Uniform mixture
+      | overlay = OverlayChain(overlays=[OverlayNone(), OverlayNone(), OverlayNone()]) # Still equivalent to OverlayNone
+      | overlay = OverlayChain(overlays=[OverlayPoissonMixture(pmixturecoef=.01, rate=1), 
+      |                                  OverlayUniformMixture(umixturecoef=.01)]) # Apply a Poission mixture and then a Uniform mixture
     """
     name = "Chain overlay"
     required_parameters = ["overlays"]
@@ -160,7 +160,7 @@ class OverlayUniformMixture(Overlay):
 
     Example usage:
 
-    | overlay = OverlayUniformMixture(umixturecoef=.01)
+      | overlay = OverlayUniformMixture(umixturecoef=.01)
     """
     name = "Uniform distribution mixture model"
     required_parameters = ["umixturecoef"]
@@ -207,7 +207,7 @@ class OverlayPoissonMixture(Overlay):
 
     Example usage:
 
-    | overlay = OverlayPoissonMixture(pmixturecoef=.02, rate=1)
+      | overlay = OverlayPoissonMixture(pmixturecoef=.02, rate=1)
     """
     name = "Poisson distribution mixture model (lapse rate)"
     required_parameters = ["pmixturecoef", "rate"]
@@ -254,7 +254,7 @@ class OverlayNonDecision(Overlay):
 
     Example usage:
 
-    | overlay = OverlayNonDecision(nondectime=.2)
+      | overlay = OverlayNonDecision(nondectime=.2)
     """
     name = "Add a non-decision by shifting the histogram"
     required_parameters = ["nondectime"]

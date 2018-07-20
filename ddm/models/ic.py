@@ -41,7 +41,7 @@ class ICPointSourceCenter(InitialCondition):
 
     Example usage:
 
-    | ic = ICPointSourceCenter()
+      | ic = ICPointSourceCenter()
     """
     name = "point_source_center"
     required_parameters = []
@@ -67,7 +67,7 @@ class ICUniform(InitialCondition):
 
     Example usage:
 
-    | ic = ICUniform()
+      | ic = ICUniform()
     """
     name = "uniform"
     required_parameters = []
@@ -104,10 +104,10 @@ def ICArbitrary(dist):
 
     Example usage:
 
-    | import scipy.stats
-    | ic = ICPointSourceCenter(dist=scipy.stats.binom.pmf(n=200, p=.4, k=range(0, 201))) # Binomial distribution
-    | import numpy as np
-    | ic = ICPointSourceCenter(dist=np.asarray([0]*100+[1]+[0]*100)) # Equivalent to ICPointSourceCenter for dx=.01
+      | import scipy.stats
+      | ic = ICPointSourceCenter(dist=scipy.stats.binom.pmf(n=200, p=.4, k=range(0, 201))) # Binomial distribution
+      | import numpy as np
+      | ic = ICPointSourceCenter(dist=np.asarray([0]*100+[1]+[0]*100)) # Equivalent to ICPointSourceCenter for dx=.01
     """
     class ICArbitrary(InitialCondition):
         """Initial condition from an arbitrary distribution"""

@@ -131,7 +131,7 @@ class DriftConstant(Drift):
 
     Example usage:
 
-    | drift = DriftConstant(drift=0.3)
+      | drift = DriftConstant(drift=0.3)
     """
     name = "constant"
     required_parameters = ["drift"]
@@ -161,9 +161,9 @@ class DriftLinear(Drift):
 
     Example usage:
 
-    | drift = DriftLinear(drift=0.5, t=0, x=-1) # Leaky integrator
-    | drift = DriftLinear(drift=0.8, t=0, x=0.4) # Unstable integrator
-    | drift = DriftLinear(drift=0, t=1, x=0.4) # Urgency function
+      | drift = DriftLinear(drift=0.5, t=0, x=-1) # Leaky integrator
+      | drift = DriftLinear(drift=0.8, t=0, x=0.4) # Unstable integrator
+      | drift = DriftLinear(drift=0, t=1, x=0.4) # Urgency function
     """
     name = "linear_xt"
     required_parameters = ["drift", "x", "t"]

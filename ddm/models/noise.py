@@ -136,7 +136,7 @@ class NoiseConstant(Noise):
 
     Example usage:
 
-    | noise = NoiseConstant(noise=0.5)
+      | noise = NoiseConstant(noise=0.5)
     """
     name = "constant"
     required_parameters = ["noise"]
@@ -167,7 +167,7 @@ class NoiseLinear(Noise):
 
     Example usage:
 
-    | noise = NoiseLinear(noise=0.5, x=0, t=.1) # Noise increases over time
+      | noise = NoiseLinear(noise=0.5, x=0, t=.1) # Noise increases over time
     """
     name = "linear_xt"
     required_parameters = ["noise", "x", "t"]
