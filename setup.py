@@ -6,13 +6,18 @@
 
 from setuptools import setup
 
-with open("ddm/_version.py") as f:
+with open("ddm/_version.py", "r") as f:
     exec(f.read())
+
+with open("README.md", "r") as f:
+    long_desc = f.read()
 
 setup(
     name = 'pyddm',
     version = __version__,
     description = 'Extensible drift diffusion modeling for Python',
+    long_description = long_desc,
+    long_description_content_type='text/markdown',
     author = 'Max Shinn, Norman Lam',
     author_email = 'maxwell.shinn@yale.edu',
     maintainer = 'Max Shinn',

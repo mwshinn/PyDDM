@@ -23,12 +23,8 @@ Key features include:
 - Verified accuracy of simulations using novel program verification
   techniques
 
-See the
-`documentation <https://pyddm.readthedocs.io/en/latest/index.html>`_,
-`FAQs <https://pyddm.readthedocs.io/en/latest/faqs.html>`_,
-or
-`tutorial <https://pyddm.readthedocs.io/en/latest/quickstart.html>`_
-for more information.
+Start with the :doc:`tutorial <quickstart>` or see the :doc:`faqs` for more information.
+For potentially useful model fragments, see :doc:`recipes`
 
 Please note that PyDDM is still beta software so you may experience
 some glitches or uninformative error messages.  Please report any
@@ -39,8 +35,6 @@ problems to the `bug tracker <https://github.com/mwshinn/pyddm/issues>`_.
    :maxdepth: 2
    :caption: Contents:
 
-   introduction
-   features
    installing
    quickstart
    modelgui

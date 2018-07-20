@@ -41,7 +41,7 @@ If you are in a shared environment (e.g. a cluster), install with:
 
     $ pip install pyddm --user
 
-If installing from source, download, extract, and do:
+If installing from source, [download the source code](https://github.com/mwshinn/PyDDM), extract, and do:
 
     $ python3 setup.py install
 
@@ -49,9 +49,9 @@ If installing from source, download, extract, and do:
 ## System requirements
 
 - Python 3.5 or above
-- numpy/scipy/matplotlib
-- paranoid-scientist (<https://github.com/mwshinn/paranoidscientist>)
-- pathos (optional, for multiprocessing support)
+- Numpy/Scipy/Matplotlib
+- [Paranoid Scientist](<https://github.com/mwshinn/paranoidscientist>)
+- Pathos (optional, for multiprocessing support)
 
 
 ## Contact
@@ -62,7 +62,7 @@ greatly appreciated.
 
 Feature requests are currently not being accepted due to limited
 resources.  If you implement a new feature in PyDDM, please do the
-following before submitting a PR on github:
+following before submitting a PR on Github:
 
 - Make sure your code is clean and well commented
 - If appropriate, update the official documentation in the docs/
