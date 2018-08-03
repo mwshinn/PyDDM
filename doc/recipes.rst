@@ -94,7 +94,7 @@ To use parallelization, first set up the parallel pool::
 Then, pass the ``pool`` object to the :func:`fit_adjust_model` function;
 for example, to parallelize the example from the quickstart::
 
-  fit_model_rs = fit_adjust_model(sample=roitman_sample, m=model_rs, pool=pool)
+  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, pool=pool)
   
 There are a few caveats with parallelization:
 

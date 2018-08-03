@@ -38,7 +38,44 @@ is supposed to have.  We fit the model to the generated data using BIC:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 26-40
+   :lines: 26-38
+
+We can display the newly-fit parameters:
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 40
+
+This shows::
+
+  Model Simple model (fitted) information:
+  Drift component DriftConstant:
+      constant
+      Fitted parameters:
+      - drift: 2.209644
+  Noise component NoiseConstant:
+      constant
+      Fitted parameters:
+      - noise: 1.538976
+  Bound component BoundConstant:
+      constant
+      Fixed parameters:
+      - B: 1.100000
+  IC component ICPointSourceCenter:
+      point_source_center
+      (No parameters)
+  Overlay component OverlayNonDecision:
+      Add a non-decision by shifting the histogram
+      Fitted parameters:
+      - nondectime: 0.119300
+
+We can also draw a plot visualizing the fit:
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 43-47
+
+.. image:: images/simple-fit.png
 
 :download:`Download this full example <downloads/simple.py>`
            
@@ -86,13 +123,13 @@ the above data without first loading it into pandas:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 28-43
+   :lines: 28-50
 
 We can confirm that these two methods of loading data produce the same results:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 48
+   :lines: 53
 
 Fitting a model to data
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -110,30 +147,71 @@ needs:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 53-61
+   :lines: 58-66
 
 Then, we can construct a model which uses this and fit the data to the
 model:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 65-86
+   :lines: 70-90
 
-Plotting the fit
-~~~~~~~~~~~~~~~~
-
-We can also evaluate the quality of the fit.  We can plot and save a
-graph:
+Finally, we can display the fit parameters with the following command:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 90-94
+   :lines: 91
+
+This gives the following output (which may vary slightly, since the
+fitting algorithm is stochastic)::
+
+  Model Roitman data, drift varies with coherence information:
+  Drift component DriftCoherence:
+      Drift depends linearly on coherence
+      Fitted parameters:
+      - driftcoh: 10.364161
+  Noise component NoiseConstant:
+      constant
+      Fixed parameters:
+      - noise: 1.000000
+  Bound component BoundConstant:
+      constant
+      Fitted parameters:
+      - B: 0.744062
+  IC component ICPointSourceCenter:
+      point_source_center
+      (No parameters)
+  Overlay component OverlayChain:
+      Overlay component OverlayNonDecision:
+          Add a non-decision by shifting the histogram
+          Fitted parameters:
+          - nondectime: 0.313715
+      Overlay component OverlayPoissonMixture:
+          Poisson distribution mixture model (lapse rate)
+          Fixed parameters:
+          - pmixturecoef: 0.020000
+          - rate: 1.000000
+
+         
+Plotting the fit
+~~~~~~~~~~~~~~~~
+
+We can also graphically evaluate the quality of the fit.  We can plot
+and save a graph:
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :lines: 95-99
+
+.. image:: images/roitman-fit.png
 
 We can alternatively explore this with the PyDDM's model GUI:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
-   :lines: 99
+   :lines: 104
+
+.. image:: images/model-gui.png
 
 See :doc:`modelgui` for more info.
 

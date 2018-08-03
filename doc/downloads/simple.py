@@ -38,3 +38,10 @@ fit_adjust_model(samp, model_fit,
                  lossfunction=LossBIC)
 
 display_model(model_fit)
+
+# Plot the model fit to the PDFs and save the file.
+import ddm.plot
+import matplotlib.pyplot as plt
+ddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
+plt.savefig("simple-fit.png")
+plt.show()

@@ -131,6 +131,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
         ax2.plot(t_domain, s.pdf_err(), lw=2, color='red')
     ax1.axis([0, T_dur, 0, None])
     ax2.axis([0, T_dur, 0, None])
+    ax1.set_title("Correct RTs")
+    ax2.set_title("Error RTs")
     pt = fig.suptitle("")
 
 

@@ -7,7 +7,7 @@ from ddm import Sample
 import pandas
 with open("roitman_rts.csv", "r") as f:
     df_rt = pandas.read_csv(f)
-  
+
 df_rt = df_rt[df_rt["monkey"] == 1] # Only monkey 1
   
 # Remove short and long RTs, as in 10.1523/JNEUROSCI.4684-04.2005.
@@ -29,7 +29,7 @@ from ddm import Sample
 import numpy as np
 with open("roitman_rts.csv", "r") as f:
     M = np.loadtxt(f, delimiter=",", skiprows=1)
-  
+
 # RT data must be the first column and correct/error must be the
 # second column.
 rt = M[:,1].copy() # Use .copy() because np returns a view
@@ -38,11 +38,16 @@ monkey = M[:,0].copy()
 M[:,0] = rt
 M[:,1] = corr
 M[:,3] = monkey
+
+# Only monkey 1
+M = M[M[:,3]==1,:]
+
+# As before, remove longest and shortest RTs
+M = M[M[:,0]>.1,:]
+M = M[M[:,0]<1.65,:]
   
 conditions = ["coh", "monkey", "trgchoice"]
 roitman_sample2 = Sample.from_numpy_array(M, conditions)
-
-
 
 # As we can see, these two approches are equivalent.
 assert roitman_sample == roitman_sample2
@@ -82,7 +87,7 @@ model_rs = Model(name='Roitman data, drift varies with coherence',
 
 # Fitting this will also be fast because PyDDM can automatically
 # determine that DriftCoherence will allow an analytical solution.
-fit_model_rs = fit_adjust_model(sample=roitman_sample, m=model_rs)
+fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs)
 display_model(fit_model_rs)
 
 

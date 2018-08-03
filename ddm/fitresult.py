@@ -5,7 +5,8 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 from paranoid.decorators import paranoidclass, accepts, returns
-from paranoid.types import Number, Self, String, Unchecked, Dict, Or, Nothing
+from paranoid.types import Number, Self, String, Unchecked, Dict, Or, Nothing, ExtendedReal
+import numpy as np
 
 @paranoidclass
 class FitResult:
@@ -15,7 +16,7 @@ class FitResult:
         yield FitResult(method="Test method", loss="Likelihood",
                         value=1.1, prop1="xyz", prop2=-2)
     def _test(v):
-        assert v.value in Or(Number, Nothing)
+        assert v.val in Or(Number, Nothing)
         assert v.method in String()
         assert v.loss in String()
         assert v.properties in Dict(String, Unchecked)
@@ -29,18 +30,18 @@ class FitResult:
         - `kwargs` is a dict of any additional properties that should
           be saved for the fit.
         """
-        self.value = value
+        self.val = value
         self.method = method
         self.loss = loss
         self.properties = kwargs
     @accepts(Self)
-    @returns(Number)
+    @returns(ExtendedReal)
     def value(self):
         """Returns the objective function value of the fit."""
-        if self.value is not None:
-            return self.value
+        if self.val is not None:
+            return self.val
         else:
-            raise RuntimeError("Error, function has not been fit")
+            return np.inf
     @accepts(Self, String)
     def property(self, prop):
         """Get extra fit data associated with the fit.
@@ -60,7 +61,7 @@ class FitResult:
 class FitResultEmpty(FitResult):
     """A default Fit object before a model has been fit."""
     def __init__(self):
-        self.value = None
+        self.val = None
         self.properties = {}
         self.method = ""
         self.loss = ""

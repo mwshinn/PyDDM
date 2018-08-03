@@ -97,7 +97,7 @@ class TestFit(TestCase):
         s = m.solve()
         sample = s.resample(10000)
         mfit = ddm.Model(name="DDM", drift=ddm.DriftConstant(drift=ddm.Fittable(minval=0, maxval=10)))
-        ddm.fit_adjust_model(m=mfit, sample=sample)
+        ddm.fit_adjust_model(model=mfit, sample=sample)
         # Within 10%
         if SHOW_PLOTS:
             mfit.name = "Fitted solution"

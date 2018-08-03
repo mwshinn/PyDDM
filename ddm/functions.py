@@ -102,7 +102,7 @@ def fit_model(sample,
     """
     
     # Use the reaction time data (a list of reaction times) to
-    # construct a reaction time distribution.  
+    # construct a reaction time distribution.
     T_dur = np.ceil(max(sample)/dt)*dt
     assert T_dur < 30, "Too long of a simulation... are you using milliseconds instead of seconds?"
     # For optimization purposes, create a base model, and then use
@@ -114,7 +114,7 @@ def fit_model(sample,
     return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
 
 
-def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
+def fit_adjust_model(sample, model, fitparams=None, method="differential_evolution",
                      lossfunction=LossLikelihood, pool=None):
     """Modify parameters of a model which has already been fit.
     
@@ -158,6 +158,7 @@ def fit_adjust_model(sample, m, fitparams=None, method="differential_evolution",
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
     # parameters, named "setters".
+    m = model
     components_list = [m.get_dependence("drift"),
                        m.get_dependence("noise"),
                        m.get_dependence("bound"),
