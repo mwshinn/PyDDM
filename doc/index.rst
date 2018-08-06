@@ -4,13 +4,15 @@ PyDDM
 Overview
 --------
 
-PyDDM is a simulator and modeling framework for drift-diffusion models
-(DDM), with a focus on cognitive neuroscience.
+PyDDM is a simulator and modeling framework for extended drift-diffusion 
+models (DDM), with a focus on cognitive neuroscience.
 
 Key features include:
 
-- Models solved numerically using Crank-Nicolson to solve the
-  Fokker-Planck equation (Backward Euler, analytical solutions, and
+- Fast solutions to extended drift-diffusion models, allowing data-fitting 
+  with a large set of parameters
+- Fokker-Planck equation solved numerically using Crank-Nicolson and 
+  backward Euler methods (Analytical solutions, forward Euler, and 
   particle simulations also available)
 - Arbitrary functions for drift rate, noise, bounds, and initial
   position distribution

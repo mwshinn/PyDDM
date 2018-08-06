@@ -17,15 +17,16 @@ It can be represented by:
    :language: python
    :lines: 4-13, 17-18
 
-Solution objects represent PDFs of the solved model.  We can generate
-data from this solved model with:
+Solution objects represent correct and erred probability distribution 
+functions over time. We can generate psuedo-data from this solved 
+model with:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :lines: 22
   
 To fit the outputs, we first create a model with special
-:class:`.Fittable` objects in all the parameters we would like to be
+:class:`.Fittable` objects in all the parameters we would like to
 fit.  We specify the range of each of these objects as a hint to the
 optimizer; this is mandatory for some but not all optimization
 methods.  Then, we run the :func:`.fit_adjust_model` function, which
