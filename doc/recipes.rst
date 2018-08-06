@@ -83,7 +83,7 @@ Lapse rates for model fits
 
 When fitting models, especially when doing so with likelihood, it is
 useful to have a constant lapse rate in the model to prevent the
-likelihood from being negative inifinity.  PyDDM has two useful
+likelihood from being negative infinity.  PyDDM has two useful
 built-in lapse rates for this which are used as mixture models: an
 :class:`Exponential lapse rate <.OverlayPoissonMixture>` (according
 to a Poisson process, the recommended method) and the :class:`Uniform
@@ -244,21 +244,21 @@ This can easily be modified to make it coherence dependent, where
           return 0
 
 Psychophysical Kernel paradigm
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In the psychophysical kernel paradigm, random time-varying but on average 
-unbiased stimuli is presented on a trial-by-trial basis to quantify the 
+unbiased stimuli are presented on a trial-by-trial basis to quantify the 
 weight a given time point has on behavioural choice. 
 
-In particular, consider a sequence of coherences "coh_t_list", generated 
-by randomly sampling from a pool of coherences "coh_list_PK" for 
-"Tdur" = 2 seconds every "dt_PK" = 0.05 seconds::
+In particular, consider a sequence of coherences ``coh_t_list``, generated 
+by randomly sampling from a pool of coherences ``coh_list_PK`` for 
+``Tdur = 2`` seconds every ``dt_PK = 0.05`` seconds::
+
   coh_list = np.array([-25.6, -12.8, -6.4, 6.4, 12.8, 25.6])
   Tdur = 2
   dt_PK=0.05
   i_coh_t_list = np.random.randint(len(coh_list), size=int(Tdur/dt_PK))
   coh_t_list = [0.01*coh_list[i] for i in i_coh_t_list]
-
 
 If the conversion from coherence to "drift" is known (e.g. by fitting 
 other tasks), one can model the DDM with this sequence of evidence::
@@ -301,9 +301,11 @@ ensure each stimulus strength at each time-step is considered)::
           PK_n[i_t, i_coh_t_list[i_t]] += 1
   PK_Mat = PK_Mat/PK_n
 
-Where "n_rep" is the number trials. "PK_Mat" is known as the psychophysical
- matrix. Normalizing by coherence and averaging across stimuli (for each 
- time-step), one obtains the psychophysical kernel "PK"::
+Where ``n_rep`` is the number trials. ``PK_Mat`` is known as the
+psychophysical matrix. Normalizing by coherence and averaging across
+stimuli (for each time-step), one obtains the psychophysical kernel
+``PK``::
+   
   for i_coh in range(len(coh_list)):
       PK_Mat[:,i_coh] /= coh_list[i_coh]
   PK = np.mean(PK_Mat, axis=1)
@@ -311,38 +313,43 @@ Where "n_rep" is the number trials. "PK_Mat" is known as the psychophysical
 	
 Sine wave evidence
 ~~~~~~~~~~~~~~~~~~
-### Define conditions and parameters explicitly (preferably including where 
-they'd go in model/solve etc)
-Below are several examples of how to construct a new model class.
 
-Suppose we have a task where evidence varies according to a sine wave 
-which has a different frequency on different trials::
+We use evidence in the form of a sine wave as an example of how to
+construct a new model class.
+
+Suppose we have a task where evidence varies according to a sine wave
+which has a different frequency on different trials.  The frequency is
+a feature of the task, and will be the same for all components of the
+model.  Thus, it is a "condition".  By contrast, how strongly the
+animal weights the evidence is not observable and only exists internal
+to the model.  It is a "parameter", or something that we must fit to
+the data.  This model can then be defined as::
 
   import numpy as np
   from ddm.models import Drift
   class DriftSine(Drift):
       name = "Sine-wave drifts"
       required_conditions = ["frequency"]
-      required_parameters = ["offset"]
+      required_parameters = ["scale"]
       def get_drift(self, t, conditions, **kwargs):
-          return np.sin(t*conditions["frequency"]*2*np.pi)+self.offset
+          return np.sin(t*conditions["frequency"]*2*np.pi)*self.scale
 		  
-In this case, "frequency" is externally provided per trial, thus defined in "conditions".
- "offset" is a parameter to fit, and is thus defined in "parameters". 
- We then use the DriftSine class to define model::
- 
- 
-  from ddm.models import Drift
+In this case, ``frequency`` is externally provided per trial, thus
+defined as a condition.  By contrast, ``scale`` is a parameter to fit,
+and is thus defined as a parameter.  We then use the DriftSine class
+to define model::
+
+  from ddm import Model
   model = Model(name='Sine-wave evidences',
-	  drift=DriftSine(offset=0.5),
-	  noise=NoiseConstant(noise=1.5),
-	  bound=BoundConstant(B=1.1),
-	  overlay=OverlayNonDecision(nondectime=.1),
-	  dx=.001, dt=.01, T_dur=2)
+	            drift=DriftSine(scale=0.5))
   sol = model.solve(conditions={"frequency": 5})
   
-The model is solved in sol, where the probability to be correct, the reaction time 
-distribution, and other outputs could be retrieved. Finally, note that the conditions
-, being externally defined (e.g. trial-by-trial), are inputted at model.solve. the parameters
-, such as offset, is defined within the respective classes. Depending on the context
-, it could be either a constant (as done here) or as a "fittable", if fitting is required.
+The model is solved and the result is saved in the variable sol, where
+the :meth:`probability correct <.Solution.prob_correct>`, the
+:meth:`reaction time distribution <.Solution.pdf_corr>`, and other
+outputs could be retrieved. Finally, note that the conditions, being
+externally defined (e.g. trial-by-trial), must be input during the
+call to model.solve. The parameters, such as offset, are defined
+within the respective classes.  Depending on the context, it could be
+either a constant (as done here) or as a :class:`.Fittable` object, if
+fitting to data is required.
