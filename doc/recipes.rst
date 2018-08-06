@@ -11,14 +11,111 @@ Collapsing Bounds
 
 Both linearly collapsing bounds (:class:`.BoundCollapsingLinear`) and
 exponentially collapsing bounds (:class:`.BoundCollapsingExponential`)
-already exist in PyDDM.  
+already exist in PyDDM.  For example::
+
+  from ddm import Model
+  from ddm.models import BoundCollapsingLinear, BoundCollapsingExponential
+  model1 = Model(bound=BoundCollapsingExponential(B=1, tau=2))
+  model2 = Model(bound=BoundCollapsingLinear(B=1, t=.2))
+
+It is also possible to make collapsing bounds of any shape.  For
+example, the following describes bounds which collapse according to a
+step function::
+
+  from ddm.models import Bound
+  class BoundCollapsingStep(Bound):
+      name = "Step collapsing bounds"
+      required_conditions = []
+      required_parameters = ["B0", "stepheight", "steplength"]
+      def get_bound(self, t, **kwargs):
+          stepnum = t//self.steplength
+          step = self.B0 - stepnum * self.stepheight
+          return max(step, 0)
+
+Then we can use this in a model with::
+
+  from ddm import Model
+  model = Model(bound=BoundCollapsingStep(B0=1, stepheight=.1, steplength=.1))
+
+
+Biased Initial Conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When rewards or stimulus probabilities are asymmetric, a common
+paradigm is to start the trial with a bias towards one side.  Suppose
+we have a sample which has the ``highreward`` condition set to either
+0 or 1, describing whether the correct answer is the high or low
+reward side.  We must define the :meth:`~.InitialCondition.get_IC`
+method in an :class:`.InitialCondition` object which generates a
+discredited probability distribution on the model's position grid
+domain.  We can model this with::
+
+  from ddm.models import InitialCondition
+  import numpy as np
+  class ICPoint(InitialCondition):
+      name = "A dirac delta function at a position dictated by reward."
+      required_parameters = ["x0"]
+      required_conditions = ["highreward"]
+      def get_IC(self, x, dx, conditions):
+          start = np.round(self.x0/dx)
+          if not conditions['highreward']:
+              start = -start
+          shift_i = int(start + (len(x)-1)/2)
+          assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
+          pdf = np.zeros(len(x))
+          pdf[shift_i] = 1. # Initial condition at x=self.x0.
+          return pdf
+
+Then we can compare the high reward distribution to the low reward
+distribution::
+
+  from ddm import Model
+  from ddm.plot import plot_compare_solutions
+  import matplotlib.pyplot as plt
+  model = Model(IC=ICPoint(x0=.3))
+  s1 = model.solve(conditions={"highreward": 1})
+  s2 = model.solve(conditions={"highreward": 0})
+  plot_compare_solutions(s1, s2)
+  plt.show()
+
+Lapse rates for model fits
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When fitting models, especially when doing so with likelihood, it is
+useful to have a constant lapse rate in the model to prevent the
+likelihood from being negative inifinity.  PyDDM has two useful
+built-in lapse rates for this which are used as mixture models: an
+:class:`Exponential lapse rate <.OverlayPoissonMixture>` (according
+to a Poisson process, the recommended method) and the :class:`Uniform
+lapse rate <.OverlayUniformMixture>` (which is more common in the
+literature).  These can be introduced with::
+
+  from ddm import Model
+  from ddm.models import OverlayPoissonMixture, OverlayUniformMixture
+  model1 = Model(overlay=OverlayPoissonMixture(pmixturecoef=.05, rate=1))
+  model2 = Model(overlay=OverlayUniformMixture(umixturecoef=.05))
+
+If another overlay is to be used, such as
+:class:`.OverlayNonDecision`, then an :class:`.OverlayChain` object
+must be used::
+
+  from ddm import Model
+  from ddm.models import OverlayPoissonMixture, OverlayNonDecision, OverlayChain
+  model = Model(overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=.2),
+                                               OverlayPoissonMixture(pmixturecoef=.05, rate=1)]))
+
 
 Leaky/Unstable integrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Leaky/unstable integrators are implemented in :class:`.DriftLinear`.  For
-a leaky integrator, set the parameter ``x`` to be less than 0.  For an
-unstable integrator, set the parameter ``x`` to be greater than 0.
+Leaky/unstable integrators are implemented in :class:`.DriftLinear`.
+For a leaky integrator, set the parameter ``x`` to be less than 0.
+For an unstable integrator, set the parameter ``x`` to be greater
+than 0.  For example::
+
+  from ddm import Model
+  from ddm.models import DriftLinear
+  model = Model(drift=DriftLinear(drift=0, t=.2, x=.1))
 
 Shared parameters
 ~~~~~~~~~~~~~~~~~
@@ -62,11 +159,11 @@ Now, we can define a model to fit with::
                        noiseboost=boost,
                        tboost=t_boost),
             T_dur=3, dt=.001, dx=.001)
- 
+
 This will ensure that the value of ``driftboost`` is always equal to the
 value of ``noiseboost``, and that the value of ``tboost`` in Drift is always
 equal to the value of ``tboost`` in Noise.
-            
+
 Note that this is **not the same** as::
 
   m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
