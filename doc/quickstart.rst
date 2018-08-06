@@ -1,37 +1,77 @@
 Quick Start guide
 =================
 
+Hello, world!
+-------------
+
+To get started, let's simulate a basic model and plot it.  For
+simplicity, we will use all of the model defaults.
+
+.. literalinclude:: downloads/helloworld.py
+   :language: python
+
+.. image:: images/helloworld.png
+
+Congratulations!  You've successfully simulated your first model!
+Let's dig in a bit so that we can define more useful models.
+
+:download:`Download this full example <downloads/helloworld.py>`
+
 Simple example
 --------------
 
-The following simulates a simple DDM with constant drift.
+The following simulates a simple DDM with constant drift.  First, it
+shows how to build a model and then uses it to generate artificial
+data.  After the artificial data has been generated, it fits a new
+model to these data and shows that the parameters are similar.
+
 :class:`.Model` is the object which represents a DDM.  Its default
 behavior can be changed through :class:`.Drift`, :class:`.Noise`,
 :class:`.Bound`, :class:`.InitialCondition`, and :class:`.Overlay`
 objects, which specify the behavior of each of these model components.
+Each model must have one of each of these, but defaults to a simple
+case for each.  These determine how it calculates the drift rate
+(:class:`.Drift`), diffusion constant (:class:`.Noise`), shape of the
+integration boundaries (:class:`.Bound`), initial particle
+distribution (:class:`.InitialCondition`), and any other modifications
+to the generated solution (:class:`.Overlay`).
+
+Each of these model components may take "parameters" which are
+(usually) unique to that specific model component.  For instance, the
+:class:`.DriftConstant` class takes the "drift" parameter, which
+should be passed to the constructor.  Similarly,
+:class:`.NoiseConstant` takes the parameter "noise" to determine the
+standard deviation of the drift process, and
+:class:`.OverlayNonDecision` takes "nondectime", the non-decision time
+(efferent/afferent/apparatus delay) in seconds.  By contrast,
+:class:`.ICPointSourceCenter` does not take any parameters.
+
 For example, the following is a DDM with drift 2.2, noise 1.5, bound
-1.1, and a 100ms non-decision time.  It is simulated for 2 seconds.
-It can be represented by:
+1.1, and a 100ms non-decision time.  It is simulated for 2 seconds
+(defined by ``T_dur``) with reasonable timestep and grid size (``dt``
+and ``dx``).  Once we define the model, the :meth:`~.Model.solve`
+function runs the simulation.  This can be computed as shown below:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :lines: 4-13, 17-18
 
 Solution objects represent PDFs of the solved model.  We can generate
-data from this solved model with:
+artificial data from this solved model with the
+:meth:`~.Solution.resample` function:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :lines: 22
   
 To fit the outputs, we first create a model with special
-:class:`.Fittable` objects in all the parameters we would like to be
-fit.  We specify the range of each of these objects as a hint to the
-optimizer; this is mandatory for some but not all optimization
-methods.  Then, we run the :func:`.fit_adjust_model` function, which
-will convert the :class:`.Fittable` objects to :class:`.Fitted`
-objects and find a value for each which collectively minimizes the
-objective function.
+:class:`.Fittable` objects in place of all the parameters we would
+like to be fit.  We specify the range of each of these objects as a
+hint to the optimizer; this is mandatory for some but not all
+optimization methods.  Then, we run the :func:`.fit_adjust_model`
+function, which will convert the :class:`.Fittable` objects to
+:class:`.Fitted` objects and find a value for each which collectively
+minimizes the objective function.
 
 Here, we use the same model as above, since we know the form the model
 is supposed to have.  We fit the model to the generated data using BIC:
@@ -40,13 +80,17 @@ is supposed to have.  We fit the model to the generated data using BIC:
    :language: python
    :lines: 26-38
 
-We can display the newly-fit parameters:
+We can display the newly-fit parameters with the
+:func:`~.functions.display_model` function:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :lines: 40
 
-This shows::
+This shows that the fitted value of drift is 2.2096, which is close to
+the value of 2.2 we used to simulate it.  Similarly, noise fits to
+1.539 (compared to 1.5) and nondectime (non-decision time) to 0.1193
+(compared to 0.1)::
 
   Model Simple model (fitted) information:
   Drift component DriftConstant:
@@ -69,13 +113,28 @@ This shows::
       Fitted parameters:
       - nondectime: 0.119300
 
-We can also draw a plot visualizing the fit:
+We can also draw a plot visualizing the fit.  Unlike our first
+example, we will now use one of PyDDM's convenience methods,
+:func:`~.plot.plot_fit_diagnostics`:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :lines: 43-47
 
 .. image:: images/simple-fit.png
+
+Using the :class:`.Solution` object ``sol`` we have access to a number
+of other useful functions.  For instance, we can display the
+probability of a correct response using
+:meth:`~.Solution.prob_correct` or the entire histogram of errors
+using :meth:`~.Solution.pdf_err`.
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 49-50
+
+See :class:`the Solution object documentation <.Solution>` for more
+such functions.
 
 :download:`Download this full example <downloads/simple.py>`
            

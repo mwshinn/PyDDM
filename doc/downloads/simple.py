@@ -45,3 +45,6 @@ import matplotlib.pyplot as plt
 ddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
 plt.savefig("simple-fit.png")
 plt.show()
+
+print(sol.prob_correct())
+print(sol.pdf_err())
