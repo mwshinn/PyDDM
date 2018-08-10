@@ -1,7 +1,6 @@
 language: python
 os:
   - linux
-  - osx
 python:
   - "3.5"
   - "3.6"
@@ -13,13 +12,12 @@ env:
     SCIPY_VERSION=1.1.0
     PANDAS_VERSION=0.23.3
 
-
 # install dependencies
 install:
   - pip install pytest
-  - pip install -q numpy==$NUMPY_VERSION
-  - pip install -q scipy==$SCIPY_VERSION
-  - pip install -q pandas==$PANDAS_VERSION
+  - pip install numpy==$NUMPY_VERSION
+  - pip install scipy==$SCIPY_VERSION
+  - pip install pandas==$PANDAS_VERSION
   - pip install .
 # run tests
 script:
