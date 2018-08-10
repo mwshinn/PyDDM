@@ -7,7 +7,6 @@
 __all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
-from math import fsum
 from scipy.special import gamma as sp_gamma
 
 from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0

@@ -189,7 +189,7 @@ class Solution(object):
         udprob = 1 - fsum(self.corr.tolist() + self.err.tolist())
         if udprob < 0:
             print("Warning, setting undecided probability from %f to 0" % udprob)
-            edprob = 0
+            udprob = 0
         return udprob
 
     @accepts(Self)
@@ -213,6 +213,7 @@ class Solution(object):
 
     @accepts(Self, Natural1, seed=Natural0)
     @returns(Sample)
+    @ensures("len(return) == k")
     def resample(self, k=1, seed=0):
         """Generate a list of reaction times sampled from the PDF.
 
@@ -225,9 +226,7 @@ class Solution(object):
         This relies on the assumption that reaction time cannot be
         less than 0.
 
-        Returns a tuple, where the first element is a list of correct
-        reaction times, and the second element is a list of error
-        reaction times.
+        Returns a Sample object representing the distribution.
         """
         # Exclude the last point in the t domain because we will add
         # uniform noise to the sample and this would put us over the
@@ -249,7 +248,7 @@ class Solution(object):
         samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)
         samp += np.random.uniform(0, self.model.dt, k)
         
-        aa = lambda x : np.asarray(x)
+        aa = np.asarray
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials
         # Find correct and error trials

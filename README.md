@@ -49,7 +49,9 @@ If installing from source, [download the source code](https://github.com/mwshinn
 ## System requirements
 
 - Python 3.5 or above
-- Numpy/Scipy/Matplotlib
+- Numpy version 1.9.2 or higher
+- Scipy version 0.15.1 or higher
+- Matplotlib
 - [Paranoid Scientist](<https://github.com/mwshinn/paranoidscientist>)
 - Pathos (optional, for multiprocessing support)
 

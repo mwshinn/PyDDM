@@ -15,6 +15,7 @@ class FitResult:
     def _generate():
         yield FitResult(method="Test method", loss="Likelihood",
                         value=1.1, prop1="xyz", prop2=-2)
+    @staticmethod
     def _test(v):
         assert v.val in Or(Number, Nothing)
         assert v.method in String()

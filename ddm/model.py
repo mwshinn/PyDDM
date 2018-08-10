@@ -299,7 +299,6 @@ class Model(object):
         mt = self.get_model_type()
         # First check to make sure drift doesn't vary with time or
         # particle location
-        drift_valid = False
         driftfuncsig = inspect.signature(mt["Drift"].get_drift)
         if "t" in driftfuncsig.parameters or "x" in driftfuncsig.parameters:
             return False
@@ -308,10 +307,10 @@ class Model(object):
         if "t" in noisefuncsig.parameters or "x" in noisefuncsig.parameters:
             return False
         # Check to make sure bound is one that we can solve for
-        if not mt["Bound"]in [BoundConstant, BoundCollapsingLinear]:
+        if mt["Bound"] not in [BoundConstant, BoundCollapsingLinear]:
             return False
         # Make sure initial condition is at the center
-        if not mt["IC"] == ICPointSourceCenter:
+        if mt["IC"] != ICPointSourceCenter:
             return False
         # Assuming none of these is the case, return True.
         return True

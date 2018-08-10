@@ -8,7 +8,6 @@ __all__ = ["Drift", "DriftConstant", "DriftLinear"]
 
 import numpy as np
 from scipy import sparse
-import scipy.sparse.linalg
 
 from .base import Dependence
 from paranoid import *

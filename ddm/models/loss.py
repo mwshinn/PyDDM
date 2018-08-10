@@ -115,6 +115,7 @@ class LossSquaredError(LossFunction):
         assert v.hists_corr != {}
         assert v.hists_err != {}
         assert v.target.size == 2*len(v.hists_corr.keys())*(v.T_dur/v.dt+1)
+    @staticmethod
     def _generate():
         yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=2)
     def setup(self, dt, T_dur, **kwargs):
@@ -143,6 +144,7 @@ class LossLikelihood(LossFunction):
     def _test(v):
         assert v.dt in Positive0()
         assert v.T_dur in Positive0()
+    @staticmethod
     def _generate():
         yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=2)
     def setup(self, dt, T_dur, **kwargs):

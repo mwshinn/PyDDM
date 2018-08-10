@@ -331,30 +331,35 @@ class Sample(object):
 
     @accepts(Self)
     @returns(Range(0, 1))
+    @requires("len(self) > 0")
     def prob_correct(self):
         """The probability of selecting the right response."""
         return len(self.corr)/len(self)
 
     @accepts(Self)
     @returns(Range(0, 1))
+    @requires("len(self) > 0")
     def prob_error(self):
         """The probability of selecting the incorrect (error) response."""
         return len(self.err)/len(self)
 
     @accepts(Self)
     @returns(Range(0, 1))
+    @requires("len(self) > 0")
     def prob_undecided(self):
         """The probability of selecting neither response (undecided)."""
         return self.undecided/len(self)
 
     @accepts(Self)
     @returns(Range(0, 1))
+    @requires("len(self) > 0")
     def prob_correct_forced(self):
         """The probability of selecting the correct response if a response is forced."""
         return self.prob_correct() + self.prob_undecided()/2.
 
     @accepts(Self)
     @returns(Range(0, 1))
+    @requires("len(self) > 0")
     def prob_error_forced(self):
         """The probability of selecting the incorrect response if a response is forced."""
         return self.prob_error() + self.prob_undecided()/2.

@@ -1,0 +1,26 @@
+language: python
+os:
+  - linux
+  - osx
+python:
+  - "3.5"
+  - "3.6"
+env:
+  - NUMPY_VERSION=1.9.2
+    SCIPY_VERSION=0.15.1
+    PANDAS_VERSION=0.16.2
+  - NUMPY_VERSION=1.15.0
+    SCIPY_VERSION=1.1.0
+    PANDAS_VERSION=0.23.3
+
+
+# install dependencies
+install:
+  - pip install pytest
+  - pip install -q numpy==$NUMPY_VERSION
+  - pip install -q scipy==$SCIPY_VERSION
+  - pip install -q pandas==$PANDAS_VERSION
+  - pip install .
+# run tests
+script:
+  - ./runtests.sh
