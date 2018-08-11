@@ -12,8 +12,21 @@ env:
     SCIPY_VERSION=1.1.0
     PANDAS_VERSION=0.23.3
 
+addons:
+  apt:
+    packages:
+      - g++
+      - gfortran
+      - cmake
+      - libboost-all-dev
+      - libblas-dev
+      - liblapack-dev
+      - libatlas-base-dev
+      - libopenblas-dev
+
 # install dependencies
 install:
+  - pip install --upgrade pip
   - pip install pytest
   - pip install numpy==$NUMPY_VERSION
   - pip install scipy==$SCIPY_VERSION

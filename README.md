@@ -1,5 +1,7 @@
 # PyDDM - A drift-diffusion model simulator
 
+[![Build Status](https://travis-ci.com/mwshinn/PyDDM.svg?branch=master)](https://travis-ci.com/mwshinn/PyDDM)
+
 # Overview
 
 PyDDM is a simulator and modeling framework for drift-diffusion models
