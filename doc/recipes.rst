@@ -286,7 +286,6 @@ during the pulse duration:
               return self.drift
           return self.drift0
 
-(Note: Still think that this can just be incoporated into the first)
 		  
 Psychophysical Kernel paradigm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
