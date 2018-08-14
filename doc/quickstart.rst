@@ -31,7 +31,7 @@ behavior can be changed through :class:`.Drift`, :class:`.Noise`,
 objects, which specify the behavior of each of these model components.
 Each model must have one of each of these, but defaults to a simple
 case for each.  These determine how it calculates the drift rate
-(:class:`.Drift`), diffusion constant (:class:`.Noise`), shape of the
+(:class:`.Drift`), diffusion coefficient (:class:`.Noise`), shape of the
 integration boundaries (:class:`.Bound`), initial particle
 distribution (:class:`.InitialCondition`), and any other modifications
 to the generated solution (:class:`.Overlay`).
@@ -48,7 +48,7 @@ standard deviation of the drift process, and
 
 For example, the following is a DDM with drift 2.2, noise 1.5, bound
 1.1, and a 100ms non-decision time.  It is simulated for 2 seconds
-(defined by ``T_dur``) with reasonable timestep and grid size (``dt``
+(``T_dur``) with reasonable timestep and grid size (``dt``
 and ``dx``).  Once we define the model, the :meth:`~.Model.solve`
 function runs the simulation.  This can be computed as shown below:
 
@@ -113,7 +113,8 @@ the value of 2.2 we used to simulate it.  Similarly, noise fits to
       Fitted parameters:
       - nondectime: 0.119300
 
-We can also draw a plot visualizing the fit.  Unlike our first
+Note that the fit is not perfect due to the finite size of the 
+resampled data. We can also draw a plot visualizing the fit.  Unlike our first
 example, we will now use one of PyDDM's convenience methods,
 :func:`~.plot.plot_fit_diagnostics`:
 
