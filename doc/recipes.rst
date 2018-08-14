@@ -78,6 +78,36 @@ distribution::
   plot_compare_solutions(s1, s2)
   plt.show()
 
+To more accurately represent the initial condition, we can 
+linearly approximate the probability density function at the two 
+neighbouring grids of the initial position.
+
+  from ddm.models import InitialCondition
+  import numpy as np
+  class ICPoint(InitialCondition):
+      name = "A dirac delta function at a position dictated by reward."
+      required_parameters = ["x0"]
+      required_conditions = ["highreward"]
+      def get_IC(self, x, dx, conditions):
+          start_in = np.floor(self.x0/dx)
+		  start_out = np.sign(start_in)*(np.abs(start_in)+1)
+		  w_in = np.abs(start_out - self.x0/dx)
+		  w_out = np.abs(self.x0/dx - start_in)
+          if not conditions['highreward']:
+              start_in = -start_in
+              start_out = -start_out
+          shift_in_i = int(start_in + (len(x)-1)/2)
+          shift_out_i = int(start_out + (len(x)-1)/2)
+		  if w_in>0:
+			assert shift_in_i>= 0 and shift_in_i < len(x), "Invalid initial conditions"
+		  if w_out>0:
+			assert shift_out_i>= 0 and shift_out_i < len(x), "Invalid initial conditions"
+          pdf = np.zeros(len(x))
+          pdf[shift_in_i] = w_in # Initial condition at the inner grid next to x=self.x0.
+          pdf[shift_out_i] = w_out # Initial condition at the outer grid next to x=self.x0.
+          return pdf
+
+  
 Lapse rates for model fits
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -242,7 +272,22 @@ This can easily be modified to make it coherence dependent, where
           if self.start <= t <= self.start + self.duration:
               return self.drift * conditions["coherence"]
           return 0
+		  
+Alternatively, drift can be set at a default value, and changed 
+during the pulse duration:
 
+  from ddm.models import Drift
+  class DriftPulse(Drift):
+      name = "Drift for a pulse paradigm, with baseline drift"
+      required_parameters = ["start", "duration", "drift", "drift0"]
+      required_conditions = []
+      def get_drift(self, t, conditions, **kwargs):
+          if self.start <= t <= self.start + self.duration:
+              return self.drift
+          return self.drift0
+
+(Note: Still think that this can just be incoporated into the first)
+		  
 Psychophysical Kernel paradigm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
