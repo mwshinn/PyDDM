@@ -29,7 +29,7 @@ model to these data and shows that the parameters are similar.
 behavior can be changed through :class:`.Drift`, :class:`.Noise`,
 :class:`.Bound`, :class:`.InitialCondition`, and :class:`.Overlay`
 objects, which specify the behavior of each of these model components.
-CLARIFY: Each model must have one of each of these, but defaults to a simple
+Each model must have one of each of these, but defaults to a simple
 case for each.  These determine how it calculates the drift rate
 (:class:`.Drift`), diffusion coefficient (:class:`.Noise`), shape of the
 integration boundaries (:class:`.Bound`), initial particle
@@ -113,7 +113,7 @@ the value of 2.2 we used to simulate it.  Similarly, noise fits to
       Fitted parameters:
       - nondectime: 0.119300
 
-Maybe add: Note that the fit is not perfect due to the finite size of the 
+Note that the fit is not perfect due to the finite size of the 
 resampled data. We can also draw a plot visualizing the fit.  Unlike our first
 example, we will now use one of PyDDM's convenience methods,
 :func:`~.plot.plot_fit_diagnostics`:
