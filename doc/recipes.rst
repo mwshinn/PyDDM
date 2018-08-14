@@ -261,7 +261,7 @@ pulse, ``start`` is the time of the pulse onset, and ``duration`` is the
 duration of the pulse.
 
 This can easily be modified to make it coherence dependent, where
-``coherence`` is the coherence in the :class:`.Sample`::
+``coherence`` is a condition in the :class:`.Sample`::
 
   from ddm.models import Drift
   class DriftPulseCoh(Drift):
@@ -273,8 +273,8 @@ This can easily be modified to make it coherence dependent, where
               return self.drift * conditions["coherence"]
           return 0
 		  
-Alternatively, drift can be set at a default value, and changed 
-during the pulse duration:
+Alternatively, drift can be set at a default value independent of
+coherence, and changed during the pulse duration::
 
   from ddm.models import Drift
   class DriftPulse(Drift):
