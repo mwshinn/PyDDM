@@ -517,23 +517,32 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
+        # Detect and fix below zero errors
+        pdf_undec = pdf_curr
+        minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
+        if minval < 0:
+            print("Warning: histogram included values less than zero.  Please adjust numerics (i.e. decrease dx or dt)")
+            pdf_corr[pdf_corr < 0] = 0
+            pdf_err[pdf_err < 0] = 0
+            pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
-        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
+        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
             print("Warning: renormalizing model solution from", pdfsum, "to 1.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
+            pdf_undec /= pdfsum
 
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
 
-    @accepts(Self)
+    @accepts(Self, Conditions)
     @returns(Solution)
     @requires("self.can_solve_explicit(conditions=conditions)")
     def solve_numerical_explicit(self, conditions={}, **kwargs):
         """Solve the model using the explicit method (Forward Euler)."""
         return self.solve_numerical(method="explicit", conditions=conditions, **kwargs)
 
-    @accepts(Self)
+    @accepts(Self, Conditions)
     @returns(Solution)
     def solve_numerical_implicit(self, conditions={}, **kwargs):
         """Solve the model using the implicit method (Backward Euler)."""
@@ -696,15 +705,24 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
+        # Detect and fix below zero errors
+        pdf_undec = pdf_curr
+        minval = np.min((np.min(pdf_corr), np.min(pdf_err)))
+        if minval < 0:
+            print("Warning: histogram included values less than zero.  Please adjust numerics (i.e. decrease dx or dt)")
+            pdf_corr[pdf_corr < 0] = 0
+            pdf_err[pdf_err < 0] = 0
+            pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
             print("Warning: renormalizing model solution from", pdfsum, "to 1.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
+            pdf_curr /= pdfsum
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_curr))
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
 
 
 @paranoidclass
