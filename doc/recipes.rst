@@ -333,7 +333,7 @@ ensure each stimulus strength at each time-step is considered)::
   for i_rep in range(n_rep):                                                                                    
       i_coh_t_list = np.random.randint(len(coh_list), size=int(Tdur/dt_PK))
       coh_t_list = [0.01*coh_list[i] for i in i_coh_t_list]
-	  model = Model(name='PK',
+      model = Model(name='PK',
           drift=DriftPK(drift=2.2),
           noise=NoiseConstant(noise=1.5),
           bound=BoundConstant(B=1.1),

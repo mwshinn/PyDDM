@@ -11,6 +11,7 @@ from scipy import sparse
 
 from .base import Dependence
 from paranoid import *
+from .paranoid_types import Conditions
 
 @paranoidclass
 class Drift(Dependence):
@@ -44,7 +45,7 @@ class Drift(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
-    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(sparse.spmatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
@@ -71,7 +72,7 @@ class Drift(Dependence):
                                              [1, -1], format="csr")
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
-    @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Number)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         """The drift component of flux across the boundary at position `x_bound` at time `t`.

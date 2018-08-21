@@ -211,7 +211,7 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
-    @accepts(Self, conditions=Dict(k=String, v=Number), seed=Natural0)
+    @accepts(Self, conditions=Conditions, seed=Natural0)
     @ensures('0 < len(return) <= len(self.t_domain())')
     def simulate_trial(self, conditions={}, seed=0):
         """Simulate the decision variable for one trial.

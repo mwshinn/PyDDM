@@ -12,6 +12,7 @@ import scipy.sparse.linalg
 
 from .base import Dependence
 from paranoid import *
+from .paranoid_types import Conditions
 
 @paranoidclass
 class Noise(Dependence):
@@ -45,7 +46,7 @@ class Noise(Dependence):
         object.__setattr__(self, "_last_diag_kwargs", kwargs)
         object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
         return object.__getattribute__(self, "_last_diag_val")
-    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(sparse.spmatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
@@ -72,7 +73,7 @@ class Noise(Dependence):
                                               -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
                                               -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2],
                                              [0, 1, -1], format="csr")
-    @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Dict(k=String, v=Number))
+    @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Positive0)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
         """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
