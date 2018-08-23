@@ -428,8 +428,34 @@ Nelder-Mead simplex algorithm, do::
 
 At this time, PyDDM does not support custom optimization methods, but
 loss functions may be defined by extending
-:class:`~.models.loss.LossFunction`.  Please see the API documentation
-for more information on how to create custom loss functions.
+:class:`~.models.loss.LossFunction`.  The ``loss`` function must be
+defined and, given a model, returns the goodness of fit to the sample,
+accessible under ``self.sample``. The ``setup`` function may
+optionally be defined, which is run once and may be used, for example,
+to do computations on the sample don't need to be run at each
+evaluation.
+
+Here is an example of how to define a loss function as the sum of two
+terms: the mean response time of correct trials, and the probability
+of choosing the correct target.  While unprincipled, it is a simple
+example that in practice gives similar fits to the analytical
+expression in Roitman and Shadlen (2002)::
+
+  class LossByMeans(LossFunction):
+      name = "Mean RT and accuracy"
+      def setup(self, dt, T_dur, **kwargs):
+          self.dt = dt
+          self.T_dur = T_dur
+      def loss(self, model):
+          sols = self.cache_by_conditions(model)
+          MSE = 0
+          for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
+              c = frozenset(comb.items())
+              s = self.sample.subset(**comb)
+              MSE += (sols[c].prob_correct() - s.prob_correct())**2
+              if sols[c].prob_correct() > 0:
+                  MSE += (sols[c].mean_decision_time() - np.mean(list(s)))**2
+          return MSE
 
 
 Fitting with undecided trials
