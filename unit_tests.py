@@ -461,6 +461,11 @@ class TestSolution(TestCase):
             assert np.isclose(fsum(s.pdf_err()*dt), s.prob_error())
             if s.prob_undecided() == 0:
                 assert s.prob_correct() == s.prob_correct_forced()
+                assert s.prob_error() == s.prob_error_forced()
+            # Signed probabilities sum to 1
+            if s.undec is not None:
+                assert np.isclose(np.sum(s.prob_correct_sign()) + np.sum(s.prob_error_sign()), 1, rtol=.005)
+                assert np.sum(s.prob_correct_sign()) + np.sum(s.prob_error_sign()) <= 1
             # Correct time domain
             assert len(s.pdf_corr()) == len(s.model.t_domain())
         # pdf_undec with pdf_corr and pdf_err sums to one if pdf_undec exists

@@ -173,19 +173,19 @@ class Solution(object):
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_correct(self):
-        """The probability of selecting the right response."""
+        """Probability of correct response within the time limit."""
         return fsum(self.corr)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_error(self):
-        """The probability of selecting the incorrect (error) response."""
+        """Probability of incorrect (error) response within the time limit."""
         return fsum(self.err)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_undecided(self):
-        """The probability of selecting neither response (undecided)."""
+        """The probability of not responding during the time limit."""
         udprob = 1 - fsum(self.corr.tolist() + self.err.tolist())
         if udprob < 0:
             print("Warning, setting undecided probability from %f to 0" % udprob)
@@ -195,14 +195,44 @@ class Solution(object):
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_correct_forced(self):
-        """The probability of selecting the correct response if a response is forced."""
+        """Probability of correct response if a response is forced.
+
+        Forced responses are selected randomly."""
         return self.prob_correct() + self.prob_undecided()/2.
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_error_forced(self):
-        """The probability of selecting the incorrect response if a response is forced."""
+        """Probability of incorrect response if a response is forced.
+
+        Forced responses are selected randomly."""
         return self.prob_error() + self.prob_undecided()/2.
+
+    @accepts(Self)
+    @returns(Range(0, 1))
+    @requires("self.undec is not None")
+    def prob_correct_sign(self):
+        """Probability of correct response if a response is forced.
+
+        Forced responses are selected by the position of the decision
+        variable at the end of the time limit T_dur.
+
+        This is only available for the implicit method.
+        """
+        return self.prob_correct() + np.sum(self.undec[len(self.undec)//2+1:])
+
+    @accepts(Self)
+    @returns(Range(0, 1))
+    @requires("self.undec is not None")
+    def prob_error_sign(self):
+        """Probability of incorrect response if a response is forced.
+
+        Forced responses are selected by the position of the decision
+        variable at the end of the time limit T_dur.
+
+        This is only available for the implicit method.
+        """
+        return self.prob_error() + np.sum(self.undec[:len(self.undec)//2])
 
     @accepts(Self)
     @requires('self.prob_correct() > 0')
