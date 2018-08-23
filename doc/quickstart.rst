@@ -74,7 +74,9 @@ objects and find a value for each which collectively minimizes the
 objective function.
 
 Here, we use the same model as above, since we know the form the model
-is supposed to have.  We fit the model to the generated data using BIC:
+is supposed to have.  We fit the model to the generated data using BIC
+as a loss function and differential evolution to optimize the
+parameters:
 
 .. literalinclude:: downloads/simple.py
    :language: python
