@@ -195,6 +195,7 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1.set_title("Correct RTs")
     ax2.set_title("Error RTs")
     pt = fig.suptitle("")
+    plt.tight_layout()
 
 
 # TODO sample is not optional

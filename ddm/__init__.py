@@ -6,6 +6,11 @@
 
 __all__ = ["Sample", "Solution", "Model", "Fittable", "Fitted"]
 
+# Check that Python3 is running
+import sys
+if sys.version_info.major != 3:
+    raise ImportError("PyDDM only supports Python 3")
+
 from .models import *
 from .model import Model, Fittable, Fitted
 from .sample import Sample
@@ -13,6 +18,7 @@ from .solution import Solution
 from .functions import *
 
 from ._version import __version__
+
 
 # Some default functions for paranoid scientist
 import paranoid

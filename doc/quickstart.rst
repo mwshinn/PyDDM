@@ -90,7 +90,8 @@ We can display the newly-fit parameters with the
 This shows that the fitted value of drift is 2.2096, which is close to
 the value of 2.2 we used to simulate it.  Similarly, noise fits to
 1.539 (compared to 1.5) and nondectime (non-decision time) to 0.1193
-(compared to 0.1)::
+(compared to 0.1).  The fitting algorithm is stochastic, so exact
+values may vary slightly::
 
   Model Simple model (fitted) information:
   Drift component DriftConstant:
@@ -113,10 +114,10 @@ the value of 2.2 we used to simulate it.  Similarly, noise fits to
       Fitted parameters:
       - nondectime: 0.119300
 
-Note that the fit is not perfect due to the finite size of the 
-resampled data. We can also draw a plot visualizing the fit.  Unlike our first
-example, we will now use one of PyDDM's convenience methods,
-:func:`~.plot.plot_fit_diagnostics`:
+While the values are close to the true values, the fit is not perfect
+due to the finite size of the resampled data. We can also draw a plot
+visualizing the fit.  Unlike our first example, we will now use one of
+PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -252,6 +253,12 @@ fitting algorithm is stochastic)::
           - pmixturecoef: 0.020000
           - rate: 1.000000
 
+Note that if you see "Warning: renormalizing model solution from X to
+1." for some X, this is okay as long as X is close ($<10^{-5}$ or so)
+to 1.0 or as long as this is seen early in the fitting procedure.  If
+it is larger or seen towards the end of the fitting procedure,
+consider using smaller dx or dt in the simulation.  This indicates
+numerical imprecision in the simulation.
          
 Plotting the fit
 ~~~~~~~~~~~~~~~~

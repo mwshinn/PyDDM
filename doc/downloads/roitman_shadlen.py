@@ -60,7 +60,7 @@ class DriftCoherence(ddm.models.Drift):
     name = "Drift depends linearly on coherence"
     required_parameters = ["driftcoh"] # <-- Parameters we want to include in the model
     required_conditions = ["coh"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
-      
+    
     # We must always define the get_drift function, which is used to compute the instantaneous value of drift.
     def get_drift(self, conditions, **kwargs):
         return self.driftcoh * conditions['coh']

@@ -4,6 +4,12 @@ from glob import glob
 import pandas
 import os
 
+if "b_rt" not in glob("*") or "n_rt" not in glob("*"):
+    exit("Error, please download the data from "
+         "https://shadlenlab.columbia.edu/resources/RoitmanDataCode.html "
+         "and copy this script into the extracted zip file (i.e. such "
+         "that 'n_rt' and 'b_rt' are in the same directory as this script)")
+
 # Load each session as a separate pandas dataframe and save them in
 # the dfs list.
 dfs = []

@@ -80,7 +80,7 @@ distribution::
 
 To more accurately represent the initial condition, we can 
 linearly approximate the probability density function at the two 
-neighbouring grids of the initial position.
+neighbouring grids of the initial position::
 
   from ddm.models import InitialCondition
   import numpy as np
@@ -171,7 +171,7 @@ to increase by some factor ``boost`` at time ``tboost``.  We could make
       name = "Noise with a time-delayed boost"
       required_parameters = ["noisebase", "noiseboost", "tboost"]
       required_conditions = []
-      def get_drift(self, t, conditions, **kwargs):
+      def get_noise(self, t, conditions, **kwargs):
           if t < self.tboost:
               return self.noisebase
           elif t >= self.tboost:
