@@ -43,14 +43,16 @@ should be passed to the constructor.  Similarly,
 :class:`.NoiseConstant` takes the parameter "noise" to determine the
 standard deviation of the drift process, and
 :class:`.OverlayNonDecision` takes "nondectime", the non-decision time
-(efferent/afferent/apparatus delay) in seconds.  By contrast,
-:class:`.ICPointSourceCenter` does not take any parameters.
+(efferent/afferent/apparatus delay) in seconds.  Some model
+components, such as :class:`.ICPointSourceCenter` which represents a
+starting point initial condition directly in between the bounds, does
+not take any parameters.
 
 For example, the following is a DDM with drift 2.2, noise 1.5, bound
 1.1, and a 100ms non-decision time.  It is simulated for 2 seconds
-(``T_dur``) with reasonable timestep and grid size (``dt``
-and ``dx``).  Once we define the model, the :meth:`~.Model.solve`
-function runs the simulation.  This can be computed as shown below:
+(``T_dur``) with reasonable timestep and grid size (``dt`` and
+``dx``).  Once we define the model, the :meth:`~.Model.solve` function
+runs the simulation.  This model can be described as shown below:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -212,8 +214,16 @@ needs:
    :language: python
    :lines: 58-66
 
-Then, we can construct a model which uses this and fit the data to the
-model:
+Because we are fitting with likelihood, we must include a baseline
+lapse rate to avoid taking the log of 0.  Traditionally this is
+implemented with a uniform distribution, but PyDDM can also use an
+exponential distribution using
+:class:`~.models.overlay.OverlayPoissonMixture` (representing a
+Poisson process lapse rate), as we use here.  However, since we also
+want a non-decision time, we need to use two Overlay objects.  To
+accomplish this, we can use an :class:`~.models.overlay.OverlayChain`
+object.  Then, we can construct a model which uses this and fit the
+data to the model:
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
@@ -274,6 +284,8 @@ and save a graph:
 
 .. image:: images/roitman-fit.png
 
+This model does not seem to fit the data very well.
+
 We can alternatively explore this with the PyDDM's model GUI:
 
 .. literalinclude:: downloads/roitman_shadlen.py
@@ -285,6 +297,44 @@ We can alternatively explore this with the PyDDM's model GUI:
 See :doc:`modelgui` for more info.
 
 :download:`Download this full example <downloads/roitman_shadlen.py>`
+
+
+Improving the fit
+-----------------
+
+Let's see if we can improve the fit by including additional model
+components.  We will include exponentially collapsing bounds and use a
+leaky or unstable integrator instead of a perfect integrator.
+
+To use a coherence-dependent leaky or unstable integrator, we can
+build a drift model which incorporates the position of the decision
+variable to either increase or decrease drift rate.  This can be
+accomplished by making ``get_drift`` depend on the argument ``x``.
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :lines: 110-117
+
+Collapsing bounds are already included in PyDDM, and can be accessed
+with :class:`~.models.bound.BoundCollapsingExponential`.
+
+Thus, the full model definition is
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :lines: 120-136
+
+We can fit this and save it as an image using the following.  Note
+that this may take a while (hours) due to the increased number of
+parameters and because the earlier examples were able to use the
+analytical solver but the present example must use backward Euler.
+For all coherences, the fit is:
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :lines: 140-142
+
+.. image:: images/leak-collapse-fit.png
 
 Going further
 -------------

@@ -102,3 +102,53 @@ plt.show()
 # To get an intuition for how parameters affect the fit, play with the
 # parameters and task conditions in a GUI.
 ddm.plot.model_gui(model=fit_model_rs, sample=roitman_sample)
+
+
+# Let's try to improve the model fit.
+
+# We define a model which allows us to use a coherence-dependent leaky integrator.
+class DriftCoherenceLeak(ddm.models.Drift):
+    name = "Leaky drift depends linearly on coherence"
+    required_parameters = ["driftcoh", "leak"] # <-- Parameters we want to include in the model
+    required_conditions = ["coh"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
+    
+    # We must always define the get_drift function, which is used to compute the instantaneous value of drift.
+    def get_drift(self, x, conditions, **kwargs):
+        return self.driftcoh * conditions['coh'] + self.leak * x
+
+# Now define the model using a leaky 
+from ddm.models import BoundCollapsingExponential
+model_leak = Model(name='Roitman data, leaky drift varies with coherence',
+                   drift=DriftCoherenceLeak(driftcoh=Fittable(minval=0, maxval=20),
+                                            leak=Fittable(minval=-10, maxval=10)),
+                   noise=NoiseConstant(noise=1),
+                   bound=BoundCollapsingExponential(B=Fittable(minval=0.5, maxval=3),
+                                                    tau=Fittable(minval=.0001, maxval=5)),
+                   # Since we can only have one overlay, we use
+                   # OverlayChain to string together multiple overlays.
+                   # They are applied sequentially in order.  OverlayDelay
+                   # implements a non-decision time by shifting the
+                   # resulting distribution of response times by
+                   # `delaytime` seconds.
+                   overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=Fittable(minval=0, maxval=.4)),
+                                                  OverlayPoissonMixture(pmixturecoef=.02,
+                                                                        rate=1)]),
+                   dx=.01, dt=.01, T_dur=2)
+
+# Fitting this will also be fast because we can automatically
+# determine that DriftCoherence will allow an analytical solution.
+fit_model_leak = fit_adjust_model(sample=roitman_sample, model=model_leak)
+ddm.plot.plot_fit_diagnostics(model=fit_model_leak, sample=roitman_sample)
+plt.savefig("leak-collapse-fit.png")
+# If the fitting step is too slow, you can use this pre-fit model:
+#     Model(name='Roitman data, leaky drift varies with coherence',
+#           drift=DriftCoherenceLeak(driftcoh=10.49091, leak=-.482),
+#           noise=NoiseConstant(noise=1),
+#           bound=BoundCollapsingExponential(B=1.811, tau=1.992),
+#           overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=.211),
+#                                          OverlayPoissonMixture(pmixturecoef=0.02, rate=1)]),
+#           dx=0.01, dt=0.01, T_dur=2)
+
+# Or, in a form which you can copy and paste:
+#     Model(name='Roitman data, leaky drift varies with coherence', drift=DriftCoherenceLeak(driftcoh=10.49091, leak=-.482), noise=NoiseConstant(noise=1), bound=BoundCollapsingExponential(B=1.811, tau=1.992), overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=.211), OverlayPoissonMixture(pmixturecoef=0.02, rate=1)]), dx=0.01, dt=0.01, T_dur=2)
+
