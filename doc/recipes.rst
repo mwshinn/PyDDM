@@ -492,3 +492,28 @@ undecided trials with rewards of 1 and 2::
 A sample created using this method can be used the same way as one
 created using :meth:`~.Sample.from_numpy_array` or
 :meth:`~.Sample.from_pandas_dataframe`.
+
+Weibull collapsing bounds
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`Hakwins et al. (2015)
+<https://doi.org/10.1523/JNEUROSCI.2410-14.2015>`_ proposed using the
+Weibull cumulative distribution function as a general shape for
+collapsing bounds.  This can be implemented using::
+
+  from ddm.models import Bound
+  import numpy as np
+  class BoundCollapsingWeibull(Bound):
+      name = "Weibull CDF collapsing bounds"
+      required_parameters = ["a", "aprime", "lam", "k"]
+      def get_bound(self, t, **kwargs):
+          l = self.lam
+          a = self.a
+          aprime = self.aprime
+          k = self.k
+          return a - (1 - np.exp(-(t/l)**k)) * (a - aprime)
+
+(Note that in `Hakwins et al. (2015)
+<https://doi.org/10.1523/JNEUROSCI.2410-14.2015>`_, diffusion goes
+from [0,1], whereas our diffusion goes from [-1,1].  Thus, the 0.5
+term was removed.)
