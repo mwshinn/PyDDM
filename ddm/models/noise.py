@@ -7,8 +7,7 @@
 __all__ = ["Noise", "NoiseConstant", "NoiseLinear"]
 
 import numpy as np
-from scipy import sparse
-import scipy.sparse.linalg
+from ..diagmat import DiagMatrix
 
 from .base import Dependence
 from paranoid import *
@@ -24,30 +23,8 @@ class Noise(Dependence):
     and `required_parameters` (see documentation for Dependence.)
     """
     depname = "Noise"
-    def _cached_sparse_diags(self, *args, **kwargs):
-        """Cache sparse.diags to save 15% runtime.
-
-        This is basically just a wrapper for the sparse.diags function
-        to incorporate a size 1 LRU memoization.  Functools
-        memoization doesn't work because arguments are not hashable.
-
-        Profiling identified the sparse.diags function as a major
-        bottleneck, and the use of this function ameliorates that.
-        """
-        if "_last_diag_val" not in self.__dict__:
-            object.__setattr__(self, "_last_diag_args", [])
-            object.__setattr__(self, "_last_diag_kwargs", {})
-            object.__setattr__(self, "_last_diag_val", None)
-        if object.__getattribute__(self, "_last_diag_args") == args and \
-           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
-            return object.__getattribute__(self, "_last_diag_val")
-
-        object.__setattr__(self, "_last_diag_args", args)
-        object.__setattr__(self, "_last_diag_kwargs", kwargs)
-        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
-        return object.__getattribute__(self, "_last_diag_val")
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
-    @returns(sparse.spmatrix)
+    @returns(DiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
@@ -57,22 +34,20 @@ class Noise(Dependence):
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate noise
 
-        Returns a sparse NxN numpy matrix.
+        Returns a sparse NxN matrix as a PyDDM DiagMatrix object.
 
         There is generally no need to redefine this method in
         subclasses.
         """
         noise = self.get_noise(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(noise):
-            return self._cached_sparse_diags([ 1.0*noise**2 * dt/dx**2,
-                                              -0.5*noise**2 * dt/dx**2,
-                                              -0.5*noise**2 * dt/dx**2],
-                                             [0, 1, -1], shape=(len(x), len(x)), format="csr")
+            return DiagMatrix(diag=1.0*noise**2 * dt/dx**2 * np.ones(len(x)),
+                              up=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1),
+                              down=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1))
         else:
-            return self._cached_sparse_diags([ 1.0*noise**2 * dt/dx**2,
-                                              -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
-                                              -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2],
-                                             [0, 1, -1], format="csr")
+            return DiagMatrix(diag=1.0*noise**2 * dt/dx**2,
+                              up=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
+                              down=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2)
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Positive0)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):

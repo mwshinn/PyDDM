@@ -9,6 +9,7 @@ from functools import lru_cache
 import numpy as np
 from scipy import sparse
 import scipy.sparse.linalg
+from .diagmat import DiagMatrix
 
 import inspect
 
@@ -27,8 +28,6 @@ from .fitresult import FitResult, FitResultEmpty
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
-# This speeds up the code by about 10%.
-sparse.csr_matrix.check_format = lambda self, full_check=True : True
     
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.
@@ -195,9 +194,9 @@ class Model(object):
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
     @staticmethod
     @lru_cache(maxsize=4)
-    def _cache_eye(m, format="csr"):
+    def _cache_eye(m, format=None):
         """Cache the call to sparse.eye since this decreases runtime by 5%."""
-        return sparse.eye(m, format=format)
+        return DiagMatrix.eye(m)
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
         drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
@@ -462,9 +461,11 @@ class Model(object):
             noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
                 diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + drift_matrix + noise_matrix
+                diffusion_matrix = diffusion_matrix.to_scipy_sparse()
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
                 diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - drift_matrix - noise_matrix
+                diffusion_matrix_explicit = diffusion_matrix_explicit.to_scipy_sparse()
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
@@ -481,6 +482,7 @@ class Model(object):
             else:
                 if method == "implicit":
                     pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    print("inner", pdf_inner)
                 elif method == "explicit":
                     pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
 
@@ -632,15 +634,23 @@ class Model(object):
                 # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.         ## Crank-Nicolson
                 drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
                                                                        dt=self.dt, dx=self.dx, conditions=conditions)
+                drift_matrix *= .5
                 noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
                                                                        t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + 0.5*drift_matrix + 0.5*noise_matrix
+                noise_matrix *= .5
+                diffusion_matrix = self._cache_eye(len(x_list_inbounds))
+                diffusion_matrix += drift_matrix
+                diffusion_matrix += noise_matrix
 
                 drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
+                drift_matrix_prev *= .5
                 noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
-                diffusion_matrix_prev = self._cache_eye(len(x_list_inbounds), format="csr") - 0.5*drift_matrix_prev - 0.5*noise_matrix_prev
+                noise_matrix_prev *= .5
+                diffusion_matrix_prev = self._cache_eye(len(x_list_inbounds))
+                diffusion_matrix_prev -= drift_matrix_prev
+                diffusion_matrix_prev -= noise_matrix_prev
 
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
@@ -656,6 +666,8 @@ class Model(object):
                 # coincide. I currently make this generally but
                 # we can constrain it to changing-bound
                 # simulations only.
+                diffusion_matrix = diffusion_matrix.to_scipy_sparse()
+                diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
                 pdf_outer = sparse.linalg.spsolve(diffusion_matrix,
                                                   diffusion_matrix_prev.dot(
                                                       pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
