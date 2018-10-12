@@ -638,7 +638,7 @@ class Model(object):
                 noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
                                                                        t=t, dt=self.dt, dx=self.dx, conditions=conditions)
                 noise_matrix *= .5
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds))
+                diffusion_matrix = DiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix += drift_matrix
                 diffusion_matrix += noise_matrix
 
@@ -648,7 +648,7 @@ class Model(object):
                 noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
                 noise_matrix_prev *= .5
-                diffusion_matrix_prev = self._cache_eye(len(x_list_inbounds))
+                diffusion_matrix_prev = DiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix_prev -= drift_matrix_prev
                 diffusion_matrix_prev -= noise_matrix_prev
 
