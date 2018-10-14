@@ -481,7 +481,7 @@ class Model(object):
                 pdf_inner = pdf_outer
             else:
                 if method == "implicit":
-                    pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(1,-1), pdf_prev[x_index_inner:len(x_list)-x_index_inner])
                     print("inner", pdf_inner)
                 elif method == "explicit":
                     pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
@@ -666,16 +666,45 @@ class Model(object):
                 # coincide. I currently make this generally but
                 # we can constrain it to changing-bound
                 # simulations only.
-                diffusion_matrix = diffusion_matrix.to_scipy_sparse()
-                diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
-                pdf_outer = sparse.linalg.spsolve(diffusion_matrix,
-                                                  diffusion_matrix_prev.dot(
-                                                      pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
-                pdf_inner = sparse.linalg.spsolve(diffusion_matrix[x_index_io_shift:len(x_list_inbounds)-x_index_io_shift,
-                                                                   x_index_io_shift:len(x_list_inbounds)-x_index_io_shift],
-                                                  diffusion_matrix_prev[x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev),
-                                                                        x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev)].dot(
-                                                                            pdf_inner_prev)[x_index_inner_shift:(len(x_list)-2*x_index_inner+x_index_inner_shift)])
+                so_from = x_index_outer_shift
+                so_to = len(x_list_inbounds)+x_index_outer_shift
+                si_from = x_index_io_shift
+                si_to = len(x_list_inbounds)-x_index_io_shift
+                si2_from = x_index_io_shift_prev
+                si2_to = len(x_list_inbounds_prev)-x_index_io_shift_prev
+                si3_from = x_index_inner_shift
+                si3_to = len(x_list)-2*x_index_inner+x_index_inner_shift
+
+                #diffusion_matrix = diffusion_matrix.to_scipy_sparse()
+                #diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
+                pdf_outer = sparse.linalg.spsolve(diffusion_matrix.to_scipy_sparse(),
+                                                  diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to],
+                                                  use_umfpack=False)
+                pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(si_from,si_to).to_scipy_sparse(),
+                                                  diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to],
+                                                  use_umfpack=False)
+
+
+
+
+
+
+
+#                 pdf_outer = sparse.linalg.spsolve(diffusion_matrix.to_scipy_sparse(),
+#                                                   diffusion_matrix_prev.dot(
+#                                                       pdf_outer_prev)[so_from:so_to])
+#                 print("Done")
+#                 pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(si_from, si_to),
+#                                                   diffusion_matrix_prev.splice(si2_from, si2_to).dot(
+#                                                                             pdf_inner_prev)[si3_from:si3_to])
+
+#                                                      pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
+#                pdf_inner = sparse.linalg.spsolve(diffusion_matrix[x_index_io_shift:len(x_list_inbounds)-x_index_io_shift,
+#                                                                   x_index_io_shift:len(x_list_inbounds)-x_index_io_shift],
+# -                                                  diffusion_matrix_prev[x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev),
+# -                                                                        x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev)].dot(
+# -                                                                            pdf_inner_prev)[x_index_inner_shift:(len(x_list)-2*x_index_inner+x_index_inner_shift)])
+
 
                 # Pdfs out of bound is considered decisions made.
                 pdf_err[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \

@@ -22,15 +22,34 @@ class DiagMatrix:
         self.down = down
         assert up is None or len(up) == len(diag) - 1
         assert down is None or len(up) == len(diag) - 1
-        assert diag in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
-        assert up in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
-        assert down in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
+        #assert diag in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
+        #assert up in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
+        #assert down in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
         self.shape = (len(self.diag), len(self.diag))
     def to_scipy_sparse(self):
         return sparse.diags([self.up, self.diag, self.down], [1, 0, -1], format="csr")
     @classmethod
     def eye(cls, size):
         return cls(diag=np.ones(size), up=np.zeros(size-1), down=np.zeros(size-1))
+    def splice(self, lower, upper):
+        return DiagMatrix(diag=self.diag[lower:upper], up=self.up[lower:upper-1], down=self.down[lower:upper-1])
+    def dot(self, other):
+        if self.shape == other.shape: # Matrix multiplication
+            downdown = self.down[1:] * other.down[:-1]
+            down = self.down * other.diag[:-1] + self.diag[1:] * other.down
+            diag = self.diag * other.diag
+            diag[:-1] += self.up * other.down
+            diag[1:] += self.down * other.up
+            up = self.diag[:-1] * other.up + self.up * other.diag[1:]
+            upup = self.up[:-1] * other.up[1:]
+            return sparse.diags([upup, up, diag, down, downdown], [2, 1, 0, -1, -2], format="csr")
+        elif (self.shape[0],) == other.shape: # Multiply by a vector
+            v = self.diag * other
+            v[:-1] += self.up * other[1:]
+            v[1:] += self.down * other[:-1]
+            return v
+        else:
+            raise ValueError("Incompatible shapes " + str(self.shape) + " and " + str(other.shape))
     def __add__(self, other):
         if isinstance(other, float) or isinstance(other, int):
             return DiagMatrix(diag=self.diag + other,
