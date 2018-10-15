@@ -432,7 +432,7 @@ class Model(object):
 
             # For efficiency only do diffusion if there's at least
             # some densities remaining in the channel.
-            if sum(pdf_curr[:]) < 0.0001:
+            if np.sum(pdf_curr[:]) < 0.0001:
                 break
             
             # Boundary at current time-step.
@@ -461,16 +461,14 @@ class Model(object):
             noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
                 diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + drift_matrix + noise_matrix
-                diffusion_matrix = diffusion_matrix.to_scipy_sparse()
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
                 diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - drift_matrix - noise_matrix
-                diffusion_matrix_explicit = diffusion_matrix_explicit.to_scipy_sparse()
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
             if method == "implicit":
-                pdf_outer = sparse.linalg.spsolve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+                pdf_outer = diffusion_matrix.spsolve(pdf_prev[x_index_outer:len(x_list)-x_index_outer])
             elif method == "explicit":
                 pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer]).squeeze()
             # If the bounds are the same the bound perfectly
@@ -481,10 +479,9 @@ class Model(object):
                 pdf_inner = pdf_outer
             else:
                 if method == "implicit":
-                    pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(1,-1), pdf_prev[x_index_inner:len(x_list)-x_index_inner])
-                    print("inner", pdf_inner)
+                    pdf_inner = diffusion_matrix.splice(1,-1).spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
                 elif method == "explicit":
-                    pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
+                    pdf_inner = diffusion_matrix_explicit.splice(1,-1).dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
 
             # Pdfs out of bound is considered decisions made.
             pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
@@ -600,7 +597,7 @@ class Model(object):
 
             # For efficiency only do diffusion if there's at least
             # some densities remaining in the channel.
-            if sum(pdf_curr[:])>0.0001:
+            if np.sum(pdf_curr[:])>0.0001:
                 ## Define the boundaries at current time.
                 bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions) # Boundary at current time-step.
 
@@ -677,33 +674,9 @@ class Model(object):
 
                 #diffusion_matrix = diffusion_matrix.to_scipy_sparse()
                 #diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
-                pdf_outer = sparse.linalg.spsolve(diffusion_matrix.to_scipy_sparse(),
-                                                  diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to],
-                                                  use_umfpack=False)
-                pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(si_from,si_to).to_scipy_sparse(),
-                                                  diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to],
-                                                  use_umfpack=False)
-
-
-
-
-
-
-
-#                 pdf_outer = sparse.linalg.spsolve(diffusion_matrix.to_scipy_sparse(),
-#                                                   diffusion_matrix_prev.dot(
-#                                                       pdf_outer_prev)[so_from:so_to])
-#                 print("Done")
-#                 pdf_inner = sparse.linalg.spsolve(diffusion_matrix.splice(si_from, si_to),
-#                                                   diffusion_matrix_prev.splice(si2_from, si2_to).dot(
-#                                                                             pdf_inner_prev)[si3_from:si3_to])
-
-#                                                      pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
-#                pdf_inner = sparse.linalg.spsolve(diffusion_matrix[x_index_io_shift:len(x_list_inbounds)-x_index_io_shift,
-#                                                                   x_index_io_shift:len(x_list_inbounds)-x_index_io_shift],
-# -                                                  diffusion_matrix_prev[x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev),
-# -                                                                        x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev)].dot(
-# -                                                                            pdf_inner_prev)[x_index_inner_shift:(len(x_list)-2*x_index_inner+x_index_inner_shift)])
+                pdf_outer = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to])
+                pdf_inner = diffusion_matrix.splice(si_from,si_to).spsolve(
+                                                  diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to])
 
 
                 # Pdfs out of bound is considered decisions made.
