@@ -56,28 +56,6 @@ class DiagMatrix:
         (_, _, _, x, _) = lapack.dgtsv(self.down, self.diag, self.up, vec)
         return x
         
-        diag = np.zeros(self.shape[0])
-        up = np.zeros(self.shape[0])
-        down = np.zeros(self.shape[0])
-        diag += self.diag
-        up[:-1] += self.up
-        down[1:] += self.down
-        vec = vec.copy()
-        up[0] /= diag[0]
-        vec[0] /= diag[0]
-        print("Prevec", vec)
-        for i in range(1, self.shape[0]):
-            c = 1/(diag[i] - down[0]*up[i-1])
-            up[i] *= c
-            vec[i] = (vec[i] - down[i]*vec[i-1])*c
-        print("Vec", vec)
-        sol = np.zeros(self.shape[0])
-        sol[-1] = vec[-1]
-        for i in range(self.shape[0]-2, -1, -1):
-            sol[i] = vec[i] - up[i]*sol[i+1]
-        print("Sol", sol)
-        return sol
-        
     def __add__(self, other):
         if isinstance(other, float) or isinstance(other, int):
             return DiagMatrix(diag=self.diag + other,

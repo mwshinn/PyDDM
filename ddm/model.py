@@ -4,8 +4,6 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-from functools import lru_cache
-
 import numpy as np
 from scipy import sparse
 import scipy.sparse.linalg
@@ -192,11 +190,6 @@ class Model(object):
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
-    @staticmethod
-    @lru_cache(maxsize=4)
-    def _cache_eye(m, format=None):
-        """Cache the call to sparse.eye since this decreases runtime by 5%."""
-        return DiagMatrix.eye(m)
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
         drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
@@ -460,10 +453,10 @@ class Model(object):
             drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + drift_matrix + noise_matrix
+                diffusion_matrix = DiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - drift_matrix - noise_matrix
+                diffusion_matrix_explicit = DiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
