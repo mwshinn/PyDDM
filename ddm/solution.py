@@ -151,7 +151,7 @@ class Solution(object):
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
             print("WARNING: Undecided probability accessed for model with overlays.  "
-                  "Undercided probability applies *before* overlays.  Please see the "
+                  "Undecided probability applies *before* overlays.  Please see the "
                   "pdf_undec docs for more information and to prevent misunderstanding.")
         if self.undec is not None:
             return self.undec/self.model.dx
