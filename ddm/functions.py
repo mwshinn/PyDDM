@@ -23,7 +23,7 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
 
-from paranoid.types import Boolean, Number, String, Set
+from paranoid.types import Boolean, Number, String, Set, Unchecked
 from paranoid.decorators import accepts, returns, requires, ensures
 from .models.paranoid_types import Conditions
 
@@ -331,14 +331,41 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                 P.append((new, fit))
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
+def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
+    conds = sample.condition_combinations(required_conditions=model.required_conditions)
+    if method is None:
+        meth = model.solve
+    elif method == "analytical":
+        meth = model.solve_analytical
+    elif method == "numerical":
+        meth = model.solve_numerical
+    elif method == "cn":
+        meth = model.solve_numerical_cn
+    elif method == "implicit":
+        meth = model.solve_numerical_implicit
+    elif method == "explicit":
+        meth = model.solve_numerical_explicit
+
+    cache = {}
+    if pool is None: # No parallelization
+        for c in conds:
+            cache[frozenset(c.items())] = meth(conditions=c)
+        return cache
+    else: # Parallelize across pool
+        sols = pool.map(meth, conds)
+        for c,s in zip(conds, sols):
+            cache[frozenset(c.items())] = s
+        return cache
+
+
 # TODO explicitly test this in unit tests
-@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
+@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]), Unchecked)
 # @returns(Solution) # This doesn't actually return a solution, only a solution-like object
 @requires('all((c in sample.condition_names() for c in model.required_conditions))')
 @requires('all((c in sample.condition_names() for c in conditions))')
 @requires("method == 'explicit' --> model.can_solve_explicit(conditions=conditions)")
 @requires("method == 'cn' --> model.can_solve_cn()")
-def solve_partial_conditions(model, sample, conditions={}, method=None):
+def solve_partial_conditions(model, sample, conditions={}, method=None, pool=None):
     """Solve a model without specifying the value of all conditions
 
     This function solves `model` according to the ratio of trials in
@@ -366,20 +393,10 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
     model_corr = 0*model.t_domain()
     model_err = 0*model.t_domain()
     model_undec = -1
+    all_conds = solve_all_conditions(model, sample, conditions=conditions, pool=pool, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
-        if method is None:
-            sol = model.solve(conditions=conds)
-        elif method == "analytical":
-            sol = model.solve_analytical(conditions=conds)
-        elif method == "numerical":
-            sol = model.solve_numerical(conditions=conds)
-        elif method == "cn":
-            sol = model.solve_numerical_cn(conditions=conds)
-        elif method == "implicit":
-            sol = model.solve_numerical_implicit(conditions=conds)
-        elif method == "explicit":
-            sol = model.solve_numerical_explicit(conditions=conds)
+        sol = all_conds[frozenset(conds)]
         model_corr += len(subset)/len(samp)*sol.pdf_corr()
         model_err += len(subset)/len(samp)*sol.pdf_err()
         # We can't get the size of the undecided pdf until we have a

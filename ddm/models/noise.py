@@ -7,7 +7,7 @@
 __all__ = ["Noise", "NoiseConstant", "NoiseLinear"]
 
 import numpy as np
-from ..diagmat import DiagMatrix
+from ..tridiag import TriDiagMatrix
 
 from .base import Dependence
 from paranoid import *
@@ -24,7 +24,7 @@ class Noise(Dependence):
     """
     depname = "Noise"
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
-    @returns(DiagMatrix)
+    @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
@@ -34,20 +34,20 @@ class Noise(Dependence):
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate noise
 
-        Returns a sparse NxN matrix as a PyDDM DiagMatrix object.
+        Returns a sparse NxN matrix as a PyDDM TriDiagMatrix object.
 
         There is generally no need to redefine this method in
         subclasses.
         """
         noise = self.get_noise(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(noise):
-            return DiagMatrix(diag=1.0*noise**2 * dt/dx**2 * np.ones(len(x)),
-                              up=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1),
-                              down=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1))
+            return TriDiagMatrix(diag=1.0*noise**2 * dt/dx**2 * np.ones(len(x)),
+                                 up=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1),
+                                 down=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1))
         else:
-            return DiagMatrix(diag=1.0*noise**2 * dt/dx**2,
-                              up=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
-                              down=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2)
+            return TriDiagMatrix(diag=1.0*noise**2 * dt/dx**2,
+                                 up=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
+                                 down=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2)
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Positive0)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):

@@ -92,17 +92,9 @@ class LossFunction(object):
         functions.  There is generally no need to redefine this
         function in subclasses.
         """
+        from ..functions import solve_all_conditions
         cache = {}
-        conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
-        if self.pool is None: # No parallelization
-            for c in conditions:
-                cache[frozenset(c.items())] = model.solve(conditions=c)
-            return cache
-        else: # Parallelize across Pool
-            sols = self.pool.map(lambda x : model.solve(conditions=x), conditions)
-            for c,s in zip(conditions,sols):
-                cache[frozenset(c.items())] = s
-            return cache
+        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, pool=self.pool, method=None)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):

@@ -7,7 +7,7 @@
 import numpy as np
 from scipy import sparse
 import scipy.sparse.linalg
-from .diagmat import DiagMatrix
+from .tridiag import TriDiagMatrix
 
 import inspect
 
@@ -453,10 +453,10 @@ class Model(object):
             drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
-                diffusion_matrix = DiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
+                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = DiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
+                diffusion_matrix_explicit = TriDiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
@@ -628,7 +628,7 @@ class Model(object):
                 noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
                                                                        t=t, dt=self.dt, dx=self.dx, conditions=conditions)
                 noise_matrix *= .5
-                diffusion_matrix = DiagMatrix.eye(len(x_list_inbounds))
+                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix += drift_matrix
                 diffusion_matrix += noise_matrix
 
@@ -638,7 +638,7 @@ class Model(object):
                 noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
                 noise_matrix_prev *= .5
-                diffusion_matrix_prev = DiagMatrix.eye(len(x_list_inbounds))
+                diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix_prev -= drift_matrix_prev
                 diffusion_matrix_prev -= noise_matrix_prev
 

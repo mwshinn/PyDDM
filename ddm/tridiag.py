@@ -14,7 +14,7 @@ import numpy as np
 
 import scipy.linalg.lapack as lapack
 
-class DiagMatrix:
+class TriDiagMatrix:
     def __init__(self, diag=None, up=None, down=None):
         assert up is not None and down is not None, "Need off-diagonals"
         if diag is None:
@@ -34,7 +34,9 @@ class DiagMatrix:
     def eye(cls, size):
         return cls(diag=np.ones(size), up=np.zeros(size-1), down=np.zeros(size-1))
     def splice(self, lower, upper):
-        return DiagMatrix(diag=self.diag[lower:upper], up=self.up[lower:upper-1], down=self.down[lower:upper-1])
+        if upper < 0:
+            upper += len(self.diag)
+        return TriDiagMatrix(diag=self.diag[lower:upper], up=self.up[lower:upper-1], down=self.down[lower:upper-1])
     def dot(self, other):
         if self.shape == other.shape: # Matrix multiplication
             downdown = self.down[1:] * other.down[:-1]
@@ -58,31 +60,31 @@ class DiagMatrix:
         
     def __add__(self, other):
         if isinstance(other, float) or isinstance(other, int):
-            return DiagMatrix(diag=self.diag + other,
-                              up=self.up + other,
-                              down=self.down + other)
+            return TriDiagMatrix(diag=self.diag + other,
+                                 up=self.up + other,
+                                 down=self.down + other)
         else:
-            return DiagMatrix(diag=self.diag + other.diag,
-                              up=self.up + other.up,
-                              down=self.down + other.down)
+            return TriDiagMatrix(diag=self.diag + other.diag,
+                                 up=self.up + other.up,
+                                 down=self.down + other.down)
     def __sub__(self, other):
         if isinstance(other, float) or isinstance(other, int):
-            return DiagMatrix(diag=self.diag - other,
-                              up=self.up - other,
-                              down=self.down - other)
+            return TriDiagMatrix(diag=self.diag - other,
+                                 up=self.up - other,
+                                 down=self.down - other)
         else:
-            return DiagMatrix(diag=self.diag - other.diag,
-                              up=self.up - other.up,
-                              down=self.down - other.down)
+            return TriDiagMatrix(diag=self.diag - other.diag,
+                                 up=self.up - other.up,
+                                 down=self.down - other.down)
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, int):
-            return DiagMatrix(diag=self.diag * other,
-                              up=self.up * other,
-                              down=self.down * other)
+            return TriDiagMatrix(diag=self.diag * other,
+                                 up=self.up * other,
+                                 down=self.down * other)
         else:
-            return DiagMatrix(diag=self.diag * other.diag,
-                              up=self.up * other.up,
-                              down=self.down * other.down)
+            return TriDiagMatrix(diag=self.diag * other.diag,
+                                 up=self.up * other.up,
+                                 down=self.down * other.down)
     def __radd__(self, other):
         return self.__add__(other)
     def __rsub__(self, other):

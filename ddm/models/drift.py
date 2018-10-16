@@ -7,7 +7,7 @@
 __all__ = ["Drift", "DriftConstant", "DriftLinear"]
 
 import numpy as np
-from ..diagmat import DiagMatrix
+from ..tridiag import TriDiagMatrix
 
 from .base import Dependence
 from paranoid import *
@@ -24,7 +24,7 @@ class Drift(Dependence):
     """
     depname = "Drift"
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
-    @returns(DiagMatrix)
+    @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
@@ -34,18 +34,18 @@ class Drift(Dependence):
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate drift
 
-        Returns a sparse NxN matrix as a PyDDM DiagMatrix object.
+        Returns a sparse NxN matrix as a PyDDM TriDiagMatrix object.
 
         There is generally no need to redefine this method in
         subclasses.
         """
         drift = self.get_drift(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(drift):
-            return DiagMatrix(up=0.5*dt/dx * drift * np.ones(len(x)-1),
-                              down=-0.5*dt/dx * drift * np.ones(len(x)-1))
+            return TriDiagMatrix(up=0.5*dt/dx * drift * np.ones(len(x)-1),
+                                 down=-0.5*dt/dx * drift * np.ones(len(x)-1))
         else:
-            return DiagMatrix(up=0.5*dt/dx * drift[1:],
-                              down=-0.5*dt/dx * drift[:-1])
+            return TriDiagMatrix(up=0.5*dt/dx * drift[1:],
+                                 down=-0.5*dt/dx * drift[:-1])
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
