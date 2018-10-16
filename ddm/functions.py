@@ -365,7 +365,11 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
     #model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
     model_corr = 0*model.t_domain()
     model_err = 0*model.t_domain()
-    model_undec = -1
+    model_undec = -1 # Set to -1 so we can detect this in our loop
+    # If we have an overlay, this function should not calculate the
+    # (incorrect) undecided probability
+    if not isinstance(model.get_dependence("overlay"), OverlayNone):
+        model_undec = None
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         if method is None:
