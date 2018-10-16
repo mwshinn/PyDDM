@@ -6,7 +6,7 @@ python:
   - "3.6"
 env:
   - NUMPY_VERSION=1.9.2
-    SCIPY_VERSION=0.15.1
+    SCIPY_VERSION=0.16.0
     PANDAS_VERSION=0.16.2
   - NUMPY_VERSION=1.15.0
     SCIPY_VERSION=1.1.0
@@ -19,9 +19,7 @@ addons:
       - gfortran
       - cmake
       - libboost-all-dev
-      - libblas-dev
       - liblapack-dev
-      - libatlas-base-dev
       - libopenblas-dev
 
 # install dependencies

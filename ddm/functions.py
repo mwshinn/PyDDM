@@ -396,7 +396,7 @@ def solve_partial_conditions(model, sample, conditions={}, method=None, pool=Non
     all_conds = solve_all_conditions(model, sample, conditions=conditions, pool=pool, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
-        sol = all_conds[frozenset(conds)]
+        sol = all_conds[frozenset(conds.items())]
         model_corr += len(subset)/len(samp)*sol.pdf_corr()
         model_err += len(subset)/len(samp)*sol.pdf_err()
         # We can't get the size of the undecided pdf until we have a
