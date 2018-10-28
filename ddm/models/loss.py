@@ -93,7 +93,6 @@ class LossFunction(object):
         function in subclasses.
         """
         from ..functions import solve_all_conditions
-        cache = {}
         return solve_all_conditions(model, self.sample, conditions=self.required_conditions, pool=self.pool, method=None)
                 
 @paranoidclass
