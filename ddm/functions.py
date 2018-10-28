@@ -331,7 +331,31 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
                 P.append((new, fit))
     return OptimizeResult(x=np.asarray(best[0]), success=True, fun=best[1], nit=it)
 
+#@accepts(Model, Sample, Conditions, Unchecked, Set(["analytical", "numerical", "cn", "implicit", "explicit"]))
+#@returns(Unchecked)
 def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
+    """Solve the model for all conditions relevant to the sample.
+
+    This takes the following parameters:
+
+    - `model` - A Model() object
+    - `sample` - A Sample() object which has conditions for each of
+      the required conditions in `model`
+    - `conditions` - Restrict to specific conditions
+    - `pool` - A pathos parallel pool if parallelization is desired, otherwise None
+    - `method` - A string describing the solver method.  Can be
+      "analytical", "numerical", "cn", "implicit", or "explicit".
+
+    For each value of each relevant condition in sample (i.e. those in
+    the model's required conditions), this will solve the model for
+    that set of parameters.  It returns a dictionary indexed by a
+    frozenset of the condition names and values, with the Solution
+    object as the value, e.g.:
+    
+        {frozenset({('reward', 3)}): <Solution object>,
+         frozenset({('reward', 1)}): <Solution object>}
+    """
+
     conds = sample.condition_combinations(required_conditions=model.required_conditions)
     if method is None:
         meth = model.solve

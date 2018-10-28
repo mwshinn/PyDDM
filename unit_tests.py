@@ -5,6 +5,7 @@ import numpy as np
 from itertools import groupby
 from math import fsum
 import pandas
+import copy
 
 from numpy import asarray as aa
 
@@ -473,6 +474,66 @@ class TestSolution(TestCase):
             dx = s.model.dx
             # Allow better tolerance since accuracy isn't perfect for undecided pdf
             assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+
+class TestTriDiagMatrix(TestCase):
+    def setUp(self):
+        self.matrices = [ddm.tridiag.TriDiagMatrix.eye(3),
+                         ddm.tridiag.TriDiagMatrix(diag=np.asarray([1, 2, 3]),
+                                                   up=np.asarray([5, 1]),
+                                                   down=np.asarray([1, 2])),
+                         ddm.tridiag.TriDiagMatrix(diag=np.asarray([1.1, 2.6, -3.1]),
+                                                   up=np.asarray([50, 1.6]),
+                                                   down=np.asarray([.1, 2.4]))]
+        self.scalars = [5.4, 9, 0, 1, -6]
+    def test_multiply(self):
+        for m in self.matrices:
+            for s in self.scalars:
+                np.sum((m * s).to_scipy_sparse() != m.to_scipy_sparse().dot(s))
+            for m2 in self.matrices:
+                np.sum((m * m2).to_scipy_sparse() != m.to_scipy_sparse().dot(m2.to_scipy_sparse()))
+    def test_add_inplace(self):
+        ms = [copy.deepcopy(m) for m in self.matrices]
+        for m,mo in zip(ms, self.matrices):
+            m *= 1.4
+            m *= mo
+            assert m == (mo * 1.4) * mo
+    def test_add(self):
+        for m in self.matrices:
+            #for s in self.scalars:
+            #    np.sum((m + s).to_scipy_sparse() != m.to_scipy_sparse() + s)
+            for m2 in self.matrices:
+                np.sum((m + m2).to_scipy_sparse() != m.to_scipy_sparse() + m2.to_scipy_sparse())
+    def test_add_r(self):
+        for m in self.matrices:
+            #for s in self.scalars:
+            #    np.sum((s + m).to_scipy_sparse() != s + m.to_scipy_sparse())
+            for m2 in self.matrices:
+                np.sum((m2 + m).to_scipy_sparse() != m2.to_scipy_sparse() + m.to_scipy_sparse())
+    def test_add_inplace(self):
+        ms = [copy.deepcopy(m) for m in self.matrices]
+        for m,mo in zip(ms, self.matrices):
+            m += 1.4
+            m += mo
+            assert m == (mo + 1.4) + mo
+    def test_subtract(self):
+        for m in self.matrices:
+            #for s in self.scalars:
+            #    np.sum((m - s).to_scipy_sparse() != m.to_scipy_sparse() + -s)
+            for m2 in self.matrices:
+                np.sum((m - m2).to_scipy_sparse() != m.to_scipy_sparse() - m2.to_scipy_sparse())
+    def test_subtract_r(self):
+        for m in self.matrices:
+            #for s in self.scalars:
+            #    np.sum((s - m).to_scipy_sparse() != s - m.to_scipy_sparse())
+            for m2 in self.matrices:
+                np.sum((m2 - m).to_scipy_sparse() != m2.to_scipy_sparse() - m.to_scipy_sparse())
+    def test_subtract_inplace(self):
+        ms = [copy.deepcopy(m) for m in self.matrices]
+        for m,mo in zip(ms, self.matrices):
+            m -= 1.4
+            m -= mo
+            assert m == (mo - 1.4) - mo
+                
 
 class TestMisc(TestCase):
     def test_analytic_lin_collapse(self):

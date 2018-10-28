@@ -9,35 +9,86 @@
 # matrix routines.
 
 import paranoid.types as pt
+import paranoid.decorators as pns
 from scipy import sparse
 import numpy as np
 
 import scipy.linalg.lapack as lapack
 
+@pns.paranoidclass
 class TriDiagMatrix:
+    """A tri-tiagonal sparse matrix.
+
+    Note that not all matrix operations are defined for this class,
+    and that these operations are only compatible with scalars and
+    with other TriDiagonal Matrix objects.
+    """
+    @staticmethod
+    def _test(v):
+        assert v.shape[0] == v.shape[1] == len(v.diag)
+        assert len(v.up) == len(v.diag) - 1
+        assert len(v.down) == len(v.diag) - 1
+        assert v.diag in pt.NDArray(d=1, t=pt.Number)
+        assert v.up in pt.NDArray(d=1, t=pt.Number)
+        assert v.down in pt.NDArray(d=1, t=pt.Number)
+    @staticmethod
+    def _generate():
+        yield TriDiagMatrix.eye(1)
+        yield TriDiagMatrix.eye(101)
+        yield TriDiagMatrix(diag=np.asarray([1, 2, 3, 4]),
+                            up=np.asarray([5, 3, 1]),
+                            down=np.asarray([0, 1, 4]))
+        yield TriDiagMatrix(up=np.asarray([4.2, 1.2]),
+                            down=np.asarray([7.6, 2.1]))
     def __init__(self, diag=None, up=None, down=None):
+        """Create a new TriDiagMatirx object from three vectors.
+
+        `diag` is a vector of diagonal elements, or None if the
+        diagonal is zero.  `up` and `down` are the above and below
+        diagonal elements of the matrix, but may not be None.  The
+        length of `up` and `down` should be equal, and should be one
+        less than the length of `diag`.
+        """
         assert up is not None and down is not None, "Need off-diagonals"
         if diag is None:
             diag = np.zeros(len(up)+1)
-        self.diag = diag
-        self.up = up
-        self.down = down
-        assert up is None or len(up) == len(diag) - 1
-        assert down is None or len(up) == len(diag) - 1
-        #assert diag in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
-        #assert up in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
-        #assert down in pt.Or(pt.Nothing(), pt.NDArray(d=1, t=pt.Number))
+        self.diag = diag.astype(float)
+        self.up = up.astype(float)
+        self.down = down.astype(float)
         self.shape = (len(self.diag), len(self.diag))
+    @pns.accepts(pt.Self)
+    @pns.returns(sparse.spmatrix)
     def to_scipy_sparse(self):
+        """Returns the matrix as a scipy sparse matrix in CSR format."""
         return sparse.diags([self.up, self.diag, self.down], [1, 0, -1], format="csr")
     @classmethod
     def eye(cls, size):
+        """Return an identity matrix of size `size`."""
         return cls(diag=np.ones(size), up=np.zeros(size-1), down=np.zeros(size-1))
+    #@pns.accepts(pt.Self, pt.Integer, pt.Integer) TODO determine domain
+    #@pns.returns(pt.Self)
     def splice(self, lower, upper):
-        if upper < 0:
+        """The splice operator implemented as a function.
+
+        "Lower" and "upper" should be integers less than the size of
+        the matrix.
+
+        For a TriDiagonal matrix A, returns the TriDiagonal submatrix
+        A[lower:upper,lower:upper].
+        """
+        while upper < 0:
             upper += len(self.diag)
         return TriDiagMatrix(diag=self.diag[lower:upper], up=self.up[lower:upper-1], down=self.down[lower:upper-1])
+    #@pns.accepts(pt.Self, pt.Self) # TODO Bug with Self here?
+    #@pns.returns(pt.Self)
     def dot(self, other):
+        """Performs matrix multipilcation of the matrix with `other`.
+
+        `other` should either be another TriDiagonal matrix, or else a
+        vector.
+
+        Returns a TriDiagonal matrix.
+        """
         if self.shape == other.shape: # Matrix multiplication
             downdown = self.down[1:] * other.down[:-1]
             down = self.down * other.diag[:-1] + self.diag[1:] * other.down
@@ -54,11 +105,19 @@ class TriDiagMatrix:
             return v
         else:
             raise ValueError("Incompatible shapes " + str(self.shape) + " and " + str(other.shape))
+    @pns.accepts(pt.Self, pt.NDArray(d=1, t=pt.Number))
+    @pns.returns(pt.NDArray(d=1, t=pt.Number))
+    @pns.requires("len(vec) == self.shape[0]")
     def spsolve(self, vec):
+        """For a matrix A, solves the equation "Ax = vec" for x.
+        """
         (_, _, _, x, _) = lapack.dgtsv(self.down, self.diag, self.up, vec)
         return x
-        
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __add__(self, other):
+        """Addition, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             return TriDiagMatrix(diag=self.diag + other,
                                  up=self.up + other,
@@ -67,7 +126,11 @@ class TriDiagMatrix:
             return TriDiagMatrix(diag=self.diag + other.diag,
                                  up=self.up + other.up,
                                  down=self.down + other.down)
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __sub__(self, other):
+        """Subtraction, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             return TriDiagMatrix(diag=self.diag - other,
                                  up=self.up - other,
@@ -76,7 +139,11 @@ class TriDiagMatrix:
             return TriDiagMatrix(diag=self.diag - other.diag,
                                  up=self.up - other.up,
                                  down=self.down - other.down)
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __mul__(self, other):
+        """Multipilcation, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             return TriDiagMatrix(diag=self.diag * other,
                                  up=self.up * other,
@@ -85,13 +152,14 @@ class TriDiagMatrix:
             return TriDiagMatrix(diag=self.diag * other.diag,
                                  up=self.up * other.up,
                                  down=self.down * other.down)
-    def __radd__(self, other):
-        return self.__add__(other)
-    def __rsub__(self, other):
-        return self.__sub__(other)
-    def __rmul__(self, other):
-        return self.__mul__(other)
+    __radd__ = __add__
+    __rsub__ = __sub__
+    __rmul__ = __mul__
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __iadd__(self, other):
+        """In-place addition, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             self.up += other
             self.down += other
@@ -101,7 +169,11 @@ class TriDiagMatrix:
             self.down += other.down
             self.diag += other.diag
         return self
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __isub__(self, other):
+        """In-place subtraction, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             self.up -= other
             self.down -= other
@@ -111,7 +183,11 @@ class TriDiagMatrix:
             self.down -= other.down
             self.diag -= other.diag
         return self
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.requires("self.shape == other.shape")
+    #@pns.returns(pt.Self)
     def __imul__(self, other):
+        """In-place multiplication, defined only for scalars and TriDiagonal matrices."""
         if isinstance(other, float) or isinstance(other, int):
             self.up *= other
             self.down *= other
@@ -121,3 +197,14 @@ class TriDiagMatrix:
             self.down *= other.down
             self.diag *= other.diag
         return self
+    #@pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
+    #@pns.returns(pt.Boolean)
+    def __eq__(self, other):
+        if self.shape != other.shape:
+            return False
+        if np.all([np.all(self.up == other.up),
+                   np.all(self.down == other.down),
+                   np.all(self.diag == other.diag)]):
+            return True
+           
+        
