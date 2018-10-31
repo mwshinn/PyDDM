@@ -28,9 +28,15 @@ class TriDiagMatrix:
         assert v.shape[0] == v.shape[1] == len(v.diag)
         assert len(v.up) == len(v.diag) - 1
         assert len(v.down) == len(v.diag) - 1
-        assert v.diag in pt.NDArray(d=1, t=pt.Number)
-        assert v.up in pt.NDArray(d=1, t=pt.Number)
-        assert v.down in pt.NDArray(d=1, t=pt.Number)
+        assert v.diag in pt.NDArray(d=1)
+        assert v.up in pt.NDArray(d=1)
+        assert v.down in pt.NDArray(d=1)
+        assert v.diag.dtype == np.dtype('float64')
+        assert v.up.dtype == np.dtype('float64')
+        assert v.down.dtype == np.dtype('float64')
+        assert not np.any(np.isnan(v.diag))
+        assert not np.any(np.isnan(v.up))
+        assert not np.any(np.isnan(v.down))
     @staticmethod
     def _generate():
         yield TriDiagMatrix.eye(1)
@@ -52,9 +58,9 @@ class TriDiagMatrix:
         assert up is not None and down is not None, "Need off-diagonals"
         if diag is None:
             diag = np.zeros(len(up)+1)
-        self.diag = diag.astype(float)
-        self.up = up.astype(float)
-        self.down = down.astype(float)
+        self.diag = diag.astype('float64')
+        self.up = up.astype('float64')
+        self.down = down.astype('float64')
         self.shape = (len(self.diag), len(self.diag))
     @pns.accepts(pt.Self)
     @pns.returns(sparse.spmatrix)

@@ -6,7 +6,8 @@
 
 __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',
-           'hit_boundary', 'dependence_hit_boundary', 'display_model']
+           'hit_boundary', 'dependence_hit_boundary', 'display_model',
+           'set_N_cpus']
 
 import copy
 
@@ -23,11 +24,29 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
 
-from paranoid.types import Boolean, Number, String, Set, Unchecked
-from paranoid.decorators import accepts, returns, requires, ensures
+from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1
+from paranoid.decorators import accepts, returns, requires, ensures, paranoidconfig
 from .models.paranoid_types import Conditions
 
 from .fitresult import FitResult
+
+# For parallelization support
+_parallel_pool = None # Note: do not change this directly.  Call set_N_cpus() instead.
+#@accepts(Natural1)
+#@paranoidconfig(enabled=False)
+def set_N_cpus(N):
+    global _parallel_pool
+    if _parallel_pool is not None:
+        _parallel_pool.close()
+    if N != 1:
+        try:
+            import pathos
+        except ImportError:
+            raise "Parallel support requires pathos.  Please install pathos."
+        _parallel_pool = pathos.multiprocessing.Pool(N)
+    else:
+        _parallel_pool = None
+
 
 @accepts(Model, Model, tol=Number)
 @requires("m1.get_model_type() == m2.get_model_type()")
@@ -57,7 +76,6 @@ def fit_model(sample,
               method="differential_evolution",
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
-              pool=None,
               name="fit_model"):
     """Fit a model to reaction time data.
     
@@ -89,16 +107,13 @@ def fit_model(sample,
     method to use when calculating the goodness-of-fit.  Pass the
     subclass itself, NOT an instance of the subclass.
     
-    If `pool` is None, then solve normally.  If `pool` is a Pool
-    object from pathos.multiprocessing, then parallelize the loss
-    function.  Note that `pool` must be pathos.multiprocessing.Pool,
-    not multiprocessing.Pool, since the latter does not support
-    pickling functions, whereas the former does.
-
     `name` gives the name of the model after it is fit.
 
     Returns a "Model()" object with the specified `drift`, `noise`,
     `bound`, and `IC`.
+
+    This function will automatically parallelize if set_N_cpus() has
+    been called.
     """
     
     # Use the reaction time data (a list of reaction times) to
@@ -111,11 +126,11 @@ def fit_model(sample,
     # model is a shortcut for deep copying each individual component
     # of the model.
     m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction, pool=pool)
+    return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction)
 
 
 def fit_adjust_model(sample, model, fitparams=None, method="differential_evolution",
-                     lossfunction=LossLikelihood, pool=None):
+                     lossfunction=LossLikelihood):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -141,18 +156,15 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     method to use when calculating the goodness-of-fit.  Pass the
     subclass itself, NOT an instance of the subclass.
     
-    If `pool` is None, then solve normally.  If `pool` is a Pool
-    object from pathos.multiprocessing, then parallelize the loss
-    function.  Note that `pool` must be pathos.multiprocessing.Pool,
-    not multiprocessing.Pool, since the latter does not support
-    pickling functions, whereas the former does.
-
     `name` gives the name of the model after it is fit.
 
     Returns the same model object that was passed to it as an
     argument.  However, the parameters will be modified.  The model is
     modified in place, so a reference is returned to it for
     convenience only.
+
+    This function will automatically parallelize if set_N_cpus() has
+    been called.
     """
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
@@ -219,7 +231,7 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
         x_0.append(default)
     # Set up a loss function
     lf = lossfunction(sample, required_conditions=required_conditions,
-                      pool=pool, T_dur=m.T_dur, dt=m.dt,
+                      T_dur=m.T_dur, dt=m.dt,
                       nparams=len(params), samplesize=len(sample))
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
@@ -333,7 +345,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 
 #@accepts(Model, Sample, Conditions, Unchecked, Set(["analytical", "numerical", "cn", "implicit", "explicit"]))
 #@returns(Unchecked)
-def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
+def solve_all_conditions(model, sample, conditions={}, method=None):
     """Solve the model for all conditions relevant to the sample.
 
     This takes the following parameters:
@@ -342,7 +354,6 @@ def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
     - `sample` - A Sample() object which has conditions for each of
       the required conditions in `model`
     - `conditions` - Restrict to specific conditions
-    - `pool` - A pathos parallel pool if parallelization is desired, otherwise None
     - `method` - A string describing the solver method.  Can be
       "analytical", "numerical", "cn", "implicit", or "explicit".
 
@@ -354,6 +365,9 @@ def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
     
         {frozenset({('reward', 3)}): <Solution object>,
          frozenset({('reward', 1)}): <Solution object>}
+
+    This function will automatically parallelize if set_N_cpus() has
+    been called.
     """
 
     conds = sample.condition_combinations(required_conditions=model.required_conditions)
@@ -371,25 +385,25 @@ def solve_all_conditions(model, sample, conditions={}, pool=None, method=None):
         meth = model.solve_numerical_explicit
 
     cache = {}
-    if pool is None: # No parallelization
+    if _parallel_pool is None: # No parallelization
         for c in conds:
             cache[frozenset(c.items())] = meth(conditions=c)
         return cache
     else: # Parallelize across pool
-        sols = pool.map(meth, conds)
+        sols = _parallel_pool.map(meth, conds)
         for c,s in zip(conds, sols):
             cache[frozenset(c.items())] = s
         return cache
 
 
 # TODO explicitly test this in unit tests
-@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]), Unchecked)
+@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
 # @returns(Solution) # This doesn't actually return a solution, only a solution-like object
 @requires('all((c in sample.condition_names() for c in model.required_conditions))')
 @requires('all((c in sample.condition_names() for c in conditions))')
 @requires("method == 'explicit' --> model.can_solve_explicit(conditions=conditions)")
 @requires("method == 'cn' --> model.can_solve_cn()")
-def solve_partial_conditions(model, sample, conditions={}, method=None, pool=None):
+def solve_partial_conditions(model, sample, conditions={}, method=None):
     """Solve a model without specifying the value of all conditions
 
     This function solves `model` according to the ratio of trials in
@@ -408,6 +422,9 @@ def solve_partial_conditions(model, sample, conditions={}, method=None, pool=Non
     "analytical", "numerical", "cn" (Crank-Nicolson), "implicit"
     (backward Euler), "explicit" (forward Euler), or None
     (auto-detect method).
+
+    This function will automatically parallelize if set_N_cpus() has
+    been called.
     """
     T_dur = model.T_dur
     dt = model.dt
@@ -421,7 +438,7 @@ def solve_partial_conditions(model, sample, conditions={}, method=None, pool=Non
     # (incorrect) undecided probability
     if not isinstance(model.get_dependence("overlay"), OverlayNone):
         model_undec = None
-    all_conds = solve_all_conditions(model, sample, conditions=conditions, pool=pool, method=method)
+    all_conds = solve_all_conditions(model, sample, conditions=conditions, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]

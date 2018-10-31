@@ -31,11 +31,8 @@ class LossFunction(object):
     and constant variaince would mean `required_conditions` is an
     empty list.
 
-    If `pool` is None, then solve normally.  If `pool` is a Pool
-    object from pathos.multiprocessing, then parallelize the loop.
-    Note that `pool` must be pathos.multiprocessing.Pool, not
-    multiprocessing.Pool, since the latter does not support pickling
-    functions, whereas the former does.
+    This will automatically parallelize if set_N_cpus() has been
+    called.
     """
     @classmethod
     def _generate(cls):
@@ -48,11 +45,10 @@ class LossFunction(object):
                 samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
                 yield s(sample=samp, dt=.01, T_dur=2)
     
-    def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
+    def __init__(self, sample, required_conditions=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
         self.required_conditions = required_conditions
-        self.pool = pool
         self.setup(**kwargs)
     def setup(self, **kwargs):
         """Initialize the loss function.
@@ -93,7 +89,7 @@ class LossFunction(object):
         function in subclasses.
         """
         from ..functions import solve_all_conditions
-        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, pool=self.pool, method=None)
+        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, method=None)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
