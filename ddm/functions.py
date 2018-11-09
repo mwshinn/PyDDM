@@ -43,7 +43,8 @@ def set_N_cpus(N):
             import pathos
         except ImportError:
             raise "Parallel support requires pathos.  Please install pathos."
-        _parallel_pool = pathos.multiprocessing.Pool(N)
+        #_parallel_pool = pathos.multiprocessing.Pool(N)
+        _parallel_pool = pathos.pools._ProcessPool(N)
     else:
         _parallel_pool = None
 
@@ -390,7 +391,7 @@ def solve_all_conditions(model, sample, conditions={}, method=None):
             cache[frozenset(c.items())] = meth(conditions=c)
         return cache
     else: # Parallelize across pool
-        sols = _parallel_pool.map(meth, conds)
+        sols = _parallel_pool.map(meth, conds, chunksize=1)
         for c,s in zip(conds, sols):
             cache[frozenset(c.items())] = s
         return cache
