@@ -42,7 +42,7 @@ def set_N_cpus(N):
         try:
             import pathos
         except ImportError:
-            raise "Parallel support requires pathos.  Please install pathos."
+            raise ImportError("Parallel support requires pathos.  Please install pathos.")
         #_parallel_pool = pathos.multiprocessing.Pool(N)
         _parallel_pool = pathos.pools._ProcessPool(N)
     else:

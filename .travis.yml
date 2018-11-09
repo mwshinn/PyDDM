@@ -26,6 +26,7 @@ addons:
 install:
   - pip install --upgrade pip
   - pip install pytest
+  - pip install pathos
   - pip install numpy==$NUMPY_VERSION
   - pip install scipy==$SCIPY_VERSION
   - pip install pandas==$PANDAS_VERSION
