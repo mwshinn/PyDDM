@@ -104,7 +104,7 @@ class LossSquaredError(LossFunction):
         assert v.target.size == 2*len(v.hists_corr.keys())*(v.T_dur/v.dt+1)
     @staticmethod
     def _generate():
-        yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=2)
+        yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=3)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -133,7 +133,7 @@ class LossLikelihood(LossFunction):
         assert v.T_dur in Positive0()
     @staticmethod
     def _generate():
-        yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=2)
+        yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=3)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -194,7 +194,7 @@ class LossBIC(LossLikelihood):
     @staticmethod
     def _generate():
         samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
-        yield LossBIC(sample=samp, nparams=4, samplesize=100, dt=.01, T_dur=2)
+        yield LossBIC(sample=samp, nparams=4, samplesize=100, dt=.01, T_dur=3)
     def setup(self, nparams, samplesize, **kwargs):
         self.nparams = nparams
         self.samplesize = samplesize

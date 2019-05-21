@@ -23,7 +23,7 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
     
@@ -247,9 +247,9 @@ class Model(object):
 
         return np.asarray(pos)
 
-    @accepts(Self, Conditions, Natural1)
+    @accepts(Self, Conditions, Natural1, Natural0)
     @returns(Sample)
-    @paranoidconfig(max_runtime=2)
+    @paranoidconfig(max_runtime=.1)
     def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.
 

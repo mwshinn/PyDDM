@@ -1,9 +1,11 @@
 language: python
+dist: xenial
 os:
   - linux
 python:
   - "3.5"
   - "3.6"
+  - "3.7"
 env:
   - NUMPY_VERSION=1.9.2
     SCIPY_VERSION=0.16.0
