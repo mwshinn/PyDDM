@@ -312,7 +312,7 @@ class Model(object):
     def can_solve_explicit(self, conditions={}):
         """Check explicit method stability criterion"""
         noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
-        return noise_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
+        return noise_max**2 * self.dt/(self.dx**2) < 1
 
     @accepts(Self, conditions=Conditions)
     @returns(Boolean)
@@ -320,6 +320,11 @@ class Model(object):
         """Check whether this model is compatible with Crank-Nicolson solver.
 
         All bound functions which do not depend on time are compatible."""
+        # TODO in the future, instead of looking for parameters this
+        # way, we should use "t in [i.argrepr for i in
+        # dis.get_instructions(get_bound)]" to see if it is used in the
+        # function rather than looking to see if it is passed to the
+        # function.
         boundfuncsig = inspect.signature(self.get_dependence("bound").get_bound)
         if "t" in boundfuncsig.parameters:
             return False
@@ -331,6 +336,8 @@ class Model(object):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
+        # TODO solves this using the dis module as described in the
+        # comment for can_solve_cn
         if self.has_analytical_solution():
             return self.solve_analytical(conditions=conditions)
         elif isinstance(self.get_dependence("bound"), BoundConstant):
@@ -380,7 +387,6 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
-    # TODO integrate CN, currently a separate routine
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
@@ -481,7 +487,7 @@ class Model(object):
                               + weight_inner * np.sum(pdf_prev[:x_index_inner])
             pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
                                + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
-            # Reconstruct current proability density function,
+            # Reconstruct current probability density function,
             # adding outer and inner contribution to it.  Use
             # .fill() method to avoid allocating memory with
             # np.zeros().
@@ -565,10 +571,7 @@ class Model(object):
         x_index_inner = self.x_domain(conditions=conditions)
         x_index_outer = self.x_domain(conditions=conditions)
 
-        # bound = self.get_dependence('bound').get_bound(t=0, conditions=conditions) # Boundary at current time-step.
-        # assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-        # bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
-        bound_shift = 0.                                                                                                # Can use the last 3 lines instead. Check with Max how he wants for Version Control
+        bound_shift = 0.
         # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
         x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
         x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
@@ -619,9 +622,9 @@ class Model(object):
                 x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
 
                 # Diffusion Matrix for Implicit Method. Here defined as
-                # Outer Matrix, and inder matrix is either trivial or an
+                # Outer Matrix, and inner matrix is either trivial or an
                 # extracted submatrix.
-                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.         ## Crank-Nicolson
+                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inner matrix is either trivial or an extracted submatrix.
                 drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
                                                                        dt=self.dt, dx=self.dx, conditions=conditions)
                 drift_matrix *= .5
