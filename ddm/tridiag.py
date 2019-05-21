@@ -101,7 +101,9 @@ class TriDiagMatrix:
         `other` should either be another TriDiagonal matrix, or else a
         vector.
 
-        Returns a TriDiagonal matrix.
+        Returns a Scipy sparse (csr) matrix when dotting with a matrix
+        or a Numpy ndarray when dotting with a vector.
+
         """
         if self.shape == other.shape: # Matrix multiplication
             downdown = self.down[1:] * other.down[:-1]
@@ -111,7 +113,12 @@ class TriDiagMatrix:
             diag[1:] += self.down * other.up
             up = self.diag[:-1] * other.up + self.up * other.diag[1:]
             upup = self.up[:-1] * other.up[1:]
-            return sparse.diags([upup, up, diag, down, downdown], [2, 1, 0, -1, -2], format="csr")
+            # Old numpy versions throw an error if upup or downdown
+            # are empty
+            if len(upup) != 0:
+                return sparse.diags([upup, up, diag, down, downdown], [2, 1, 0, -1, -2], format="csr")
+            else:
+                return sparse.diags([up, diag, down], [1, 0, -1], format="csr")
         elif (self.shape[0],) == other.shape: # Multiply by a vector
             v = self.diag * other
             v[:-1] += self.up * other[1:]

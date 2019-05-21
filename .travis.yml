@@ -14,6 +14,11 @@ env:
     SCIPY_VERSION=1.1.0
     PANDAS_VERSION=0.23.3
 
+matrix:
+  exclude:
+  - python: "3.7"
+    env: NUMPY_VERSION=1.9.2
+
 addons:
   apt:
     packages:
