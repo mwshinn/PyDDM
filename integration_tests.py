@@ -56,8 +56,8 @@ class TestSimulation(TestCase):
             name = "Noise with a condition"
             required_conditions = ['cond']
             required_parameters = []
-            def get_noise(self, **kwargs):
-                return cond
+            def get_noise(self, conditions, **kwargs):
+                return conditions["cond"]
         self.withcond = ddm.Model(noise=NoiseCond())
     def test_basic_cn(self):
         """Simple DDM, Crank-Nicolson"""
@@ -86,11 +86,18 @@ class TestSimulation(TestCase):
         assert .99 < distsum < 1.0001, "Distribution doesn't sum to 1"
     def test_with_condition(self):
         """With conditions"""
-        _modeltest_numerical_vs_analytical(self.basic, method="cn", conditions={"cond": .2})
-        _modeltest_numerical_vs_analytical(self.basic, method="cn", conditions={"cond": .6})
+        _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .2})
+        _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .6})
 
 
 class TestFit(TestCase):
+    def setUp(self):
+        from integration_test_models import DriftCond
+        self.DriftCond = DriftCond
+        self.cond_m = ddm.Model(drift=self.DriftCond(param=1))
+        self.cond_s = self.cond_m.solve(conditions={"cond": .1}).resample(4000) + \
+                      self.cond_m.solve(conditions={"cond": 1}).resample(4000) + \
+                      self.cond_m.solve(conditions={"cond": 2}).resample(4000)
     def test_fit_drift(self):
         """A simple one-parameter fit"""
         m = ddm.Model(name="DDM", drift=ddm.DriftConstant(drift=2))
@@ -105,6 +112,24 @@ class TestFit(TestCase):
             plot_compare_solutions(s, sfit)
             plt.show()
         _verify_param_match("drift", "drift", m, mfit)
+    def test_fit_with_condition(self):
+        """A simple one-parameter fit with conditions"""
+        m = self.cond_m
+        s = self.cond_s
+        mfit = ddm.Model(drift=self.DriftCond(param=ddm.Fittable(minval=.1, maxval=3)))
+        ddm.fit_adjust_model(model=mfit, sample=s)
+        # Within 10%
+        if SHOW_PLOTS:
+            mfit.name = "Fitted solution"
+            sfit = mfit.solve()
+            plot_compare_solutions(s, sfit)
+            plt.show()
+        _verify_param_match("drift", "param", m, mfit)
+    def test_fit_with_condition_parallel(self):
+        """A simple one-parameter fit with conditions, parallelized"""
+        ddm.set_N_cpus(2)
+        self.test_fit_with_condition()
+        ddm.set_N_cpus(1)
     def test_double_fit(self):
         """Fit different parameters in the same (or a different) model using a single Fittable object"""
         class NoiseDouble(ddm.Noise):

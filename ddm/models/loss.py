@@ -31,11 +31,8 @@ class LossFunction(object):
     and constant variaince would mean `required_conditions` is an
     empty list.
 
-    If `pool` is None, then solve normally.  If `pool` is a Pool
-    object from pathos.multiprocessing, then parallelize the loop.
-    Note that `pool` must be pathos.multiprocessing.Pool, not
-    multiprocessing.Pool, since the latter does not support pickling
-    functions, whereas the former does.
+    This will automatically parallelize if set_N_cpus() has been
+    called.
     """
     @classmethod
     def _generate(cls):
@@ -48,11 +45,10 @@ class LossFunction(object):
                 samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
                 yield s(sample=samp, dt=.01, T_dur=2)
     
-    def __init__(self, sample, required_conditions=None, pool=None, **kwargs):
+    def __init__(self, sample, required_conditions=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
         self.required_conditions = required_conditions
-        self.pool = pool
         self.setup(**kwargs)
     def setup(self, **kwargs):
         """Initialize the loss function.
@@ -92,17 +88,8 @@ class LossFunction(object):
         functions.  There is generally no need to redefine this
         function in subclasses.
         """
-        cache = {}
-        conditions = self.sample.condition_combinations(required_conditions=self.required_conditions)
-        if self.pool is None: # No parallelization
-            for c in conditions:
-                cache[frozenset(c.items())] = model.solve(conditions=c)
-            return cache
-        else: # Parallelize across Pool
-            sols = self.pool.map(lambda x : model.solve(conditions=x), conditions)
-            for c,s in zip(conditions,sols):
-                cache[frozenset(c.items())] = s
-            return cache
+        from ..functions import solve_all_conditions
+        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, method=None)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
@@ -117,7 +104,7 @@ class LossSquaredError(LossFunction):
         assert v.target.size == 2*len(v.hists_corr.keys())*(v.T_dur/v.dt+1)
     @staticmethod
     def _generate():
-        yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=2)
+        yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=3)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -146,7 +133,7 @@ class LossLikelihood(LossFunction):
         assert v.T_dur in Positive0()
     @staticmethod
     def _generate():
-        yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=2)
+        yield LossLikelihood(sample=next(Sample._generate()), dt=.01, T_dur=3)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
@@ -207,7 +194,7 @@ class LossBIC(LossLikelihood):
     @staticmethod
     def _generate():
         samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
-        yield LossBIC(sample=samp, nparams=4, samplesize=100, dt=.01, T_dur=2)
+        yield LossBIC(sample=samp, nparams=4, samplesize=100, dt=.01, T_dur=3)
     def setup(self, nparams, samplesize, **kwargs):
         self.nparams = nparams
         self.samplesize = samplesize

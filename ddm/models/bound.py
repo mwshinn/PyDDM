@@ -104,7 +104,7 @@ class BoundCollapsingLinear(Bound):
         yield BoundCollapsingLinear(B=100, t=50.1)
     @accepts(Self, Positive0)
     @returns(Positive0)
-    @ensures("t < t` --> return >= return`") # Monotonic decreasing
+    @ensures("self == self` and t < t` --> return >= return`") # Monotonic decreasing
     def get_bound(self, t, *args, **kwargs):
         return max(self.B - self.t*t, 0.)
 
@@ -135,7 +135,7 @@ class BoundCollapsingExponential(Bound):
         yield BoundCollapsingExponential(B=100, tau=100)
     @accepts(Self, Positive0)
     @returns(Positive0)
-    @ensures("t < t` --> return >= return`") # Monotonic decreasing
+    @ensures("self == self` and t < t` --> return >= return`") # Monotonic decreasing
     def get_bound(self, t, *args, **kwargs):
         return self.B * np.exp(-self.tau*t)
 

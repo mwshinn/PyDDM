@@ -215,13 +215,13 @@ PyDDM has built-in support for parallelization if `pathos
 
 To use parallelization, first set up the parallel pool::
 
-  from pathos.multiprocessing import Pool
-  pool = Pool(3) # Fit with 3 cpus
+  from ddm import set_N_cpus
+  set_N_cpus(4)
 
-Then, pass the ``pool`` object to the :func:`fit_adjust_model` function;
-for example, to parallelize the example from the quickstart::
+Then, PyDDM will automatically parallelize the fitting routines.  For
+example, just call::
 
-  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, pool=pool)
+  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs)
   
 There are a few caveats with parallelization:
 
@@ -237,6 +237,9 @@ There are a few caveats with parallelization:
    condition, and a high vs low reward condition, then after :math:`4
    \times 2 \times 2 = 16` CPUs, there will be no benefit to
    increasing the number of CPUs.
+4. It is possible but not recommended to set the number of CPUs to be
+   greater than the number of physical CPU cores on the machine.  This
+   will cause a slight reduction in performance.
 
 
 Pulse paradigm

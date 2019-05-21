@@ -4,11 +4,10 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-from functools import lru_cache
-
 import numpy as np
 from scipy import sparse
 import scipy.sparse.linalg
+from .tridiag import TriDiagMatrix
 
 import inspect
 
@@ -24,11 +23,9 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
-# This speeds up the code by about 10%.
-sparse.csr_matrix.check_format = lambda self, full_check=True : True
     
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.
@@ -193,11 +190,6 @@ class Model(object):
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
-    @staticmethod
-    @lru_cache(maxsize=4)
-    def _cache_eye(m, format="csr"):
-        """Cache the call to sparse.eye since this decreases runtime by 5%."""
-        return sparse.eye(m, format=format)
     def flux(self, x, t, conditions):
         """The flux across the boundary at position `x` at time `t`."""
         drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
@@ -255,9 +247,9 @@ class Model(object):
 
         return np.asarray(pos)
 
-    @accepts(Self, Conditions, Natural1)
+    @accepts(Self, Conditions, Natural1, Natural0)
     @returns(Sample)
-    @paranoidconfig(max_runtime=2)
+    @paranoidconfig(max_runtime=.1)
     def simulated_solution(self, conditions={}, size=1000, seed=0):
         """Simulate individual trials to obtain a distribution.
 
@@ -320,7 +312,7 @@ class Model(object):
     def can_solve_explicit(self, conditions={}):
         """Check explicit method stability criterion"""
         noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
-        return noise_max**2 * self.dt/(self.dx**2) < 1 # If this fails, use the implicit method instead
+        return noise_max**2 * self.dt/(self.dx**2) < 1
 
     @accepts(Self, conditions=Conditions)
     @returns(Boolean)
@@ -328,6 +320,11 @@ class Model(object):
         """Check whether this model is compatible with Crank-Nicolson solver.
 
         All bound functions which do not depend on time are compatible."""
+        # TODO in the future, instead of looking for parameters this
+        # way, we should use "t in [i.argrepr for i in
+        # dis.get_instructions(get_bound)]" to see if it is used in the
+        # function rather than looking to see if it is passed to the
+        # function.
         boundfuncsig = inspect.signature(self.get_dependence("bound").get_bound)
         if "t" in boundfuncsig.parameters:
             return False
@@ -339,6 +336,8 @@ class Model(object):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
+        # TODO solves this using the dis module as described in the
+        # comment for can_solve_cn
         if self.has_analytical_solution():
             return self.solve_analytical(conditions=conditions)
         elif isinstance(self.get_dependence("bound"), BoundConstant):
@@ -388,7 +387,6 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
-    # TODO integrate CN, currently a separate routine
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
@@ -433,7 +431,7 @@ class Model(object):
 
             # For efficiency only do diffusion if there's at least
             # some densities remaining in the channel.
-            if sum(pdf_curr[:]) < 0.0001:
+            if np.sum(pdf_curr[:]) < 0.0001:
                 break
             
             # Boundary at current time-step.
@@ -461,15 +459,15 @@ class Model(object):
             drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
             if method == "implicit":
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + drift_matrix + noise_matrix
+                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
             elif method == "explicit":
                 # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = self._cache_eye(len(x_list_inbounds), format="csr") - drift_matrix - noise_matrix
+                diffusion_matrix_explicit = TriDiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
 
             ### Compute Probability density functions (pdf)
             # PDF for outer matrix
             if method == "implicit":
-                pdf_outer = sparse.linalg.spsolve(diffusion_matrix, pdf_prev[x_index_outer:len(x_list)-x_index_outer])
+                pdf_outer = diffusion_matrix.spsolve(pdf_prev[x_index_outer:len(x_list)-x_index_outer])
             elif method == "explicit":
                 pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer]).squeeze()
             # If the bounds are the same the bound perfectly
@@ -480,16 +478,16 @@ class Model(object):
                 pdf_inner = pdf_outer
             else:
                 if method == "implicit":
-                    pdf_inner = sparse.linalg.spsolve(diffusion_matrix[1:-1, 1:-1], pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    pdf_inner = diffusion_matrix.splice(1,-1).spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
                 elif method == "explicit":
-                    pdf_inner = diffusion_matrix_explicit[1:-1, 1:-1].dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
+                    pdf_inner = diffusion_matrix_explicit.splice(1,-1).dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
 
             # Pdfs out of bound is considered decisions made.
             pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
                               + weight_inner * np.sum(pdf_prev[:x_index_inner])
             pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
                                + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
-            # Reconstruct current proability density function,
+            # Reconstruct current probability density function,
             # adding outer and inner contribution to it.  Use
             # .fill() method to avoid allocating memory with
             # np.zeros().
@@ -573,10 +571,7 @@ class Model(object):
         x_index_inner = self.x_domain(conditions=conditions)
         x_index_outer = self.x_domain(conditions=conditions)
 
-        # bound = self.get_dependence('bound').get_bound(t=0, conditions=conditions) # Boundary at current time-step.
-        # assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-        # bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
-        bound_shift = 0.                                                                                                # Can use the last 3 lines instead. Check with Max how he wants for Version Control
+        bound_shift = 0.
         # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
         x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
         x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
@@ -598,7 +593,7 @@ class Model(object):
 
             # For efficiency only do diffusion if there's at least
             # some densities remaining in the channel.
-            if sum(pdf_curr[:])>0.0001:
+            if np.sum(pdf_curr[:])>0.0001:
                 ## Define the boundaries at current time.
                 bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions) # Boundary at current time-step.
 
@@ -627,20 +622,28 @@ class Model(object):
                 x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
 
                 # Diffusion Matrix for Implicit Method. Here defined as
-                # Outer Matrix, and inder matrix is either trivial or an
+                # Outer Matrix, and inner matrix is either trivial or an
                 # extracted submatrix.
-                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inder matrix is either trivial or an extracted submatrix.         ## Crank-Nicolson
+                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inner matrix is either trivial or an extracted submatrix.
                 drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
                                                                        dt=self.dt, dx=self.dx, conditions=conditions)
+                drift_matrix *= .5
                 noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
                                                                        t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-                diffusion_matrix = self._cache_eye(len(x_list_inbounds), format="csr") + 0.5*drift_matrix + 0.5*noise_matrix
+                noise_matrix *= .5
+                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds))
+                diffusion_matrix += drift_matrix
+                diffusion_matrix += noise_matrix
 
                 drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
+                drift_matrix_prev *= .5
                 noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
                                                                             dt=self.dt, dx=self.dx, conditions=conditions)
-                diffusion_matrix_prev = self._cache_eye(len(x_list_inbounds), format="csr") - 0.5*drift_matrix_prev - 0.5*noise_matrix_prev
+                noise_matrix_prev *= .5
+                diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds))
+                diffusion_matrix_prev -= drift_matrix_prev
+                diffusion_matrix_prev -= noise_matrix_prev
 
                 ### Compute Probability density functions (pdf)
                 # PDF for outer matrix
@@ -656,14 +659,21 @@ class Model(object):
                 # coincide. I currently make this generally but
                 # we can constrain it to changing-bound
                 # simulations only.
-                pdf_outer = sparse.linalg.spsolve(diffusion_matrix,
-                                                  diffusion_matrix_prev.dot(
-                                                      pdf_outer_prev)[x_index_outer_shift:(len(x_list_inbounds)+x_index_outer_shift)])
-                pdf_inner = sparse.linalg.spsolve(diffusion_matrix[x_index_io_shift:len(x_list_inbounds)-x_index_io_shift,
-                                                                   x_index_io_shift:len(x_list_inbounds)-x_index_io_shift],
-                                                  diffusion_matrix_prev[x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev),
-                                                                        x_index_io_shift_prev:(len(x_list_inbounds_prev)-x_index_io_shift_prev)].dot(
-                                                                            pdf_inner_prev)[x_index_inner_shift:(len(x_list)-2*x_index_inner+x_index_inner_shift)])
+                so_from = x_index_outer_shift
+                so_to = len(x_list_inbounds)+x_index_outer_shift
+                si_from = x_index_io_shift
+                si_to = len(x_list_inbounds)-x_index_io_shift
+                si2_from = x_index_io_shift_prev
+                si2_to = len(x_list_inbounds_prev)-x_index_io_shift_prev
+                si3_from = x_index_inner_shift
+                si3_to = len(x_list)-2*x_index_inner+x_index_inner_shift
+
+                #diffusion_matrix = diffusion_matrix.to_scipy_sparse()
+                #diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
+                pdf_outer = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to])
+                pdf_inner = diffusion_matrix.splice(si_from,si_to).spsolve(
+                                                  diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to])
+
 
                 # Pdfs out of bound is considered decisions made.
                 pdf_err[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \

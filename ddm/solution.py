@@ -272,7 +272,8 @@ class Solution(object):
         shift = np.max(shorter_t_domain)+1
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
-        assert fsum(combined_probs) == 1, "Distribution sums to %f rather than 1" % fsum(combined_probs)
+        if fsum(combined_probs) != 1:
+            print("Warning, distribution sums to %f rather than 1" % fsum(combined_probs))
         # Each point x on the pdf represents the space from x to x+dt.
         # So sample and then add uniform noise to each element.
         samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)

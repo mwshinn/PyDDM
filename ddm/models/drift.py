@@ -7,7 +7,7 @@
 __all__ = ["Drift", "DriftConstant", "DriftLinear"]
 
 import numpy as np
-from scipy import sparse
+from ..tridiag import TriDiagMatrix
 
 from .base import Dependence
 from paranoid import *
@@ -23,30 +23,8 @@ class Drift(Dependence):
     and `required_parameters` (see documentation for Dependence.)
     """
     depname = "Drift"
-    def _cached_sparse_diags(self, *args, **kwargs):
-        """Cache sparse.diags to save 15% runtime.
-
-        This is basically just a wrapper for the sparse.diags function
-        to incorporate a size 1 LRU memoization.  Functools
-        memoization doesn't work because arguments are not hashable.
-
-        Profiling identified the sparse.diags function as a major
-        bottleneck, and the use of this function ameliorates that.
-        """
-        if "_last_diag_args" not in self.__dict__:
-            object.__setattr__(self, "_last_diag_args", [])
-            object.__setattr__(self, "_last_diag_kwargs", {})
-            object.__setattr__(self, "_last_diag_val", None)
-        if np.array_equal(object.__getattribute__(self, "_last_diag_args"), args) and \
-           object.__getattribute__(self, "_last_diag_kwargs") == kwargs:
-            return object.__getattribute__(self, "_last_diag_val")
-
-        object.__setattr__(self, "_last_diag_args", args)
-        object.__setattr__(self, "_last_diag_kwargs", kwargs)
-        object.__setattr__(self, "_last_diag_val", sparse.diags(*args, **kwargs))
-        return object.__getattribute__(self, "_last_diag_val")
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
-    @returns(sparse.spmatrix)
+    @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
     def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
@@ -56,20 +34,18 @@ class Drift(Dependence):
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate drift
 
-        Returns a sparse NxN numpy matrix.
+        Returns a sparse NxN matrix as a PyDDM TriDiagMatrix object.
 
         There is generally no need to redefine this method in
         subclasses.
         """
         drift = self.get_drift(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(drift):
-            return self._cached_sparse_diags([ 0.5*dt/dx * drift,
-                                              -0.5*dt/dx * drift],
-                                             [1, -1], shape=(len(x), len(x)), format="csr")
+            return TriDiagMatrix(up=0.5*dt/dx * drift * np.ones(len(x)-1),
+                                 down=-0.5*dt/dx * drift * np.ones(len(x)-1))
         else:
-            return self._cached_sparse_diags([ 0.5*dt/dx * drift[1:],
-                                              -0.5*dt/dx * drift[:-1]],
-                                             [1, -1], format="csr")
+            return TriDiagMatrix(up=0.5*dt/dx * drift[1:],
+                                 down=-0.5*dt/dx * drift[:-1])
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)

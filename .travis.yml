@@ -1,16 +1,19 @@
 language: python
+dist: xenial
 os:
   - linux
 python:
   - "3.5"
   - "3.6"
+  - "3.7"
 env:
-  - NUMPY_VERSION=1.9.2
-    SCIPY_VERSION=0.15.1
-    PANDAS_VERSION=0.16.2
-  - NUMPY_VERSION=1.15.0
-    SCIPY_VERSION=1.1.0
-    PANDAS_VERSION=0.23.3
+  - NUMPY_VERSION=1.9.2 SCIPY_VERSION=0.16.0 PANDAS_VERSION=0.16.2
+  - NUMPY_VERSION=1.15.0 SCIPY_VERSION=1.1.0 PANDAS_VERSION=0.23.3
+
+matrix:
+  exclude:
+  - python: "3.7"
+    env: NUMPY_VERSION=1.9.2 SCIPY_VERSION=0.16.0 PANDAS_VERSION=0.16.2
 
 addons:
   apt:
@@ -19,15 +22,14 @@ addons:
       - gfortran
       - cmake
       - libboost-all-dev
-      - libblas-dev
       - liblapack-dev
-      - libatlas-base-dev
       - libopenblas-dev
 
 # install dependencies
 install:
   - pip install --upgrade pip
   - pip install pytest
+  - pip install pathos
   - pip install numpy==$NUMPY_VERSION
   - pip install scipy==$SCIPY_VERSION
   - pip install pandas==$PANDAS_VERSION
