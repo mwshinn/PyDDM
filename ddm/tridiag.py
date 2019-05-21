@@ -92,9 +92,9 @@ class TriDiagMatrix:
         while upper < 0:
             upper += len(self.diag)
         return TriDiagMatrix(diag=self.diag[lower:upper], up=self.up[lower:upper-1], down=self.down[lower:upper-1])
-    #@pns.accepts(pt.Self, pt.Or(pt.Self, pt.NDArray(d=1, t=pt.Number))) # TODO Bug with Self here?
-    #@pns.returns(pt.Self)
-    #@pns.requires("self.shape == other.shape or (self.shape[0],) == other.shape")
+    @pns.accepts(pt.Self, pt.Or(pt.Self, pt.NDArray(d=1, t=pt.Number)))
+    #@pns.returns(pt.Or(pt.Self, pt.NDArray(d=1, t=pt.Number))) # Bug with Self in Or for @returns
+    @pns.requires("self.shape == other.shape or (self.shape[0],) == other.shape")
     def dot(self, other):
         """Performs matrix multipilcation of the matrix with `other`.
 

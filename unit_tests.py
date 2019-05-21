@@ -488,9 +488,11 @@ class TestTriDiagMatrix(TestCase):
     def test_multiply(self):
         for m in self.matrices:
             for s in self.scalars:
-                np.sum((m * s).to_scipy_sparse() != m.to_scipy_sparse().dot(s))
+                assert np.all(((m * s).to_scipy_sparse() == m.to_scipy_sparse().dot(s)).todense())
+                assert np.all(((m * s).to_scipy_sparse() == (m.to_scipy_sparse()*s)).todense())
             for m2 in self.matrices:
-                np.sum((m * m2).to_scipy_sparse() != m.to_scipy_sparse().dot(m2.to_scipy_sparse()))
+                assert np.all(((m.dot(m2)) == m.to_scipy_sparse().dot(m2.to_scipy_sparse())).todense())
+                assert np.all((m * m2).to_scipy_sparse() == m.to_scipy_sparse().multiply(m2.to_scipy_sparse()).todense())
     def test_add_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
@@ -502,13 +504,13 @@ class TestTriDiagMatrix(TestCase):
             #for s in self.scalars:
             #    np.sum((m + s).to_scipy_sparse() != m.to_scipy_sparse() + s)
             for m2 in self.matrices:
-                np.sum((m + m2).to_scipy_sparse() != m.to_scipy_sparse() + m2.to_scipy_sparse())
+                assert np.all(((m + m2).to_scipy_sparse() == (m.to_scipy_sparse() + m2.to_scipy_sparse())).todense())
     def test_add_r(self):
         for m in self.matrices:
             #for s in self.scalars:
             #    np.sum((s + m).to_scipy_sparse() != s + m.to_scipy_sparse())
             for m2 in self.matrices:
-                np.sum((m2 + m).to_scipy_sparse() != m2.to_scipy_sparse() + m.to_scipy_sparse())
+                assert np.all(((m2 + m).to_scipy_sparse() == (m2.to_scipy_sparse() + m.to_scipy_sparse())).todense())
     def test_add_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
@@ -520,13 +522,13 @@ class TestTriDiagMatrix(TestCase):
             #for s in self.scalars:
             #    np.sum((m - s).to_scipy_sparse() != m.to_scipy_sparse() + -s)
             for m2 in self.matrices:
-                np.sum((m - m2).to_scipy_sparse() != m.to_scipy_sparse() - m2.to_scipy_sparse())
+                assert np.all(((m - m2).to_scipy_sparse() == (m.to_scipy_sparse() - m2.to_scipy_sparse())).todense())
     def test_subtract_r(self):
         for m in self.matrices:
             #for s in self.scalars:
             #    np.sum((s - m).to_scipy_sparse() != s - m.to_scipy_sparse())
             for m2 in self.matrices:
-                np.sum((m2 - m).to_scipy_sparse() != m2.to_scipy_sparse() - m.to_scipy_sparse())
+                assert np.all(((m2 - m).to_scipy_sparse() == (m2.to_scipy_sparse() - m.to_scipy_sparse())).todense())
     def test_subtract_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
