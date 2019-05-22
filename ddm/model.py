@@ -23,7 +23,7 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 
     
@@ -203,16 +203,21 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
-    @accepts(Self, conditions=Conditions, seed=Natural0)
+    @accepts(Self, conditions=Conditions, cutoff=Boolean, seed=Natural0)
+    @returns(NDArray(t=Number, d=1))
     @ensures('0 < len(return) <= len(self.t_domain())')
-    def simulate_trial(self, conditions={}, seed=0):
+    @ensures('not cutoff --> len(return) == len(self.t_domain())')
+    def simulate_trial(self, conditions={}, cutoff=True, seed=0):
         """Simulate the decision variable for one trial.
 
         Given conditions `conditions`, this function will simulate the
-        decision variable for a single trial.  It will *not* cut the
-        simulation off when it goes beyond the boundary.  This returns
-        a trajectory of the simulated trial over time as a numpy
-        array.
+        decision variable for a single trial.  It will cut off the
+        simulation when the decision variable crosses the boundary
+        unless `cutoff` is set to False.  This returns a trajectory of
+        the simulated trial over time as a numpy array.
+
+        Note that this will return the same trajectory on each run
+        unless the random seed `seed` is varied.
         """
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         
@@ -242,7 +247,7 @@ class Model(object):
             dx = h*(drift1 + 2*drift2 + 2*drift3 + drift4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
             pos.append(pos[i-1] + dx)
             B = self.get_dependence("bound").get_bound(t=T[i], conditions=conditions)
-            if pos[i] > B or pos[i] < -B:
+            if cutoff and (pos[i] > B or pos[i] < -B):
                 break
 
         return np.asarray(pos)
