@@ -218,6 +218,14 @@ class Model(object):
 
         Note that this will return the same trajectory on each run
         unless the random seed `seed` is varied.
+
+        Also note that you shouldn't normally need to use this
+        function.  To simulate an entire probability distributions,
+        call Model.solve() and the results of the simulation will be
+        in the returned Solution object.  This is only useful for
+        finding individual trajectories instead of the probability
+        distribution as a whole.
+
         """
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         
@@ -261,7 +269,17 @@ class Model(object):
         Given conditions `conditions` and the number `size` of trials
         to simulate, this will run the function "simulate_trial"
         `size` times, and use the result to find a histogram analogous
-        to solve.  Returns a sample object.
+        to solve.  Returns a Sample object.
+
+        Note that in practice you should never need to use this
+        function.  This function uses an outdated method to simulate
+        the model and should be used for comparison perposes only.  To
+        produce a probability density function of boundary crosses,
+        use Model.solve().  To sample from the probability
+        distribution (e.g. for finding confidence intervals for
+        limited amounts of data), call Model.solve() and then use the
+        Solution.resample() function of the resulting Solution.
+
         """
         corr_times = []
         err_times = []

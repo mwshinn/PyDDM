@@ -26,6 +26,7 @@ from .models.loss import LossLikelihood
 
 from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidconfig
+from paranoid.settings import Settings as paranoid_settings
 from .models.paranoid_types import Conditions
 
 from .fitresult import FitResult
@@ -77,7 +78,8 @@ def fit_model(sample,
               method="differential_evolution",
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
-              name="fit_model"):
+              name="fit_model",
+              verify=False):
     """Fit a model to reaction time data.
     
     The data `sample` should be a Sample object of the reaction times
@@ -110,11 +112,17 @@ def fit_model(sample,
     
     `name` gives the name of the model after it is fit.
 
+    If `verify` is False (the default), checking for programming
+    errors is disabled during the fit. This can decrease runtime and
+    may prevent crashes.  If verification is already disabled, this
+    does not re-enable it.
+
     Returns a "Model()" object with the specified `drift`, `noise`,
     `bound`, and `IC`.
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
+
     """
     
     # Use the reaction time data (a list of reaction times) to
@@ -131,7 +139,7 @@ def fit_model(sample,
 
 
 def fit_adjust_model(sample, model, fitparams=None, method="differential_evolution",
-                     lossfunction=LossLikelihood):
+                     lossfunction=LossLikelihood, verify=False):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -156,8 +164,13 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     `lossfunction` is a subclass of LossFunction representing the
     method to use when calculating the goodness-of-fit.  Pass the
     subclass itself, NOT an instance of the subclass.
-    
+
     `name` gives the name of the model after it is fit.
+
+    If `verify` is False (the default), checking for programming
+    errors is disabled during the fit. This can decrease runtime and
+    may prevent crashes.  If verification is already disabled, this
+    does not re-enable it.
 
     Returns the same model object that was passed to it as an
     argument.  However, the parameters will be modified.  The model is
@@ -166,7 +179,12 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
+
     """
+    # Disable paranoid if `verify` is False.
+    paranoid_state = paranoid_settings.get('enabled')
+    if paranoid_state and not verify:
+        paranoid_settings.set(enabled=False)
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
@@ -178,6 +196,10 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
                        m.get_dependence("IC"),
                        m.get_dependence("overlay")]
     required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+    assert 0 < len([1 for component in components_list
+                      for param_name in component.required_parameters
+                          if isinstance(getattr(component, param_name), Fittable)]), \
+           "Models must contain at least one Fittable parameter in order to be fit"
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
     for component in components_list:
@@ -278,6 +300,8 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     print("Params", x_fit.x, "gave", x_fit.fun)
     for x,s in zip(x_fit.x, setters):
         s(m, x)
+    if paranoid_state and not verify:
+        paranoid_settings.set(enabled=True)
     return m
 
 def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100):
