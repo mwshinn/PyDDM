@@ -178,6 +178,12 @@ class Model(object):
             return self._overlay
         raise NameError("Invalid dependence name")
 
+    def check_conditions_satisfied(self, conditions):
+        rc = list(sorted(self.required_conditions))
+        ck = list(sorted(conditions.keys()))
+        assert set(rc) - set(ck) == set(), \
+            "Please specify valid conditions for this simulation.\nSpecified: %s\nExpected: %s" % (str(ck), str(rc))
+
     def get_model_type(self):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
@@ -228,6 +234,7 @@ class Model(object):
 
         """
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
+        self.check_conditions_satisfied(conditions)
         
         T = self.t_domain()
 
@@ -334,6 +341,7 @@ class Model(object):
     @returns(Boolean)
     def can_solve_explicit(self, conditions={}):
         """Check explicit method stability criterion"""
+        self.check_conditions_satisfied(conditions)
         noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
         return noise_max**2 * self.dt/(self.dx**2) < 1
 
@@ -361,6 +369,7 @@ class Model(object):
         Return a Solution object describing the joint PDF distribution of reaction times."""
         # TODO solves this using the dis module as described in the
         # comment for can_solve_cn
+        self.check_conditions_satisfied(conditions)
         if self.has_analytical_solution():
             return self.solve_analytical(conditions=conditions)
         elif isinstance(self.get_dependence("bound"), BoundConstant):
@@ -384,6 +393,7 @@ class Model(object):
         joint PDF.  If unsuccessful, this will raise an exception.
         """
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
+        self.check_conditions_satisfied(conditions)
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
@@ -435,6 +445,7 @@ class Model(object):
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
         """
+        self.check_conditions_satisfied(conditions)
         if method == "cn":
             return self.solve_numerical_cn(conditions=conditions)
 
@@ -582,6 +593,7 @@ class Model(object):
         It returns a Solution object describing the joint PDF.
         """
         ### Initialization: Lists
+        self.check_conditions_satisfied(conditions)
         pdf_curr = self.IC(conditions=conditions) # Initial condition
         pdf_outer = self.IC(conditions=conditions)
         pdf_inner = self.IC(conditions=conditions)
@@ -740,7 +752,7 @@ class Model(object):
 
         # Detect and fix below zero errors
         pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_corr), np.min(pdf_err)))
+        minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
         if minval < 0:
             print("Warning: histogram included values less than zero.  Please adjust numerics (i.e. decrease dx or dt)")
             pdf_corr[pdf_corr < 0] = 0
@@ -752,7 +764,7 @@ class Model(object):
             print("Warning: renormalizing model solution from", pdfsum, "to 1.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
-            pdf_curr /= pdfsum
+            pdf_undec /= pdfsum
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))

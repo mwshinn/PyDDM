@@ -327,7 +327,6 @@ def model_gui(model,
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.get_tk_widget().grid(row=0, column=2, sticky="nswe")
     fig.text(.5, .5, "Loading...")
-    canvas.show()
     canvas.draw()
     
     def update():
