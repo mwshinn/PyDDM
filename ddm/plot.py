@@ -5,6 +5,19 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 import numpy as np
+import sys
+
+# A workaround for a bug on Mac related to FigureCanvasTKAgg
+if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
+    _gui_compatible = False
+    print("Warning: model_gui funciton unavailable.  To use model_gui, please" \
+          " import ddm.plot before matplotlib.pyplot.")
+else:
+    _gui_compatible = True
+    if sys.platform == 'darwin':
+        import matplotlib
+        matplotlib.use('TkAgg')
+
 import matplotlib.pyplot as plt
 import tkinter as tk
 import copy
@@ -14,6 +27,8 @@ from matplotlib.figure import Figure
 from .model import *
 from .parameters import dt as default_dt, dx as default_dx
 from .functions import solve_partial_conditions
+
+
 
 def plot_solution_pdf(sol, ax=None, correct=True):
     """Plot the PDF of the solution.
@@ -195,7 +210,7 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1.set_title("Correct RTs")
     ax2.set_title("Error RTs")
     pt = fig.suptitle("")
-    plt.tight_layout()
+    fig.tight_layout()
 
 
 # TODO sample is not optional
@@ -228,6 +243,9 @@ def model_gui(model,
 
     Some of this code is taken from `fit_model`.
     """
+    assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
+        " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
+        " this, please import ddm.plot BEFORE matplotlib.pyplot."
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Since the name is not saved in the parameter object,
