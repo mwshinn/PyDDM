@@ -213,22 +213,19 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     fig.tight_layout()
 
 
-# TODO sample is not optional
 def model_gui(model,
-              sample=None,
-              pool=None,
+              sample,
               data_dt=None,
               plot=plot_fit_diagnostics):
     """Mess around with model parameters visually.
 
     This allows you to see how the model `model` would be affected by
     various changes in parameter values.  It also allows you to easily
-    plot `sample` conditioned on different conditions.
+    plot `sample` conditioned on different conditions.  A sample is
+    required so that model_gui knows the conditions to include and the
+    ratio of these conditions.
 
-    First, the sample is optional.  If provided, it will be displayed
-    in the background.
-
-    Second, the function `plot` allows you to change what is plotted.
+    The function `plot` allows you to change what is plotted.
     By default, it is plot_fit_diagnostics.  If you would like to
     define your own custom function, it must take four keyword
     arguments: "model", the model to plot, "sample", an optional
@@ -242,6 +239,7 @@ def model_gui(model,
     `data_dt` allows you to set the bin width for `sample`.
 
     Some of this code is taken from `fit_model`.
+
     """
     assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
