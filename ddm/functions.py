@@ -523,14 +523,14 @@ def dependence_hit_boundary(pv):
             return True
     return False
 
-def display_model(m, print_output=True):
+def display_model(model, print_output=True):
     """A readable way to display models.
 
-    `m` should be any Model object.  Prints a description of the
+    `model` should be any Model object.  Prints a description of the
     model, and does not return anything.
     """
     OUT = ""
-    assert isinstance(m, Model), "Invalid model"
+    assert isinstance(model, Model), "Invalid model"
     # Separate the code to display a single component so we can reuse
     # it to display the components of chains (e.g. OverlayChain).
     def display_component(component, prefix=""):
@@ -559,8 +559,8 @@ def display_model(m, print_output=True):
                     OUT += v + "\n"
         return OUT
     # Start displaying the model information
-    OUT += ("Model %s information:\n" % m.name) if m.name != "" else "Model information:" + "\n"
-    for component in m.dependencies:
+    OUT += ("Model %s information:\n" % model.name) if model.name != "" else "Model information:" + "\n"
+    for component in model.dependencies:
         OUT += "%s component %s:" % (component.depname, type(component).__name__) + "\n"
         if isinstance(component, OverlayChain):
             for o in component.overlays:
