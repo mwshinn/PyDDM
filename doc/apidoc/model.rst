@@ -5,7 +5,21 @@ Models
 Model object
 ------------
 
-.. automodule:: ddm.model
+.. autoclass:: ddm.model.Model
+   :show-inheritance:
+   :members:
+
+Fittable object
+------------
+
+.. autoclass:: ddm.model.Fittable
+   :show-inheritance:
+   :members:
+
+Fitted object
+------------
+
+.. autoclass:: ddm.model.Fitted
    :show-inheritance:
    :members:
 

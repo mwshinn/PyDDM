@@ -7,8 +7,8 @@ API Documentation
    :maxdepth: 2
    :caption: Contents:
 
-   dependences
-   plotting
    model
+   dependences
    fitting
+   plotting
 

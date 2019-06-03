@@ -414,7 +414,9 @@ class Model(object):
         # Fix numerical errors
         pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
         if pdfsum > 1:
-            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            if pdfsum > 1 + 1e-4:
+                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
+                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
@@ -560,7 +562,9 @@ class Model(object):
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
-            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            if pdfsum > 1 + 1e-4:
+                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
+                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
@@ -761,7 +765,9 @@ class Model(object):
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
-            print("Warning: renormalizing model solution from", pdfsum, "to 1.")
+            if pdfsum > 1 + 1e-4:
+                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
+                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
