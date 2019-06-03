@@ -25,7 +25,7 @@ from .fitresult import FitResult, FitResultEmpty
 
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
-
+import dis
     
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.

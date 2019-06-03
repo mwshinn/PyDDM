@@ -50,7 +50,7 @@ class Overlay(Dependence):
         and mixture models, potentially in a parameter-dependent or
         condition-dependent manner.
         """
-        raise NotImplementedError
+        raise NotImplementedError("Overlay model %s invalid: must define the apply(self, solution) function" % self.__class__.__name__)
 
 @paranoidclass
 class OverlayNone(Overlay):

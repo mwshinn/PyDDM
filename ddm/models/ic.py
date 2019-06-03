@@ -33,7 +33,7 @@ class InitialCondition(Dependence):
         initial condition PDF, i.e. the x-domain.  This returns a
         length N ndarray describing the distribution.
         """
-        raise NotImplementedError
+        raise NotImplementedError("IC model %s invalid: must define the get_IC function" % self.__class__.__name__)
 
 @paranoidclass
 class ICPointSourceCenter(InitialCondition):

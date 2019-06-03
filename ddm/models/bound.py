@@ -52,7 +52,7 @@ class Bound(Dependence):
         allows PyDDM to automatically select the best simulation
         methods for the model.
         """
-        raise NotImplementedError
+        raise NotImplementedError("Bound model %s invalid: must define the get_bound function" % self.__class__.__name__)
 
 @paranoidclass
 class BoundConstant(Bound):

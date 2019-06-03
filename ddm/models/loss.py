@@ -69,7 +69,7 @@ class LossFunction(object):
         floating point value, where smaller values mean a better fit
         of the model to the data.
         """
-        raise NotImplementedError
+        raise NotImplementedError("Loss function %s invalid: must define the loss(self, model) function" % self.__class__.__name__)
     def cache_by_conditions(self, model):
         """Solve the model for all relevant conditions.
 

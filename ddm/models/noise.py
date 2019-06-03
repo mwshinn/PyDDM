@@ -100,7 +100,7 @@ class Noise(Dependence):
         return a scalar.  (The purpose of this is a dramatic speed
         increase by using numpy vectorization.)
         """
-        raise NotImplementedError
+        raise NotImplementedError("Noise model %s invalid: must define the get_noise function" % self.__class__.__name__)
 
 @paranoidclass
 class NoiseConstant(Noise):

@@ -95,7 +95,7 @@ class Drift(Dependence):
         return a scalar.  (The purpose of this is a dramatic speed
         increase by using numpy vectorization.)
         """
-        raise NotImplementedError
+        raise NotImplementedError("Drift model %s invalid: must define the get_drift function" % self.__class__.__name__)
 
 @paranoidclass
 class DriftConstant(Drift):
