@@ -150,6 +150,17 @@ class Model(object):
             for p in d.required_parameters:
                 params.append(getattr(d, p))
         return params
+
+    def get_fit_result(self):
+        """Returns a FitResult object describing how the model was fit.
+        
+        Returns the FitResult object describing the last time this
+        model was fit to data, including the loss function, fitting
+        method, and the loss function value.  If the model was never
+        fit to data, this will return FitResultEmpty.
+        """
+        return self.fitresult
+    
     def set_model_parameters(self, params):
         """Set the parameters of the model from an ordered list.
 

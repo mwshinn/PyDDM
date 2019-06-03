@@ -164,6 +164,7 @@ class Sample(object):
     @requires('df.shape[1] >= 2')
     @requires('rt_column_name in df')
     @requires('correct_column_name in df')
+    @requires('not np.any(np.isnan(df))')
     @requires('len(np.setdiff1d(df[correct_column_name], [0, 1])) == 0')
     @requires('all(df[rt_column_name].astype("float") == df[rt_column_name])')
     @ensures('len(df) == len(return)')
@@ -179,6 +180,8 @@ class Sample(object):
         remaining columns should be conditions.  This function does
         not yet work with undecided trials.
         """
+        if np.mean(df[rt_column_name]) > 50:
+            print("Warning: RTs should be specified in seconds, not milliseconds")
         c = df[correct_column_name].astype(bool)
         nc = (1-df[correct_column_name]).astype(bool)
         def pt(x): # Pythonic types

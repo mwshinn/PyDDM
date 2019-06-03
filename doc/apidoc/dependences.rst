@@ -1,14 +1,6 @@
 Model components
 ================
 
-Base
-----
-
-.. automodule:: ddm.models.base
-   :members:
-   :show-inheritance:
-
-
 Drift rate
 ---------------
 
@@ -57,3 +49,11 @@ Loss function (for optimization)
    :show-inheritance:
 
       
+Base
+----
+
+.. automodule:: ddm.models.base
+   :members:
+   :show-inheritance:
+
+

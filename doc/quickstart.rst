@@ -17,6 +17,8 @@ Let's dig in a bit so that we can define more useful models.
 
 :download:`Download this full example <downloads/helloworld.py>`
 
+
+
 Simple example
 --------------
 
@@ -344,3 +346,72 @@ to modify the drift rate based on coherence, we can modify other
 portions of the model.  See :doc:`recipes` for more examples.  Also
 see the :doc:`apidoc/index` for more specific details about overloading
 classes.
+
+Summary
+-------
+
+PyDDM can simulate models and generate artificial data, or it can fit
+them to data.  Below are high-level overviews for how to accomplish
+each.
+
+To simulate models and generate artificial data:
+
+1. Optionally, define unique components of your model. Models are
+   modular, and allow specifying a dynamic drift rate, noise level,
+   diffusion bounds, starting position of the integrator, or
+   post-simulation modifications to the RT histogram.  Many common
+   models for these are included by default, but for advance
+   functionality you may need to subclass :class:`.Drift`,
+   :class:`.Noise`, :class:`.Bound`, :class:`.InitialCondition`, or
+   :class:`.Overlay`.  These model components may depend on
+   "conditions", i.e. prespecified values associated with the
+   behavioral task which change from trial to trial (e.g. stimulus
+   coherence), or "parameters", i.e. values which apply to all trials
+   and should be fit to the subject.
+2. Define a model.  Models are represented by creating an instance of
+   the :class:`.Model` class, and specifying the model components to
+   use for it.  These model component can either be :doc:`the model
+   components included in PyDDM <apidoc/dependences>` or ones you created in
+   step 1.  Values must be specified for all parameters required by
+   model components.
+3. Simulate the model using the :meth:`.Model.solve()` method to
+   generate a :class:`.Solution` object.  If you have multiple
+   conditions, you must run :meth:`.Model.solve()` separately for
+   each set of conditions and generate separate :class:`.Solution`
+   objects.
+4. Run the :meth:`.Solution.resample()` method of the
+   :class:`.Solution` object to generate a :class:`.Sample`.  If you
+   have multiple :class:`.Solution` objects (for multiple task
+   conditions), you will need to generate multiple :class:`.Sample`
+   objects as well.  These can be added together with the "+" operator
+   to form one single :class:`.Sample` object.
+
+To fit a model to data:
+
+1. Optionally define unique components of your model, as mentioned in
+   Step 1 above.
+2. Load your data into a :class:`.Sample` object using either
+   :meth:`.Sample.from_numpy_array` or :meth:`.Sample.from_pandas_dataframe`.  If you
+   have multiple task conditions (i.e. prespecified values associated
+   with the behavioral task which change from trial to trial), make
+   sure that the names of the conditions in the :class:`.Sample` object align
+   with those that are used in your model components.  (In other
+   words, if a model component expects a coherence value named "coh",
+   make sure your sample includes a coherence value named "coh".)
+3. Define a model.  Models are represented by creating an instance of
+   the :class:`.Model` class, and specifying the model components to
+   use for it.  These model component can either be :doc:`the model
+   components included in PyDDM <apidoc/dependences>` or ones you created in
+   step 1.  Parameters for the model components must either be
+   specified expicitly or else set to a :class:`.Fittable` instance,
+   for example "Fittable(minval=0, maxval=1)".
+3. Run :func:`.fit_adjust_model` on the model and the sample.  Optionally
+   specify a :class:`loss function <.LossFunction>` other than the default
+   (which uses BIC).  After fitting, the :class:`.Fittable` objects in
+   the model will be changed to :class:`.Fitted` objects, which are
+   just like :class:`.Fittable` objects except they contain the fitted
+   values.
+4. View the output by calling :func:`.display_model` on the model.
+   The value of the loss function is accessible via
+   :meth:`.Model.get_fit_result`.
+           
