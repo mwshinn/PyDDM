@@ -220,18 +220,21 @@ class Model(object):
         """
         return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
 
-    @accepts(Self, conditions=Conditions, cutoff=Boolean, seed=Natural0)
+    @accepts(Self, conditions=Conditions, cutoff=Boolean, seed=Natural0, rk4=Boolean)
     @returns(NDArray(t=Number, d=1))
     @ensures('0 < len(return) <= len(self.t_domain())')
     @ensures('not cutoff --> len(return) == len(self.t_domain())')
-    def simulate_trial(self, conditions={}, cutoff=True, seed=0):
+    def simulate_trial(self, conditions={}, cutoff=True, rk4=True, seed=0):
         """Simulate the decision variable for one trial.
 
         Given conditions `conditions`, this function will simulate the
         decision variable for a single trial.  It will cut off the
         simulation when the decision variable crosses the boundary
-        unless `cutoff` is set to False.  This returns a trajectory of
-        the simulated trial over time as a numpy array.
+        unless `cutoff` is set to False.  By default, Runge-Kutta is
+        used to simulate the trial, however if `rk4` is set to False,
+        the less efficient Euler's method is used instead. This
+        returns a trajectory of the simulated trial over time as a
+        numpy array.
 
         Note that this will return the same trajectory on each run
         unless the random seed `seed` is varied.
@@ -247,30 +250,38 @@ class Model(object):
         assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         self.check_conditions_satisfied(conditions)
         
+        h = self.dt
         T = self.t_domain()
 
         # Choose a starting position from the IC
         rng = np.random.RandomState(seed)
         ic = self.IC(conditions=conditions)
-        x0 = np.random.choice(self.x_domain(conditions=conditions), p=ic)
+        x0 = rng.choice(self.x_domain(conditions=conditions), p=ic)
         pos = [x0]
+
+        # Convenience functions
+        _driftdep = self.get_dependence("drift")
+        _noisedep = self.get_dependence("noise")
+        fm = lambda x,t : _driftdep.get_drift(t=t, x=x, conditions=conditions)
+        fs = lambda x,t : _noisedep.get_noise(t=t, x=x, conditions=conditions)
+        
         for i in range(1, len(T)):
             # Stochastic Runge-Kutta order 4.  See "Introduction to
             # Stochastic Differential Equations" by Thomas C. Gard
-            h = self.dt
             rn = rng.randn()
-            dw = np.sqrt(self.dt)*rn
-            fm = lambda x,t : self.get_dependence("drift").get_drift(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
-            fs = lambda x,t : self.get_dependence("noise").get_noise(t=t, x=x, dx=self.dx, dt=self.dt, conditions=conditions)
+            dw = np.sqrt(h)*rn
             drift1 = fm(t=T[i-1], x=pos[i-1])
             s1  = fs(t=T[i-1], x=pos[i-1])
-            drift2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2)) # Should be dw/sqrt(2)?
-            s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2))
-            drift3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
-            s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
-            drift4 = fm(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
-            s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
-            dx = h*(drift1 + 2*drift2 + 2*drift3 + drift4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
+            if rk4: # Use Runge-Kutta order 4
+                drift2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2)) # Should be dw/sqrt(2)?
+                s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2))
+                drift3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
+                s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
+                drift4 = fm(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
+                s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
+                dx = h*(drift1 + 2*drift2 + 2*drift3 + drift4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
+            else: # Use Euler's method
+                dx = h*drift1 + dw*s1
             pos.append(pos[i-1] + dx)
             B = self.get_dependence("bound").get_bound(t=T[i], conditions=conditions)
             if cutoff and (pos[i] > B or pos[i] < -B):
@@ -278,10 +289,11 @@ class Model(object):
 
         return np.asarray(pos)
 
-    @accepts(Self, Conditions, Natural1, Natural0)
+
+    @accepts(Self, Conditions, Natural1, Natural0, Boolean)
     @returns(Sample)
     @paranoidconfig(max_runtime=.1)
-    def simulated_solution(self, conditions={}, size=1000, seed=0):
+    def simulated_solution(self, conditions={}, size=1000, rk4=True, seed=0):
         """Simulate individual trials to obtain a distribution.
 
         Given conditions `conditions` and the number `size` of trials
@@ -302,11 +314,14 @@ class Model(object):
         corr_times = []
         err_times = []
         undec_count = 0
+
+        T = self.t_domain()
+
         for s in range(0, size):
             if s % 200 == 0:
                 print("Simulating trial %i" % s)
-            timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32))
-            T_finish = self.t_domain()[len(timecourse) - 1]
+            timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32), cutoff=True, rk4=rk4)
+            T_finish = T[len(timecourse) - 1]
             B = self.get_dependence("bound").get_bound(t=T_finish, conditions=conditions)
             # Correct for the fact that the particle could have
             # crossed at any point between T_finish-dt and T_finish.
@@ -316,7 +331,7 @@ class Model(object):
                 corr_times.append(T_finish - dt_correction)
             elif timecourse[-1] < -B:
                 err_times.append(T_finish - dt_correction)
-            elif len(timecourse) == len(self.t_domain()):
+            elif len(timecourse) == len(T):
                 undec_count += 1
             else:
                 raise SystemError("Internal error: Invalid particle simulation")
@@ -769,7 +784,7 @@ class Model(object):
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
         if minval < 0:
-            print("Warning: histogram included values less than zero.  Please adjust numerics (i.e. decrease dx or dt)")
+            print("Warning: histogram included values less than zero (%f).  Please adjust numerics (i.e. decrease dx or dt)" % minval)
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
