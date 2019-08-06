@@ -122,7 +122,17 @@ with::
   import paranoid as pns
   pns.settings.Settings.set(enabled=False)
 
-When performing final simulations for the paper, it is not recommended
-to keep Paranoid Scientist turned off, since doing so may mask
+When performing final simulations for the paper, it is recommended to
+keep re-enable Paranoid Scientist, since turning it off may mask
 numerical issues.
 
+Can PyDDM fit hierarchical models?
+----------------------------------
+
+No, PyDDM cannot fit hierarchical models.  This need is already
+addressed by the `hddm package <https://github.com/hddm-devs/hddm/>`_.
+Due to limited resources, we do not plan to add support for
+hierarchical models, but you are welcome to implement the feature
+yourself and submit a pull request on Github.  If you plan to
+implement this feature, please let us know so we can help you get
+familiar with the code.
