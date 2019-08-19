@@ -290,7 +290,7 @@ class Model(object):
         return np.asarray(pos)
 
 
-    @accepts(Self, Conditions, Natural1, Natural0, Boolean)
+    @accepts(Self, Conditions, Natural1, Boolean, Natural0)
     @returns(Sample)
     @paranoidconfig(max_runtime=.1)
     def simulated_solution(self, conditions={}, size=1000, rk4=True, seed=0):

@@ -4,14 +4,16 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["Dependence", "Drift", "DriftConstant", "DriftLinear", "Noise",
-           "NoiseConstant", "NoiseLinear", "Bound", "BoundConstant",
-           "BoundCollapsingLinear", "BoundCollapsingExponential",
-           "InitialCondition", "ICPointSourceCenter", "ICUniform",
+__all__ = ["Dependence",
+           "Drift", "DriftConstant", "DriftLinear",
+           "Noise", "NoiseConstant", "NoiseLinear",
+           "Bound", "BoundConstant", "BoundCollapsingLinear", "BoundCollapsingExponential",
+           "InitialCondition", "ICPointSourceCenter", "ICPoint", "ICUniform", "ICRange", "ICGaussian",
            "Overlay", "OverlayNone", "OverlayChain",
-           "OverlayUniformMixture", "OverlayPoissonMixture",
-           "OverlayNonDecision", "LossFunction", "LossSquaredError",
-           "LossLikelihood", "LossBIC"]
+               "OverlaySimplePause", "OverlayBlurredPause",
+               "OverlayUniformMixture", "OverlayPoissonMixture",
+               "OverlayNonDecision", "OverlayNonDecisionUniform", "OverlayNonDecisionGamma",
+           "LossFunction", "LossSquaredError", "LossLikelihood", "LossBIC"]
 
 from .base import *
 from .drift import *

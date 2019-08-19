@@ -6,6 +6,7 @@ from itertools import groupby
 from math import fsum
 import pandas
 import copy
+import scipy.stats
 
 from numpy import asarray as aa
 
@@ -133,6 +134,23 @@ class TestDependences(TestCase):
         fails(lambda : ddm.models.ICArbitrary(aa([.1, .1, 0, 0, 0])))
         fails(lambda : ddm.models.ICArbitrary(aa([0, .6, .6, 0])))
         assert ddm.models.ICArbitrary(aa([1]))
+    def test_ICRange(self):
+        """Uniform distribution of starting conditions of arbitrary size centered at 0"""
+        # Make sure it is the same as uniform in the limiting case
+        icrange = ddm.models.ICRange(sz=1)
+        icunif = ddm.models.ICUniform()
+        params = dict(x=np.arange(-1, 1.0001, .01), dx=.01)
+        assert np.all(np.isclose(icunif.get_IC(**params), icrange.get_IC(**params)))
+        # Make sure it is the same as point source center when sz=0
+        icpsc = ddm.models.ICPointSourceCenter()
+        icrange = ddm.models.ICRange(sz=0)
+        assert np.all(np.isclose(icpsc.get_IC(**params), icrange.get_IC(**params)))
+        # For intermediate values, there should only be two values
+        # generated, and it should be symmetric
+        icrange = ddm.models.ICRange(sz=.444)
+        ic = icrange.get_IC(x=np.arange(-.48, .48001, .02), dx=.02)
+        assert np.all(np.isclose(ic, ic[::-1]))
+        assert len(set(ic)) == 2
     def test_OverlayNone(self):
         """No overlay"""
         s = ddm.Model().solve()
@@ -199,6 +217,37 @@ class TestDependences(TestCase):
         sshift = ddm.models.OverlayNonDecision(nondectime=.019).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
+    def test_OverlayNonDecisionUniform(self):
+        """Uniform-distributed non-decision time shifts the histogram"""
+        # Should give the same results as OverlayNonDecision when halfwidth=0
+        s = ddm.Model().solve()
+        for nondectime in [0, -.1, .01, .0099, .011111, 1]:
+            ndunif = ddm.models.OverlayNonDecisionUniform(nondectime=nondectime, halfwidth=0).apply(s)
+            ndpoint = ddm.models.OverlayNonDecision(nondectime=nondectime).apply(s)
+            assert np.all(np.isclose(ndunif.corr, ndpoint.corr)), (nondectime, list(ndunif.corr), list(ndpoint.corr))
+            assert np.all(np.isclose(ndunif.err, ndpoint.err))
+        # Simple shift example
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.02, halfwidth=.01).apply(s)
+        assert sshift.corr[2] == sshift.corr[3] == sshift.corr[4]
+        assert sshift.err[2] == sshift.err[3] == sshift.err[4]
+        assert sshift.corr[0] == sshift.corr[1] == sshift.corr[5] == 0
+        assert sshift.err[0] == sshift.err[1] == sshift.err[5] == 0
+        # Off-boundary and behind 0 example
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.021111, halfwidth=.033333).apply(s)
+        assert sshift.corr[0] == sshift.corr[1]
+        assert sshift.err[0] == sshift.err[1]
+        assert len(set(sshift.corr)) == 2
+        assert len(set(sshift.err)) == 2
+    def test_OverlayNonDecisionGamma(self):
+        """Gamma-distributed non-decision time shifts the histogram"""
+        # Should get back a gamma distribution from a delta spike
+        s = self.FakePointModel(dt=.01).solve()
+        sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.01, shape=1.3, scale=.002).apply(s)
+        gamfn = scipy.stats.gamma(a=1.3, scale=.002).pdf(s.model.t_domain()[0:-2])
+        assert np.all(np.isclose(sshift.corr[2:], gamfn/np.sum(gamfn)*s.corr[1]))
+        assert np.all(np.isclose(sshift.err[2:], gamfn/np.sum(gamfn)*s.err[1]))
     def test_OverlaySimplePause(self):
         """Pause at some point in the trial and then continue, leaving 0 probability in the gap"""
         # Should do nothing with no shift

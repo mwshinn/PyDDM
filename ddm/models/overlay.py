@@ -4,10 +4,11 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlaySimplePause", "OverlayBlurredPause"]
+__all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlayNonDecisionGamma", "OverlayNonDecisionUniform", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
 from scipy.special import gamma as sp_gamma
+import scipy.stats
 
 from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0
 
@@ -289,6 +290,105 @@ class OverlayNonDecision(Overlay):
             newcorr = corr
             newerr = err
         return Solution(newcorr, newerr, m, cond, undec)
+
+@paranoidclass
+class OverlayNonDecisionUniform(Overlay):
+    name = "Uniformly-distributed non-decision time"
+    required_parameters = ["nondectime", "halfwidth"]
+    @staticmethod
+    def _test(v):
+        assert v.nondectime in Number(), "Invalid non-decision time"
+        assert v.halfwidth in Positive0(), "Invalid halfwidth parameter"
+    @staticmethod
+    def _generate():
+        yield OverlayNonDecisionUniform(nondectime=.3, halfwidth=.01)
+        yield OverlayNonDecisionUniform(nondectime=0, halfwidth=.1)
+    @accepts(Self, Solution)
+    @returns(Solution)
+    @ensures("np.sum(return.corr) <= np.sum(solution.corr)")
+    @ensures("np.sum(return.err) <= np.sum(solution.err)")
+    def apply(self, solution):
+        # Make sure params are within range
+        assert self.halfwidth >= 0, "Invalid st parameter"
+        # Extract components of the solution object for convenience
+        corr = solution.corr
+        err = solution.err
+        m = solution.model
+        cond = solution.conditions
+        undec = solution.undec
+        # Describe the width and shift of the uniform distribution in
+        # terms of list indices
+        shift = int(self.nondectime/m.dt) # Discretized non-decision time
+        width = int(self.halfwidth/m.dt) # Discretized uniform distribution half-width
+        offsets = list(range(shift-width, shift+width+1))
+        # Create new correct and error distributions and iteratively
+        # add shifts of each distribution to them.  Use this over the
+        # np.convolution because it handles negative non-decision
+        # times.
+        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
+        newerr = np.zeros(err.shape, dtype=err.dtype)
+        for offset in offsets:
+            if offset > 0:
+                newcorr[offset:] += corr[:-offset]/len(offsets)
+                newerr[offset:] += err[:-offset]/len(offsets)
+            elif offset < 0:
+                newcorr[:offset] += corr[-offset:]/len(offsets)
+                newerr[:offset] += err[-offset:]/len(offsets)
+            else:
+                newcorr += corr/len(offsets)
+                newerr += err/len(offsets)
+        return Solution(newcorr, newerr, m, cond, undec)
+
+
+@paranoidclass
+class OverlayNonDecisionGamma(Overlay):
+    """Add a gamma-distributed non-decision time
+
+    This shifts the reaction time distribution by an amount of time
+    specified by the gamma distribution with shape parameter `shape`
+    (sometimes called "k") and scale parameter `scale` (sometimes
+    called "theta").  The distribution is then further shifted by
+    `nondectime` seconds.
+
+    Example usage:
+
+      | overlay = OverlayNonDecisionGamma(nondectime=.2, shape=1.5, scale=.05)
+
+    """
+    name = "Add a gamma-distributed non-decision time"
+    required_parameters = ["nondectime", "shape", "scale"]
+    @staticmethod
+    def _test(v):
+        assert v.nondectime in Number(), "Invalid non-decision time"
+        assert v.shape in Positive0(), "Invalid shape parameter"
+        assert v.shape >= 1, "Shape parameter must be >= 1"
+        assert v.scale in Positive(), "Invalid scale parameter"
+    @staticmethod
+    def _generate():
+        yield OverlayNonDecisionGamma(nondectime=.3, shape=2, scale=.01)
+        yield OverlayNonDecisionGamma(nondectime=0, shape=1.1, scale=.1)
+    @accepts(Self, Solution)
+    @returns(Solution)
+    @ensures("np.sum(return.corr) <= np.sum(solution.corr)")
+    @ensures("np.sum(return.err) <= np.sum(solution.err)")
+    @ensures("np.all(return.corr[0:int(self.nondectime//return.model.dt)] == 0)")
+    def apply(self, solution):
+        # Make sure params are within range
+        assert self.shape >= 1, "Invalid shape parameter"
+        assert self.scale > 0, "Invalid scale parameter"
+        # Extract components of the solution object for convenience
+        corr = solution.corr
+        err = solution.err
+        dt = solution.model.dt
+        # Create the weights for different timepoints
+        times = np.asarray(list(range(-len(corr), len(corr))))*dt
+        weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.nondectime).pdf(times)
+        if np.sum(weights) > 0:
+            weights /= np.sum(weights) # Ensure it integrates to 1
+        newcorr = np.convolve(corr, weights, mode="full")[len(corr):(2*len(corr))]
+        newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]
+        return Solution(newcorr, newerr, solution.model,
+                        solution.conditions, solution.undec)
 
 @paranoidclass
 class OverlaySimplePause(Overlay):
