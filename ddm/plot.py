@@ -6,6 +6,7 @@
 
 import numpy as np
 import sys
+import traceback
 
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
 if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
@@ -350,7 +351,14 @@ def model_gui(model,
         and the selected conditions."""
         current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
         fig.clear()
-        plot(model=m, fig=fig, sample=sample, conditions=current_conditions, data_dt=data_dt)
+        # If there was an error, display it instead of a plot
+        try:
+            plot(model=m, fig=fig, sample=sample, conditions=current_conditions, data_dt=data_dt)
+        except:
+            fig.clear()
+            fig.text(0, 1, traceback.format_exc(), horizontalalignment="left", verticalalignment="top")
+            canvas.draw()
+            raise
         canvas.draw()
     
     def value_changed():
