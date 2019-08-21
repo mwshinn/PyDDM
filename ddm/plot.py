@@ -194,7 +194,20 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212)
     # If a sample is given, plot it behind the model.
-    sample_cond = sample.subset(**conditions)
+    if sample:
+        sample_cond = sample.subset(**conditions)
+    else:
+        assert len(set(model.required_conditions) - set(conditions.keys())) == 0, \
+            "If no sample is passed, all conditions must be specified"
+        # Create a dummy sample with one RT arbitrarily chosen for each condition.
+        cond_combs = [[0, 1]]
+        all_conds = list(sorted(conditions.keys()))
+        for c in all_conds:
+            vs = conditions[c]
+            if not isinstance(vs, list):
+                vs = [vs]
+            cond_combs = [cc + [v] for cc in cond_combs for v in vs]
+        sample_cond = Sample.from_numpy_array(np.asarray(cond_combs), all_conds)
     if sample:
         data_hist_top = np.histogram(sample_cond.corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
@@ -215,9 +228,10 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
 
 
 def model_gui(model,
-              sample,
+              sample=None,
               data_dt=None,
-              plot=plot_fit_diagnostics):
+              plot=plot_fit_diagnostics,
+              conditions=None):
     """Mess around with model parameters visually.
 
     This allows you to see how the model `model` would be affected by
@@ -245,6 +259,9 @@ def model_gui(model,
     assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
         " this, please import ddm.plot BEFORE matplotlib.pyplot."
+    # Make sure either a sample or conditions are specified.
+    assert sample or conditions, \
+        "If a sample is not passed, conditions must be passed through the 'conditions' argument."
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Since the name is not saved in the parameter object,
@@ -261,13 +278,19 @@ def model_gui(model,
         # All of the conditions required by at least one of the model
         # components.
         required_conditions = list(set([x for l in components_list for x in l.required_conditions]))
+        if sample:
+            sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
+        else:
+            assert all(c in conditions.keys() for c in required_conditions), \
+                "Please pass all conditions needed by the model in the 'conditions' argument."
+            sample_condition_values = {c : (list(sorted(conditions[c])) if isinstance(c, list) else conditions[c]) for c in required_conditions}
     elif sample:
         components_list = []
         required_conditions = sample.condition_names()
+        sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
     else:
         print("Must define model, sample, or both")
         return
-    
     
     params = [] # A list of all of the Fittables that were passed.
     setters = [] # A list of functions which set the value of the corresponding parameter in `params`
@@ -349,7 +372,7 @@ def model_gui(model,
     def update():
         """Redraws the plot according to the current parameters of the model
         and the selected conditions."""
-        current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
+        current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] if condition_vars[i].get() != "All" else conditions[c] for i,c in enumerate(required_conditions) }
         fig.clear()
         # If there was an error, display it instead of a plot
         try:
@@ -396,10 +419,10 @@ def model_gui(model,
         condition_vars.append(thisvar)
         b = tk.Radiobutton(master=lframe, text="All", variable=thisvar, value="All", command=value_changed)
         b.pack(anchor=tk.W)
-        for cv in sample.condition_values(cond):
+        for cv in sample_condition_values[cond]:
             b = tk.Radiobutton(master=lframe, text=str(cv), variable=thisvar, value=cv, command=value_changed)
             b.pack(anchor=tk.W)
-        condition_vars_values.append({str(cv) : cv for cv in sample.condition_values(cond)})
+        condition_vars_values.append({str(cv) : cv for cv in sample_condition_values[cond]})
         thisvar.set("All")
     
     # And now create the sliders.  While we're at it, get rid of the
