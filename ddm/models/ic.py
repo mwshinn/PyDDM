@@ -194,9 +194,9 @@ def ICArbitrary(dist):
     Example usage:
 
       | import scipy.stats
-      | ic = ICPointSourceCenter(dist=scipy.stats.binom.pmf(n=200, p=.4, k=range(0, 201))) # Binomial distribution
+      | ic = ICArbitrary(dist=scipy.stats.binom.pmf(n=200, p=.4, k=range(0, 201))) # Binomial distribution
       | import numpy as np
-      | ic = ICPointSourceCenter(dist=np.asarray([0]*100+[1]+[0]*100)) # Equivalent to ICPointSourceCenter for dx=.01
+      | ic = ICArbitrary(dist=np.asarray([0]*100+[1]+[0]*100)) # Equivalent to ICPointSourceCenter for dx=.01
     """
     class ICArbitrary(InitialCondition):
         """Initial condition from an arbitrary distribution"""

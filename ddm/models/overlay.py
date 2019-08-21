@@ -293,6 +293,16 @@ class OverlayNonDecision(Overlay):
 
 @paranoidclass
 class OverlayNonDecisionUniform(Overlay):
+    """Add a uniformly-distributed non-decision time.
+
+    The center of the distribution of non-decision times is at
+    `nondectime`, and it extends `halfwidth` on each side.
+
+    Example usage:
+
+      | overlay = OverlayNonDecisionUniform(nondectime=.2, halfwidth=.02)
+
+    """
     name = "Uniformly-distributed non-decision time"
     required_parameters = ["nondectime", "halfwidth"]
     @staticmethod

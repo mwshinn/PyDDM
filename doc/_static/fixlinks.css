@@ -1,0 +1,20 @@
+a code.xref {
+    font-family: Arial, sans-serif;
+    font-weight: normal;
+    /*font-color: blue;*/
+    font-size: 1.0em;
+}
+
+dd p a code.xref {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+
+a {
+    text-decoration: underline
+}
+
+div.sphinxsidebarwrapper a, li.nav-item a {
+    text-decoration: none;
+}

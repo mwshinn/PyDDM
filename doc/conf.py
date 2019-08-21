@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'PyDDM'
-copyright = '2018, Maxwell Shinn, Norman Lam'
+copyright = '2019, Maxwell Shinn, Norman Lam'
 author = 'Maxwell Shinn, Norman Lam'
 
 exec(open("../ddm/_version.py", "r").read()) # get __version__ variable
@@ -80,7 +80,7 @@ pygments_style = 'sphinx'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'classic'
+html_theme = 'nature'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -102,7 +102,11 @@ html_static_path = ['_static']
 # 'searchbox.html']``.
 #
 # html_sidebars = {}
-html_sidebars = { '**': ['globaltoc.html', 'relations.html', 'searchbox.html'], }
+html_sidebars = { '**': ['customtoc.html', 'relations.html', 'searchbox.html'], }
+
+html_css_files = [
+    'fixlinks.css',
+]
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

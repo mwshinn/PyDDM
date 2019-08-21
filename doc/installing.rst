@@ -33,7 +33,7 @@ Getting the source
 Contributing
 ------------
 
-Please report bugs to <https://github.com/mwshinn/pyddm/issues>.  This
+Please report bugs to https://github.com/mwshinn/pyddm/issues.  This
 includes any problems with the documentation.  Fixes (in the form of
 pull requests) for bugs are greatly appreciated.
 
