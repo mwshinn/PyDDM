@@ -20,8 +20,8 @@ Step function collapsing bounds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 It is also possible to make collapsing bounds of any shape.  For
-example, the following describes bounds which collapse according to a
-step function:
+example, the following describes bounds which collapse in discrete
+steps of a particular length:
 
 .. literalinclude:: ../downloads/cookbook.py
    :language: python
@@ -29,10 +29,15 @@ step function:
    :end-before: # End BoundCollapsingStep
 
 
-Then we can use this in a model with::
+Try it out with::
 
-  from ddm import Model
-  model = Model(bound=BoundCollapsingStep(B0=1, stepheight=.1, steplength=.1))
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(bound=BoundCollapsingStep(B0=Fittable(minval=.5, maxval=1.5),
+                                          stepheight=Fittable(minval=0, maxval=.49),
+                                          steplength=Fittable(minval=0, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model)
 
 .. _bound-weibull-cdf:
 
@@ -40,8 +45,7 @@ Weibull CDF collapsing bounds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Weibull function is a popular choice for collapsing bounds.  (See,
-e.g., `Hawkins et al. (2015)
-<https://doi.org/10.1523/JNEUROSCI.2410-14.2015 >`_.)  This can be
+e.g., `Hawkins et al. (2015) <https://doi.org/10.1523/JNEUROSCI.2410-14.2015>`_.)  This can be
 implemented using:
 
 .. literalinclude:: ../downloads/cookbook.py
@@ -49,6 +53,16 @@ implemented using:
    :start-after: # Start BoundCollapsingWeibull
    :end-before: # End BoundCollapsingWeibull
 
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(bound=BoundCollapsingWeibull(a=Fittable(minval=1, maxval=2),
+                                             aprime=Fittable(minval=0, maxval=1),
+                                             lam=Fittable(minval=0, maxval=2),
+                                             k=Fittable(minval=0, maxval=5)),
+                dx=.01, dt=.01)
+  model_gui(model)
 
 (Note that in `Hakwins et al. (2015)
 <https://doi.org/10.1523/JNEUROSCI.2410-14.2015>`_, diffusion goes
@@ -70,3 +84,12 @@ for the accuracy condition and low for the speed condition.
    :language: python
    :start-after: # Start BoundSpeedAcc
    :end-before: # End BoundSpeedAcc
+
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(bound=BoundSpeedAcc(Bacc=Fittable(minval=.5, maxval=1.5),
+                                    Bspeed=Fittable(minval=0, maxval=1)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"speed_trial": [0, 1]})
