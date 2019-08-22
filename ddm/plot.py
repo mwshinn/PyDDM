@@ -260,7 +260,7 @@ def model_gui(model,
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
         " this, please import ddm.plot BEFORE matplotlib.pyplot."
     # Make sure either a sample or conditions are specified.
-    assert sample or conditions, \
+    assert not model.required_conditions or (sample or conditions), \
         "If a sample is not passed, conditions must be passed through the 'conditions' argument."
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in

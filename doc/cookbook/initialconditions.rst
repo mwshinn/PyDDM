@@ -37,11 +37,19 @@ distribution::
   from ddm import Model
   from ddm.plot import plot_compare_solutions
   import matplotlib.pyplot as plt
-  model = Model(IC=ICPoint(x0=.3))
+  model = Model(IC=ICPointRew(x0=.3))
   s1 = model.solve(conditions={"highreward": 1})
   s2 = model.solve(conditions={"highreward": 0})
   plot_compare_solutions(s1, s2)
   plt.show()
+
+We can also see these directly in the model GUI::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(IC=ICPointRew(x0=Fittable(minval=0, maxval=1)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"highreward": [0, 1]})
 
 To more accurately represent the initial condition, we can 
 linearly approximate the probability density function at the two 
@@ -52,6 +60,17 @@ neighboring grids of the initial position:
    :start-after: # Start ICPointRewInterp
    :end-before: # End ICPointRewInterp
 
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(IC=ICPointRewInterp(x0=Fittable(minval=0, maxval=1)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"highreward": [0, 1]})
+
+In practice, these are very similar, but the latter gives a smoother
+derivative, which may be useful for gradient-based fitting methods
+(which are not used by default).
 
 .. _ic-biased-range:
 
@@ -63,6 +82,15 @@ Biased Initial Condition Range
    :start-after: # Start ICPointRange
    :end-before: # End ICPointRange
 
+Try it out with constant drift using::
+
+  from ddm import Model, Fittable, DriftConstant
+  from ddm.plot import model_gui
+  model = Model(drift=DriftConstant(drift=1),
+                IC=ICPointRange(x0=Fittable(minval=0, maxval=.5),
+                                sz=Fittable(minval=0, maxval=.49)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"highreward": [0, 1]})
 
 .. _ic-cauchy:
 
@@ -74,3 +102,11 @@ Cauchy-distributed Initial Conditions
    :start-after: # Start ICCauchy
    :end-before: # End ICCauchy
 
+Try it out with::
+
+  from ddm import Model, Fittable, BoundCollapsingLinear
+  from ddm.plot import model_gui
+  model = Model(IC=ICCauchy(scale=Fittable(minval=.001, maxval=.3)),
+                bound=BoundCollapsingLinear(t=0, B=1),
+                dx=.01, dt=.01)
+  model_gui(model)

@@ -8,47 +8,65 @@ Pulse paradigm
 
 The pulse paradigm, where evidence is presented for a fixed amount of
 time only, is common in behavioral neuroscience.  For simplicity, let
-us first model it without coherence dependence::
+us first model it without coherence dependence:
 
-  from ddm.models import Drift
-  class DriftPulse(Drift):
-      name = "Drift for a pulse paradigm"
-      required_parameters = ["start", "duration", "drift"]
-      required_conditions = []
-      def get_drift(self, t, conditions, **kwargs):
-          if self.start <= t <= self.start + self.duration:
-              return self.drift
-          return 0
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftPulse
+   :end-before: # End DriftPulse
 
 Here, ``drift`` is the strength of the evidence integration during the
 pulse, ``start`` is the time of the pulse onset, and ``duration`` is the
 duration of the pulse.
 
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(drift=DriftPulse(start=Fittable(minval=0, maxval=1.5),
+                                 duration=Fittable(minval=0, maxval=.5),
+                                 drift=Fittable(minval=0, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model)
+
 This can easily be modified to make it coherence dependent, where
-``coherence`` is a condition in the :class:`.Sample`::
+``coherence`` is a condition in the :class:`.Sample`:
 
-  from ddm.models import Drift
-  class DriftPulseCoh(Drift):
-      name = "Drift for a coherence-dependent pulse paradigm"
-      required_parameters = ["start", "duration", "drift"]
-      required_conditions = ["coherence"]
-      def get_drift(self, t, conditions, **kwargs):
-          if self.start <= t <= self.start + self.duration:
-              return self.drift * conditions["coherence"]
-          return 0
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftPulseCoh
+   :end-before: # End DriftPulseCoh
 		  
-Alternatively, drift can be set at a default value independent of
-coherence, and changed during the pulse duration::
+Try it out with::
 
-  from ddm.models import Drift
-  class DriftPulse(Drift):
-      name = "Drift for a pulse paradigm, with baseline drift"
-      required_parameters = ["start", "duration", "drift", "drift0"]
-      required_conditions = []
-      def get_drift(self, t, conditions, **kwargs):
-          if self.start <= t <= self.start + self.duration:
-              return self.drift
-          return self.drift0
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(drift=DriftPulseCoh(start=Fittable(minval=0, maxval=1.5),
+                                    duration=Fittable(minval=0, maxval=.5),
+                                    drift=Fittable(minval=0, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"coherence": [0, .3, .6]})
+
+Alternatively, drift can be set at a default value independent of
+coherence, and changed during the pulse duration.  In this case, there
+is some fixed amount of evidence, with a small burst of additionall
+evidence:
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftPulse2
+   :end-before: # End DriftPulse2
+
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(drift=DriftPulse2(drift0=Fittable(minval=0, maxval=.5),
+                                  start=Fittable(minval=0, maxval=1.5),
+                                  duration=Fittable(minval=0, maxval=.5),
+                                  drift=Fittable(minval=0, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model)
 
 		  
 .. _paradigm-pk:

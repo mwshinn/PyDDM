@@ -8,6 +8,8 @@ import ddm
 
 
 # Start ICPointRew
+import numpy as np
+from ddm import InitialCondition
 class ICPointRew(InitialCondition):
     name = "A reward-biased starting point."
     required_parameters = ["x0"]
@@ -25,6 +27,9 @@ class ICPointRew(InitialCondition):
 # End ICPointRew
 
 # Start ICPointRewInterp
+import numpy as np
+import scipy.stats
+from ddm import InitialCondition
 class ICPointRewInterp(InitialCondition):
     name = "A dirac delta function at a position dictated by reward."
     required_parameters = ["x0"]
@@ -50,6 +55,9 @@ class ICPointRewInterp(InitialCondition):
 # End ICPointRewInterp
 
 # Start ICPointRange
+import numpy as np
+import scipy.stats
+from ddm import InitialCondition
 class ICPointRange(InitialCondition):
     name = "A shifted reward-biased uniform distribution"
     required_parameters = ["x0", "sz"]
@@ -66,6 +74,9 @@ class ICPointRange(InitialCondition):
 # End ICPointRange
 
 # Start ICCauchy
+import numpy as np
+import scipy.stats
+from ddm import InitialCondition
 class ICCauchy(InitialCondition):
     name = "Cauchy distribution"
     required_parameters = ["scale"]
@@ -76,7 +87,10 @@ class ICCauchy(InitialCondition):
 
 
 # Start OverlayNonDecisionGaussian
-class OverlayNonDecisionGaussian(ddm.Overlay):
+import numpy as np
+import scipy
+from ddm import Overlay, Solution
+class OverlayNonDecisionGaussian(Overlay):
     name = "Add a Gaussian-distributed non-decision time"
     required_parameters = ["nondectime", "ndsigma"]
     def apply(self, solution):
@@ -93,18 +107,20 @@ class OverlayNonDecisionGaussian(ddm.Overlay):
             weights /= np.sum(weights) # Ensure it integrates to 1
         newcorr = np.convolve(weights, corr, mode="full")[len(corr):(2*len(corr))]
         newerr = np.convolve(weights, err, mode="full")[len(corr):(2*len(corr))]
-        return ddm.Solution(newcorr, newerr, solution.model,
-                            solution.conditions, solution.undec)
+        return Solution(newcorr, newerr, solution.model,
+                        solution.conditions, solution.undec)
 # End OverlayNonDecisionGaussian
 
 # Start OverlayNonDecisionLR
+import numpy as np
+from ddm import Overlay, Solution
 class OverlayNonDecisionLR(Overlay):
     name = "Separate non-decision time for left and right sides"
     required_parameters = ["nondectimeL", "nondectimeR"]
     required_conditions = ["side"] # Side coded as 0=L or 1=R
-    def apply(self, solution, conditions={}):
+    def apply(self, solution):
         # Check parameters and conditions
-        assert conditions['side'] in [0, 1], "Invalid side"
+        assert solution.conditions['side'] in [0, 1], "Invalid side"
         # Unpack solution object
         corr = solution.corr
         err = solution.err
@@ -112,7 +128,7 @@ class OverlayNonDecisionLR(Overlay):
         cond = solution.conditions
         undec = solution.undec
         # Compute non-decision time
-        ndtime = self.nondectimeL if conditions['side'] == 0 else self.nondectimeR
+        ndtime = self.nondectimeL if cond['side'] == 0 else self.nondectimeR
         shifts = int(ndtime/m.dt) # truncate
         # Shift the distribution
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
@@ -130,7 +146,8 @@ class OverlayNonDecisionLR(Overlay):
 # End OverlayNonDecisionLR
 
 # Start DriftCoherence
-class DriftCoherence(ddm.models.Drift):
+from ddm import Drift
+class DriftCoherence(Drift):
     name = "Drift depends linearly on coherence"
     required_parameters = ["driftcoh"] # <-- Parameters we want to include in the model
     required_conditions = ["coh"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
@@ -141,7 +158,8 @@ class DriftCoherence(ddm.models.Drift):
 # End DriftCoherence
 
 # Start DriftCoherenceLeak
-class DriftCoherenceLeak(ddm.models.Drift):
+from ddm import Drift
+class DriftCoherenceLeak(Drift):
     name = "Leaky drift depends linearly on coherence"
     required_parameters = ["driftcoh", "leak"] # <-- Parameters we want to include in the model
     required_conditions = ["coh"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
@@ -162,6 +180,42 @@ class DriftSine(Drift):
         return np.sin(t*conditions["frequency"]*2*np.pi)*self.scale
 # End DriftSine
 
+# Start DriftPulse
+from ddm.models import Drift
+class DriftPulse(Drift):
+    name = "Drift for a pulse paradigm"
+    required_parameters = ["start", "duration", "drift"]
+    required_conditions = []
+    def get_drift(self, t, conditions, **kwargs):
+        if self.start <= t <= self.start + self.duration:
+            return self.drift
+        return 0
+# End DriftPulse
+
+# Start DriftPulseCoh
+from ddm.models import Drift
+class DriftPulseCoh(Drift):
+    name = "Drift for a coherence-dependent pulse paradigm"
+    required_parameters = ["start", "duration", "drift"]
+    required_conditions = ["coherence"]
+    def get_drift(self, t, conditions, **kwargs):
+        if self.start <= t <= self.start + self.duration:
+            return self.drift * conditions["coherence"]
+        return 0
+# End DriftPulseCoh
+
+# Start DriftPulse2
+from ddm.models import Drift
+class DriftPulse2(Drift):
+    name = "Drift for a pulse paradigm, with baseline drift"
+    required_parameters = ["start", "duration", "drift", "drift0"]
+    required_conditions = []
+    def get_drift(self, t, conditions, **kwargs):
+        if self.start <= t <= self.start + self.duration:
+            return self.drift
+        return self.drift0
+# End DriftPulse2
+
 
 # Start BoundCollapsingStep
 from ddm.models import Bound
@@ -178,6 +232,8 @@ class BoundCollapsingStep(Bound):
 from ddm.models import Bound
 import numpy as np
 # Start BoundCollapsingWeibull
+import numpy as np
+from ddm import Bound
 class BoundCollapsingWeibull(Bound):
     name = "Weibull CDF collapsing bounds"
     required_parameters = ["a", "aprime", "lam", "k"]
@@ -190,6 +246,8 @@ class BoundCollapsingWeibull(Bound):
 # End BoundCollapsingWeibull
 
 # Start LossByMeans
+import numpy as np
+from ddm import LossFunction
 class LossByMeans(LossFunction):
     name = "Mean RT and accuracy"
     def setup(self, dt, T_dur, **kwargs):
@@ -208,6 +266,7 @@ class LossByMeans(LossFunction):
 # End LossByMeans
 
 # Start BoundSpeedAcc
+from ddm import Bound
 class BoundSpeedAcc(Bound):
     name = "constant"
     required_parameters = ["Bacc", "Bspeed"]
@@ -227,16 +286,18 @@ def urgency_gain(t, gain_start, gain_slope):
 # End urgency_gain
 
 # Start DriftUrgencyGain
+from ddm import Drift
 class DriftUrgencyGain(Drift):
-    name = "constant"
+    name = "drift rate with an urgency function"
     required_parameters = ["snr", "gain_start", "gain_slope"]
     def get_drift(self, t, **kwargs):
         return self.snr * urgency_gain(t, self.gain_start, self.gain_slope)
 # End DriftUrgencyGain
 
 # Start NoiseUrgencyGain
-class NoiseConstant(Noise):
-    name = "constant"
+from ddm import Noise
+class NoiseUrgencyGain(Noise):
+    name = "noise level with an urgency function"
     required_parameters = ["gain_start", "gain_slope"]
     def get_noise(self, t, **kwargs):
         return urgency_gain(t, self.gain_start, self.gain_slope)
