@@ -1,9 +1,9 @@
-PyDDM Cook Book
+PyDDM Cookbook
 ===============
 
 Here are a list of examples of common model features and how to
 implement them in PyDDM.  **If you created an example or model in
-PyDDM and would like it to be added to the cook book, please** `send
+PyDDM and would like it to be added to the cookbook, please** `send
 it to us <mailto:maxwell.shinn@yale.edu>`_ **so we can add it**.
 Include the author(s) of the example or model and optionally a
 literature reference so that we can give you proper credit and direct
