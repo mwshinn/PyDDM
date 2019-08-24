@@ -396,7 +396,17 @@ def model_gui(model,
     def update():
         """Redraws the plot according to the current parameters of the model
         and the selected conditions."""
-        current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] if condition_vars[i].get() != "All" else conditions[c] for i,c in enumerate(required_conditions) }
+        print("cond var vals", condition_vars_values)
+        print("cond vars", condition_vars)
+        current_conditions = {c : condition_vars_values[i][condition_vars[i].get()] for i,c in enumerate(required_conditions) if condition_vars[i].get() != "All"}
+        # If any conditions were "all", they will not be in current
+        # conditions.  Here, we update current_conditions with any
+        # conditions which were specified in the conditions argument,
+        # implying they are not in the sample.
+        if conditions is not None:
+            for k,v in conditions.items():
+                if k not in current_conditions.keys():
+                    current_conditions[k] = v
         fig.clear()
         # If there was an error, display it instead of a plot
         try:

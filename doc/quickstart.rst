@@ -326,6 +326,11 @@ Thus, the full model definition is
    :language: python
    :lines: 120-136
 
+Before fitting this model, let's look at it in the model GUI::
+
+  from ddm.plot import model_gui
+  model_gui(model_leak, sample=roitman_sample)
+           
 We can fit this and save it as an image using the following.  Note
 that this may take a while (hours) due to the increased number of
 parameters and because the earlier examples were able to use the
