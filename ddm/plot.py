@@ -151,7 +151,7 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     ax_bot.set_ylim(-maxval, 0)
     return f
 
-def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=None, method=None):
+def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, data_dt=.01, method=None):
     """Visually assess model fit.
 
     This function plots a model on top of data, primarily for the
@@ -167,8 +167,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     - `conditions` - Optionally restrict the conditions of the model
       to those specified, in a format which could be passed to
       Sample.subset.
-    - `data_dt` - Bin size to use for the data histogram.  Defaults to
-      the model's dt.
+    - `data_dt` - Bin size to use for the data histogram.  Defaults
+      to 0.01.
     - `method` - Optionally the method to use to solve the model,
       either "analytical", "numerical" "cn", "implicit", "explicit",
       or None (auto-select, the default).
@@ -191,8 +191,9 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
         t_domain = np.linspace(0, T_dur, T_dur/dt+1)
     else:
         raise ValueError("Must specify non-empty model or sample in arguments")
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
+    ax1 = fig.add_axes([.12, .56, .85, .43])
+    ax2 = fig.add_axes([.12, .13, .85, .43])
+    ax2.invert_yaxis()
     # If a sample is given, plot it behind the model.
     if sample:
         sample_cond = sample.subset(**conditions)
@@ -213,23 +214,46 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
         data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
         total_samples = len(sample_cond)
         data_t_domain = np.linspace(0, T_dur, T_dur/dt+1)
-        ax1.plot(data_t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5)
-        ax2.plot(data_t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5)
+        ax1.fill_between(data_t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        ax2.fill_between(data_t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5, color=(.5, .5, .5))
     if model:
         s = solve_partial_conditions(model, sample_cond, conditions=conditions, method=method)
-        ax1.plot(t_domain, s.pdf_corr(), lw=2, color='red')
-        ax2.plot(t_domain, s.pdf_err(), lw=2, color='red')
-    ax1.axis([0, T_dur, 0, None])
-    ax2.axis([0, T_dur, 0, None])
-    ax1.set_title("Correct RTs")
-    ax2.set_title("Error RTs")
+        ax1.plot(t_domain, s.pdf_corr(), lw=2, color='k')
+        ax2.plot(t_domain, s.pdf_err(), lw=2, color='k')
+    for ax in [ax1, ax2]:
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+    height = max(ax1.axis()[3], ax2.axis()[2])
+    ax1.yaxis.set_major_locator(plt.matplotlib.ticker.MaxNLocator(4))
+    ax2.yaxis.set_major_locator(plt.matplotlib.ticker.MaxNLocator(4))
+    ax2.plot([0, T_dur], [0, 0], color="k", linestyle="--", linewidth=.5)
+    ax1.axis([0, T_dur, 0, height])
+    ax2.axis([0, T_dur, height, 0])
+    ax2.xaxis.set_major_locator(plt.matplotlib.ticker.MultipleLocator(.5))
+    ax2.xaxis.set_minor_locator(plt.matplotlib.ticker.MultipleLocator(.25))
+    class NonZeroScalarFormatter(plt.matplotlib.ticker.ScalarFormatter):
+        def __call__(self, x, pos=None):
+            if x == 0:
+                return ""
+            else:
+                return super().__call__(x, pos)
+    ax1.yaxis.set_major_formatter(NonZeroScalarFormatter())
+    ax1.set_xticks([])
+    ax1.spines['left'].set_position(('outward', 10))
+    ax2.spines['left'].set_position(('outward', 10))
+    ax2.spines['bottom'].set_position(('outward', 10))
+    ax1.set_ylabel("Correct RTs")
+    ax2.set_ylabel("Error RTs")
+    ax2.set_xlabel("Time (s)")
     pt = fig.suptitle("")
     fig.tight_layout()
 
 
 def model_gui(model,
               sample=None,
-              data_dt=None,
+              data_dt=.01,
               plot=plot_fit_diagnostics,
               conditions=None):
     """Mess around with model parameters visually.
