@@ -173,22 +173,20 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
       either "analytical", "numerical" "cn", "implicit", "explicit",
       or None (auto-select, the default).
     """
-    # Avoid stupid errors with mutable objects
+    # Avoid stupid warnings with mutable objects
     if conditions is None:
         conditions = {}
     # Create a figure if one is not given
     if fig is None:
         fig = plt.gcf()
     
-    # We use these a lot, hence the shorthand
+    # If we just pass a sample and no model, set appropriate T_dur and t_domain
     if model:
-        dt = model.dt if not data_dt else data_dt
         T_dur = model.T_dur
         t_domain = model.t_domain()
     elif sample:
-        dt = .01 if not data_dt else data_dt # sample dt
         T_dur = max(sample)
-        t_domain = np.linspace(0, T_dur, T_dur/dt+1)
+        t_domain = np.linspace(0, T_dur, T_dur/data_dt+1)
     else:
         raise ValueError("Must specify non-empty model or sample in arguments")
     ax1 = fig.add_axes([.12, .56, .85, .43])
@@ -196,30 +194,17 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax2.invert_yaxis()
     # If a sample is given, plot it behind the model.
     if sample:
-        sample_cond = sample.subset(**conditions)
-    else:
-        assert len(set(model.required_conditions) - set(conditions.keys())) == 0, \
-            "If no sample is passed, all conditions must be specified"
-        # Create a dummy sample with one RT arbitrarily chosen for each condition.
-        cond_combs = [[0, 1]]
-        all_conds = list(sorted(conditions.keys()))
-        for c in all_conds:
-            vs = conditions[c]
-            if not isinstance(vs, list):
-                vs = [vs]
-            cond_combs = [cc + [v] for cc in cond_combs for v in vs]
-        sample_cond = Sample.from_numpy_array(np.asarray(cond_combs), all_conds)
-    if sample:
-        data_hist_top = np.histogram(sample_cond.corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
-        data_hist_bot = np.histogram(sample_cond.err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]
-        total_samples = len(sample_cond)
-        data_t_domain = np.linspace(0, T_dur, T_dur/dt+1)
-        ax1.fill_between(data_t_domain, np.asarray(data_hist_top)/total_samples/dt, label="Data", alpha=.5, color=(.5, .5, .5))
-        ax2.fill_between(data_t_domain, np.asarray(data_hist_bot)/total_samples/dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        sample = sample.subset(**conditions)
+        data_hist_top = np.histogram(sample.corr, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
+        data_hist_bot = np.histogram(sample.err, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
+        total_samples = len(sample)
+        ax1.fill_between(t_domain, np.asarray(data_hist_top)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        ax2.fill_between(t_domain, np.asarray(data_hist_bot)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
     if model:
-        s = solve_partial_conditions(model, sample_cond, conditions=conditions, method=method)
+        s = solve_partial_conditions(model, sample, conditions=conditions, method=method)
         ax1.plot(t_domain, s.pdf_corr(), lw=2, color='k')
         ax2.plot(t_domain, s.pdf_err(), lw=2, color='k')
+    # Set up nice looking plots
     for ax in [ax1, ax2]:
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -233,6 +218,9 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax2.axis([0, T_dur, height, 0])
     ax2.xaxis.set_major_locator(plt.matplotlib.ticker.MultipleLocator(.5))
     ax2.xaxis.set_minor_locator(plt.matplotlib.ticker.MultipleLocator(.25))
+    # Easiest way I could find to prevent zero from being printed
+    # twice without resorting to ax2.set_yticks(ax2.get_yticks()[1:]),
+    # which makes it such that the axes don't rescale at the same rate
     class NonZeroScalarFormatter(plt.matplotlib.ticker.ScalarFormatter):
         def __call__(self, x, pos=None):
             if x == 0:

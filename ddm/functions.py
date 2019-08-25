@@ -24,7 +24,7 @@ from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
 
-from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1
+from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1, Maybe
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidconfig
 from paranoid.settings import Settings as paranoid_settings
 from .models.paranoid_types import Conditions
@@ -422,13 +422,14 @@ def solve_all_conditions(model, sample, conditions={}, method=None):
 
 
 # TODO explicitly test this in unit tests
-@accepts(Model, Sample, Conditions, Set([None, "analytical", "numerical", "cn", "implicit", "explicit"]))
+@accepts(Model, Maybe(Sample), Maybe(Conditions), Maybe(Set(["analytical", "numerical", "cn", "implicit", "explicit"])))
 # @returns(Solution) # This doesn't actually return a solution, only a solution-like object
-@requires('all((c in sample.condition_names() for c in model.required_conditions))')
-@requires('all((c in sample.condition_names() for c in conditions))')
+@requires('sample is not None --> all((c in sample.condition_names() for c in model.required_conditions))')
+@requires('conditions is not None and sample is not None --> all((c in sample.condition_names() for c in conditions))')
+@requires('conditions is not None and sample is None --> all((c in conditions for c in model.required_conditions))')
 @requires("method == 'explicit' --> model.can_solve_explicit(conditions=conditions)")
 @requires("method == 'cn' --> model.can_solve_cn()")
-def solve_partial_conditions(model, sample, conditions={}, method=None):
+def solve_partial_conditions(model, sample=None, conditions=None, method=None):
     """Solve a model without specifying the value of all conditions
 
     This function solves `model` according to the ratio of trials in
@@ -436,12 +437,20 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
     coherence and 50 with low coherence.  This will then return a
     solution with 2/3*(PDF high coherence) + 1/3*(PDF low coherence).
     This is especially useful when comparing a model to a sample which
-    may have many different conditions.
+    may have many different conditions.  
+
+    Alternatively, if no sample is available, it will solve all
+    conditions passed in `conditions` in equal ratios.
+
+    The advantage to this function over Model.solve() is that the
+    former can only handle a single value for each condition, whereas
+    this function accepts can do it lists for condition values as
+    well.
 
     The `conditions` variable limits the solution to a subset of
     `sample` which satisfy `conditions`.  The elements of the
-    dictionary `conditions` should be specified as in the
-    Sample.subset() function.
+    dictionary `conditions` should be specified either as values or as
+    a list of values.
 
     Optionally, `method` describes the solver to use.  It can be
     "analytical", "numerical", "cn" (Crank-Nicolson), "implicit"
@@ -450,20 +459,47 @@ def solve_partial_conditions(model, sample, conditions={}, method=None):
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
+
     """
+    if conditions is None:
+        conditions = {}
     T_dur = model.T_dur
     dt = model.dt
-    samp = sample.subset(**conditions)
-    #model_corr = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float) # dt/2 terms are for continuity correction
-    #model_err = np.histogram([], bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0].astype(float)
+    if sample:
+        # If a sample is passed, include only the parts of the sample
+        # that satisfy the passed conditions.
+        samp = sample.subset(**conditions)
+    else:
+        # If no sample is passed, create a dummy sample.  For this, we
+        # need all of the conditions to be specified in the
+        # "conditions" variable.  We then construct a sample with
+        # exactly one element correct and zero elements error for each
+        # potential combinations of conditions.  For instance, if
+        # there are two conditions with only one value of each passed
+        # (as scalars), only one element will be created.  If each of
+        # these two instead has two values passed (as a list), create
+        # four elements in the sample, etc.
+        assert len(set(model.required_conditions) - set(conditions.keys())) == 0, \
+            "If no sample is passed, all conditions must be specified"
+        # Build cond_combs as the data matrix iteratively. Initial
+        # value is a correct response with an RT of 1 (as per the
+        # first expected elements of Sample.from_numpy_array().
+        cond_combs = [[0, 1]] 
+        all_conds = list(sorted(conditions.keys()))
+        for c in all_conds:
+            vs = conditions[c]
+            if not isinstance(vs, list):
+                vs = [vs]
+            cond_combs = [cc + [v] for cc in cond_combs for v in vs]
+        samp = Sample.from_numpy_array(np.asarray(cond_combs), all_conds)
     model_corr = 0*model.t_domain()
     model_err = 0*model.t_domain()
-    model_undec = -1 # Set to -1 so we can detect this in our loop
+    model_undec = -1 # Set to dummy value -1 so we can detect this in our loop
     # If we have an overlay, this function should not calculate the
     # (incorrect) undecided probability
     if not isinstance(model.get_dependence("overlay"), OverlayNone):
         model_undec = None
-    all_conds = solve_all_conditions(model, sample, conditions=conditions, method=method)
+    all_conds = solve_all_conditions(model, samp, conditions=conditions, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]
