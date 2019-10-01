@@ -118,7 +118,8 @@ several values:
 - "simple": Gradient descent
 - "basin": Use Scipy's `basin hopping algorithm
   <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html>`_.
-
+- A function can be passed to use this function as a custom objective
+  function.
 
 For example, to fit the model in the quickstart using the Nelder-Mead
 simplex method, you can do::

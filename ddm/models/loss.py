@@ -149,7 +149,7 @@ class LossLikelihood(LossFunction):
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
             maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
-            assert maxt <= self.T_dur, "Simulation time T_dur not long enough for these data"
+            assert maxt <= self.T_dur, "Simulation time T_dur=%f not long enough for these data" % self.T_dur
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Also don't group them into the first bin
             # because this creates bias.

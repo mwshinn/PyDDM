@@ -7,6 +7,7 @@
 import numpy as np
 import sys
 import traceback
+from paranoid.settings import Settings as paranoid_settings
 
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
 if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
@@ -184,6 +185,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     if model:
         T_dur = model.T_dur
         t_domain = model.t_domain()
+        if model.dt > data_dt:
+            data_dt = model.dt
     elif sample:
         T_dur = max(sample)
         t_domain = np.linspace(0, T_dur, T_dur/data_dt+1)
@@ -243,7 +246,8 @@ def model_gui(model,
               sample=None,
               data_dt=.01,
               plot=plot_fit_diagnostics,
-              conditions=None):
+              conditions=None,
+              verify=False):
     """Mess around with model parameters visually.
 
     This allows you to see how the model `model` would be affected by
@@ -265,8 +269,11 @@ def model_gui(model,
     Because sometimes the model is run in very high resolution,
     `data_dt` allows you to set the bin width for `sample`.
 
-    Some of this code is taken from `fit_model`.
+    For performance purposes, Paranoid Scientist verification is
+    disabled when running this function.  Enable it by setting the
+    `verify` argument to True.
 
+    Some of this code is taken from `fit_model`.
     """
     assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
@@ -274,6 +281,10 @@ def model_gui(model,
     # Make sure either a sample or conditions are specified.
     assert not model.required_conditions or (sample or conditions), \
         "If a sample is not passed, conditions must be passed through the 'conditions' argument."
+    # Disable paranoid for this
+    paranoid_state = paranoid_settings.get('enabled')
+    if paranoid_state and not verify:
+        paranoid_settings.set(enabled=False)
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Since the name is not saved in the parameter object,
@@ -412,7 +423,7 @@ def model_gui(model,
             update()
     
     # Draw the radio buttons allowing the user to select conditions
-    frame_params_container = tk.Canvas(root, bd=2, width=100)
+    frame_params_container = tk.Canvas(root, bd=2, width=110)
     frame_params_container.grid(row=0, column=0, sticky="nesw")
     scrollbar_params = tk.Scrollbar(root, command=frame_params_container.yview)
     scrollbar_params.grid(row=0, column=1, sticky="ns")
@@ -500,4 +511,7 @@ def model_gui(model,
     set_defaults()
     frame_params_container.configure(scrollregion=frame_params_container.bbox('all'))
     tk.mainloop()
+    # Re-enable paranoid
+    if paranoid_state and not verify:
+        paranoid_settings.set(enabled=True)
     return m

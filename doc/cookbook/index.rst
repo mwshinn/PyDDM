@@ -148,7 +148,7 @@ likelihood will not speed up model fitting.)
 Fitting methods
 ~~~~~~~~~~~~~~~
 
-I don't want to fit using the default recommended method (Differential
+I don't want to fit using the default recommended method (differential
 evolution), but would rather fit using:
 
 - :ref:`Nelder-Mead <howto-fit-custom-algorithm>`
