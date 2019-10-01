@@ -155,7 +155,10 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     descent.  "basin" uses "scipy.optimize.basinhopping" to find an
     optimal solution, which is much slower but also gives better
     results than "simple".  It does not appear to give better results
-    than "differential_evolution".
+    than "differential_evolution".  Alternatively, a custom objective
+    function may be used by setting `method` to be a function which
+    accepts the "x_0" parameter (for starting position) and
+    "constraints" (for min and max values).
 
     `fitparams` is a dictionary of kwargs to be passed directly to the
     minimization routine for fine-grained low-level control over the
@@ -291,6 +294,8 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
         x_fit = differential_evolution(_fit_model, constraints, disp=True, **fitparams)
     elif method == "hillclimb":
         x_fit = evolution_strategy(_fit_model, x_0, **fitparams)
+    elif callable(method):
+        x_fit = method(_fit_model, x_0=x_0, constraints=constraints)
     else:
         raise NotImplementedError("Invalid method")
     res = FitResult(method=method, loss=lf.name, value=x_fit.fun,
