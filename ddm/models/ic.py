@@ -83,7 +83,7 @@ class ICPoint(InitialCondition):
     @returns(NDArray(t=Number, d=1))
     @ensures('np.isclose(np.sum(return), 1)')
     @ensures('len(set(return)) == 2')
-    def get_IC(self, x, dx):
+    def get_IC(self, x, dx, *args, **kwargs):
         start = np.round(self.x0/dx)
         # Positive bias for high reward conditions, negative for low reward
         shift_i = int(start + (len(x)-1)/2)
