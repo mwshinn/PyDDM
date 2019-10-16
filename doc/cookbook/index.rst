@@ -174,7 +174,7 @@ I want to:
 
 - :ref:`Run models in parallel using multiple CPUs <howto-parallel>`
 
-
+- :ref:`Retrieve the evolving pdf of a solution <howto-evolution>`
 
 
 .. toctree::

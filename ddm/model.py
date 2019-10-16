@@ -448,11 +448,11 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
-    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions)
+    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, returnEvolution=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
     @requires("method == 'cn' --> self.can_solve_cn()")
-    def solve_numerical(self, method="cn", conditions={}):
+    def solve_numerical(self, method="cn", conditions={}, returnEvolution=False):
         """Solve the DDM model numerically.
 
         Use `method` to solve the DDM.  `method` can either be
@@ -472,6 +472,10 @@ class Model(object):
 
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
+        
+        returnEvolution(default=False) governs whether or not the function 
+        returns the full evolution of the pdf as part of the Solution object. 
+        This only works with methods "explicit" or "implicit", not with "cn".
         """
         self.check_conditions_satisfied(conditions)
         if method == "cn":
@@ -485,6 +489,11 @@ class Model(object):
         pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain(conditions=conditions)
+
+        # If evolution of pdf should be returned, preallocate np.array pdf_evolution for performance reasons
+        if returnEvolution:
+            pdf_evolution = np.zeros((len(x_list), len(self.t_domain()))) 
+            pdf_evolution[:,0] = pdf_curr
 
         # Looping through time and updating the pdf.
         for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
@@ -577,6 +586,10 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
+            # If evolution of pdf should be returned, append pdf_curr to pdf_evolution
+            if returnEvolution:    
+                pdf_evolution[:,i_t+1] = pdf_curr
+
         # Detect and fix below zero errors
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
@@ -595,6 +608,9 @@ class Model(object):
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
 
+        if returnEvolution:
+            return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec, pdf_evolution=pdf_evolution))
+        
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
 
     @accepts(Self, Conditions)

@@ -40,6 +40,25 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
     assert abs(a.prob_undecided() - n.prob_undecided()) < prob_diff, "Undecided probability was too different"
 
 
+def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1, max_deviation=.01):
+    sol_with_evolution = m.solve_numerical_implicit(conditions=conditions, returnEvolution=True)    
+    sol_without_evolution = np.zeros((len(sol_with_evolution.model.x_domain(conditions)), len(sol_with_evolution.model.t_domain())))          
+    sol_without_evolution[:,0] = m.IC(conditions=conditions)/m.dx
+    for t_ind, t in enumerate(sol_with_evolution.model.t_domain()[1:]):
+        T_dur_backup = m.T_dur
+        m.T_dur = t
+        sol = m.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
+        m.T_dur = T_dur_backup
+        sol_without_evolution[:,t_ind+1] = sol.pdf_undec()
+    difference = sol_with_evolution.pdf_evolution() - sol_without_evolution
+    max_difference = np.max(np.abs(difference))
+    print(max_difference)
+    sums = np.array([sum(sol_with_evolution.pdf_corr()[0:t]*m.dt) + sum(sol_with_evolution.pdf_err()[0:t]*m.dt) + sum(sol_with_evolution.pdf_evolution()[:,t]*m.dx) for t in range(1,len(sol_with_evolution.model.t_domain()))])
+    print(np.max(np.abs(sums-1)))
+    assert max_difference < max_diff, "Maximum distance between pdf evolutions was too high"
+    assert np.max(np.abs(sums-1)) < max_deviation, "PDF does not sum up to 1"
+
+
 def _verify_param_match(dependence, parameter, m1, m2, tol=.1):
     p1 = getattr(m1.get_dependence(dependence), parameter)
     p2 = getattr(m2.get_dependence(dependence), parameter)
@@ -88,7 +107,9 @@ class TestSimulation(TestCase):
         """With conditions"""
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .2})
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .6})
-
+    def test_pdf_evolution(self):
+        """PDF evolution in simple DDM"""
+        _modeltest_pdf_evolution(self.basic)
 
 class TestFit(TestCase):
     def setUp(self):

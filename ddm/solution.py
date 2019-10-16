@@ -66,7 +66,7 @@ class Solution(object):
         lX2 = len(X2)
         yield Solution(np.ones(lT2)/(3*lT2), np.ones(lT2)/(3*lT2), m2, next(Conditions().generate()), pdf_undec=np.ones(lX2)/(3*lX2))
         
-    def __init__(self, pdf_corr, pdf_err, model, conditions, pdf_undec=None):
+    def __init__(self, pdf_corr, pdf_err, model, conditions, pdf_undec=None, pdf_evolution=None):
         """Create a Solution object from the results of a model
         simulation.
 
@@ -77,11 +77,13 @@ class Solution(object):
             - `model` - the Model object used to generate `pdf_corr` and `pdf_err`
             - `conditions` - a dictionary of condition names/values used to generate the solution
             - `pdf_undec` - a size M numpy ndarray describing the final state of the simulation.  None if unavailable.
+            - `pdf_evolution` - a size M-by-N numpy ndarray describing the state of the simulation at each time step. None if unavailable.
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
         self.corr = pdf_corr 
         self.err = pdf_err
         self.undec = pdf_undec
+        self.evolution = pdf_evolution
         # Correct floating point errors to always get prob <= 1
         if fsum(self.corr.tolist() + self.err.tolist()) > 1:
             self.corr /= 1.00000000001
@@ -157,6 +159,43 @@ class Solution(object):
             return self.undec/self.model.dx
         else:
             raise ValueError("Final state unavailable")
+
+
+    @accepts(Self)
+    @returns(NDArray(d=2, t=Positive0))
+    @requires("self.evolution is not None")
+    def pdf_evolution(self):
+        """The evolving state of the simulation: An array of size `x_domain() x t_domain()`
+        whose columns contain the cross-sectional pdf for every time step.
+        
+        If the model contains overlays, this represents the evolving
+        state of the simulation *before* the overlays are applied.
+        This is because overlays do not specify what to do with the
+        diffusion locations corresponding to undercided probabilities.
+        Additionally, all of the necessary information may not be
+        stored, such as the case with a non-decision time overlay.
+
+        This means that in the case of models with a non-decision time
+        t_nd, this gives the evolving probability at time T_dur +
+        t_nd.
+
+        If no overlays are in the model, then 
+        sum(pdf_corr()[0:t]*dt) + sum(pdf_err()[0:t]*dt) + sum(pdf_evolution()[:,t]*dx)
+        should always equal 1 (plus or minus floating point errors).
+        """
+        # Do this here to avoid import recursion
+        from .models.overlay import OverlayNone
+        # Common mistake so we want to warn the user of any possible
+        # misunderstanding.
+        if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
+            print("WARNING: Probability evolution accessed for model with overlays.  "
+                  "Probability evolution applies *before* overlays.  Please see the "
+                  "evolution docs for more information and to prevent misunderstanding.")
+        if self.evolution is not None:
+            return self.evolution/self.model.dx
+        else:
+            raise ValueError("Probability evolution unavailable")
+
 
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))

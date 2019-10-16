@@ -126,3 +126,31 @@ simplex method, you can do::
 
   fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, method="simplex")
 
+
+.. _howto-evolution:
+
+Retrieve the evolving pdf of a solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Setting returnEvolution=True in solve_numerical() will (with methods "implicit" 
+and "explicit" only) return an M-by-N array (as part of the Solution) whose 
+columns contain the cross-sectional pdf for every time step::
+
+  sol = model.solve_numerical_implicit(conditions=conditions, returnEvolution=True)
+  sol.pdf_evolution()
+     
+This is equivalent to (but much faster than)::
+  
+    sol = np.zeros((len(model.x_domain(conditions)), len(model.t_domain())))          
+    sol[:,0] = model.IC(conditions=conditions)/model.dx
+    for t_ind, t in enumerate(model.t_domain()[1:]):
+        T_dur_backup = model.T_dur
+        model.T_dur = t
+        ans = model.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
+        model.T_dur = T_dur_backup
+        sol[:,t_ind+1] = ans.pdf_undec()    
+        
+Note that::
+
+    
+    sum(pdf_corr()[0:t]*dt) + sum(pdf_err()[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1
