@@ -40,6 +40,20 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
     assert abs(a.prob_undecided() - n.prob_undecided()) < prob_diff, "Undecided probability was too different"
 
 
+def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1):
+    sol_with_evolution = m.solve_numerical_implicit(conditions=conditions, returnEvolution=True)    
+    sol_without_evolution = np.zeros((len(sol_with_evolution.model.x_domain(conditions)), len(sol_with_evolution.model.t_domain())))          
+    for t_ind, t in enumerate(sol_with_evolution.model.t_domain()):
+        T_dur_backup = m.T_dur
+        m.T_dur = t
+        sol = m.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
+        m.T_dur = T_dur_backup
+        sol_without_evolution[:,t_ind] = sol.pdf_undec()
+    max_difference = np.max(np.abs(sol_with_evolution.pdf_evolution() - sol_without_evolution ))
+    print(max_difference)
+    assert max_difference < max_diff, "Maximum distance between pdf evolutions was too high"
+
+
 def _verify_param_match(dependence, parameter, m1, m2, tol=.1):
     p1 = getattr(m1.get_dependence(dependence), parameter)
     p2 = getattr(m2.get_dependence(dependence), parameter)
@@ -88,7 +102,9 @@ class TestSimulation(TestCase):
         """With conditions"""
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .2})
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .6})
-
+    def test_pdf_evolution(self):
+        """PDF evolution in simple DDM"""
+        _modeltest_pdf_evolution(self.basic)
 
 class TestFit(TestCase):
     def setUp(self):
