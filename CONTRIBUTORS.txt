@@ -4,3 +4,4 @@ contribution:
 Maxwell Shinn (Original developer)
 Norman Lam (Original developer)
 Ian Pittenger (May 2019)
+Stefan Bucher (October 2019)
