@@ -179,9 +179,9 @@ class Solution(object):
         t_nd, this gives the evolving probability at time T_dur +
         t_nd.
 
-        If no overlays are in the model, then sum(pdf_corr()[0:t]) + sum(pdf_err()[0:t]) +
-        sum(pdf_evolution()[:,t]) should always equal 1 (plus or minus floating
-        point errors).
+        If no overlays are in the model, then 
+        sum(pdf_corr()[0:t]*dt) + sum(pdf_err()[0:t]*dt) + sum(pdf_evolution()[:,t]*dx)
+        should always equal 1 (plus or minus floating point errors).
         """
         # Do this here to avoid import recursion
         from .models.overlay import OverlayNone
