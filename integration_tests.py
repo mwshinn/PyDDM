@@ -49,11 +49,12 @@ def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1, max_deviation=.01):
         m.T_dur = t
         sol = m.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
         m.T_dur = T_dur_backup
+        print("Shapes:", sol_without_evolution.shape, sol.pdf_undec().shape)
         sol_without_evolution[:,t_ind+1] = sol.pdf_undec()
     difference = sol_with_evolution.pdf_evolution() - sol_without_evolution
     max_difference = np.max(np.abs(difference))
     print(max_difference)
-    sums = np.array([sum(sol_with_evolution.pdf_corr()[0:t]*m.dt) + sum(sol_with_evolution.pdf_err()[0:t]*m.dt) + sum(sol_with_evolution.pdf_evolution()[:,t]*m.dx) for t in range(1,len(sol_with_evolution.model.t_domain()))])
+    sums = np.array([np.sum(sol_with_evolution.pdf_corr()[0:t]*m.dt) + np.sum(sol_with_evolution.pdf_err()[0:t]*m.dt) + np.sum(sol_with_evolution.pdf_evolution()[:,t]*m.dx) for t in range(1,len(sol_with_evolution.model.t_domain()))])
     print(np.max(np.abs(sums-1)))
     assert max_difference < max_diff, "Maximum distance between pdf evolutions was too high"
     assert np.max(np.abs(sums-1)) < max_deviation, "PDF does not sum up to 1"
@@ -78,6 +79,16 @@ class TestSimulation(TestCase):
             def get_noise(self, conditions, **kwargs):
                 return conditions["cond"]
         self.withcond = ddm.Model(noise=NoiseCond())
+        class FancyBounds(ddm.Bound):
+            name = "Increasing/decreasing bounds"
+            required_conditions = []
+            required_parameters = []
+            def get_bound(self, conditions, t, **kwargs):
+                if t <= 1:
+                    return 1 + t
+                if t > 1:
+                    return 2/t
+        self.bound = ddm.Model(bound=FancyBounds())
     def test_basic_cn(self):
         """Simple DDM, Crank-Nicolson"""
         _modeltest_numerical_vs_analytical(self.basic, method="cn")
@@ -107,9 +118,19 @@ class TestSimulation(TestCase):
         """With conditions"""
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .2})
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .6})
+    def test_bounds(self):
+        self.bound.solve()
     def test_pdf_evolution(self):
         """PDF evolution in simple DDM"""
         _modeltest_pdf_evolution(self.basic)
+        # Doesn't work here, but that's okay. In general, pdf_undec
+        # implicitly determines size based on x_domain, which accounts
+        # for increasing bounds by maximizing over t_domain.  But for
+        # testing purposes here, we vary T_dur, which changes
+        # t_domain, thus making the function return a different
+        # maximum.
+        # 
+        # _modeltest_pdf_evolution(self.bound)
 
 class TestFit(TestCase):
     def setUp(self):
