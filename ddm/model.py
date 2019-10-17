@@ -23,7 +23,7 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Or, Nothing
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 import dis
     
@@ -199,9 +199,15 @@ class Model(object):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, self.dependencies))
-    def x_domain(self, conditions):
+    @accepts(Self, Conditions, Or(Nothing, Positive))
+    def x_domain(self, conditions, t=None):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
-        B = self.get_dependence("bound").get_bound(t=0, conditions=conditions)
+        # Find the maximum size of the bound across the t-domain in
+        # case we have increasing bounds
+        if t is None:
+            B = max([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
+        else:
+            B = self.get_dependence("bound").get_bound(t=t, conditions=conditions)
         B = np.ceil(B/self.dx)*self.dx # Align the bound to dx borders
         return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
     def t_domain(self):
@@ -387,21 +393,21 @@ class Model(object):
             return False
         return True
     
-    @accepts(Self, conditions=Conditions)
+    @accepts(Self, conditions=Conditions, returnEvolution=Boolean)
     @returns(Solution)
-    def solve(self, conditions={}):
+    def solve(self, conditions={}, returnEvolution=False):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
         # TODO solves this using the dis module as described in the
         # comment for can_solve_cn
         self.check_conditions_satisfied(conditions)
-        if self.has_analytical_solution():
+        if self.has_analytical_solution() and returnEvolution is False:
             return self.solve_analytical(conditions=conditions)
-        elif isinstance(self.get_dependence("bound"), BoundConstant):
+        elif isinstance(self.get_dependence("bound"), BoundConstant) and returnEvolution is False:
             return self.solve_numerical_cn(conditions=conditions)
         else:
-            return self.solve_numerical_implicit(conditions=conditions)
+            return self.solve_numerical_implicit(conditions=conditions, returnEvolution=returnEvolution)
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -495,6 +501,9 @@ class Model(object):
             pdf_evolution = np.zeros((len(x_list), len(self.t_domain()))) 
             pdf_evolution[:,0] = pdf_curr
 
+        # Find maximum bound for increasing bounds
+        _bound_func = self.get_dependence("bound").get_bound
+        bmax = max([_bound_func(t=t, conditions=conditions) for t in self.t_domain()])
         # Looping through time and updating the pdf.
         for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
             # Alias pdf_prev to pdf_curr for clarity
@@ -510,8 +519,8 @@ class Model(object):
 
             # Now figure out which x positions are still within
             # the (collapsing) bound.
-            assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-            bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
+            assert bmax >= bound, "Invalid change in bound" # Ensure the bound didn't expand
+            bound_shift = bmax - bound
             # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
             x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
             x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
