@@ -93,3 +93,30 @@ Try it out with::
                                     Bspeed=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"speed_trial": [0, 1]})
+
+
+.. _bound-increase:
+
+Increasing bounds
+~~~~~~~~~~~~~~~~~
+
+In addition to collapsing bounds, PyDDM also supports increasing
+bounds, or bounds which both increase and decrease over time.  Note
+that performance is proportional to the maximum size of the bounds, so
+very large bounds should be avoided.
+
+For example, the following bounds are constant from t=0 until t=1,
+increase from t=1 until t=1.2, decrease from t=1.2 until t=1.4, and
+then are again constant::
+
+  import ddm
+  class BoundIncreasingAndDecreasing(ddm.Bound):
+      name = "Increasing bound"
+      required_conditions = []
+      required_parameters = []
+      def get_bound(self, t, *args, **kwargs):
+          if t > 1 and t < 1.4:
+              return 1 + (.2-abs(t-1.2))*3
+          else:
+              return 1
+

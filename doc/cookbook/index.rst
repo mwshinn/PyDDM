@@ -44,8 +44,8 @@ I want:
 - Something else :doc:`(Write your own, using these as a guide.) <driftnoise>`
 
 
-Collapsing bounds
-~~~~~~~~~~~~~~~~~
+Collapsing bounds (or time-varying bounds)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 I instead want bounds which:
 
@@ -60,6 +60,8 @@ I instead want bounds which:
 - :ref:`Collapse according to a step function <bound-step>`
 
 - :ref:`Vary based on task conditions, e.g. for a speed vs accuracy task <bound-speedacc>`
+
+- :ref:`Increase over time <bound-increase>`
 
 - Something else :doc:`(Write your own, using these as a guide) <bounds>`
 

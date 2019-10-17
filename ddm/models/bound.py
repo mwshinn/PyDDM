@@ -16,9 +16,7 @@ class Bound(Dependence):
 
     This abstract class provides the methods which define a dependence
     of the bounds on t.  To subclass it, implement get_bound.  All
-    subclasses must include a parameter `B` in required_parameters,
-    which is the upper bound at the start of the simulation.  (The
-    lower bound is symmetrically -B.)
+    bounds must be symmetric, so the lower bound is -get_bound.
 
     Also, since it inherits from Dependence, subclasses must also
     assign a `name` and `required_parameters` (see documentation for
