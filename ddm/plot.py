@@ -100,10 +100,6 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     the conditions over which to plot it.  `resolution` should be the
     timestep of the plot (NOT of the model).  Optionally, `figure` is
     an existing figure on which to make the plot.
-
-    Note that currently this is O(1/n) with resolution which is quite
-    slow.  The default resolution of 0.1 seconds should strike a good
-    balance between precision and runtime.
     
     Also, note that for clarity of the visualization, the square root
     of the distribution is plotted instead of the distribution itself.
@@ -120,17 +116,11 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     # Generate the distributions.  Note that this is extremely
     # inefficient (it is O(n) with resolution and should be O(1) with
     # resolution) so this should be improved someday...
-    hists = []
-    old_T_dur = model.T_dur
-    hists.append(model.get_dependence("IC").get_IC(x=model.x_domain(conditions=conditions), conditions=conditions))
-    for i in range(1, int(old_T_dur/resolution)+1):
-        print(i*resolution)
-        model.T_dur = i*resolution
-        s = model.solve_numerical_implicit(conditions=conditions)
-        hists.append(s.pdf_undec())
-        top = s.pdf_corr()
-        bot = s.pdf_err()
-    model.T_dur = old_T_dur
+    s = model.solve_numerical_implicit(conditions=conditions, returnEvolution=True)
+    hists = s.pdf_evolution()
+    print(np.max(hists))
+    top = s.pdf_corr()
+    bot = s.pdf_err()
     # Plot the output
     f = figure if figure is not None else plt.figure()
     # Set up three axes, with one in the middle and two on the borders
@@ -139,9 +129,9 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     ax_top = f.add_subplot(gs[0,0], sharex=ax_main)
     ax_bot = f.add_subplot(gs[-1,0], sharex=ax_main)
     # Show the relevant data on those axes
-    ax_main.imshow(np.sqrt(np.flipud(np.transpose(hists))), aspect='auto', interpolation='bicubic')
-    ax_top.plot(np.linspace(0, len(hists)-1, len(top)), top, clip_on=False)
-    ax_bot.plot(np.linspace(0, len(hists)-1, len(top)), -bot, clip_on=False)
+    ax_main.imshow(np.log(.0001+np.flipud(hists)), aspect='auto', interpolation='bicubic')
+    ax_top.plot(range(0, len(model.t_domain())), top, clip_on=False)
+    ax_bot.plot(range(0, len(model.t_domain())), -bot, clip_on=False)
     # Make them look decent
     ax_main.axis("off")
     ax_top.axis("off")
