@@ -27,6 +27,10 @@ Start with the :doc:`tutorial <quickstart>`.  To see what PyDDM is
 capable of, and for example models, see the :doc:`cookbook/index`.
 Also see the :doc:`faqs` for more information.
 
+Release annoucments are posted on the `pyddm-announce mailing list
+<https://www.freelists.org/list/pyddm-announce>`_ and on `github
+<https://github.com/mwshinn/pyddm>`_.
+
 Please note that PyDDM is still beta software so you may experience
 some glitches or uninformative error messages.  Please report any
 problems to the `bug tracker <https://github.com/mwshinn/pyddm/issues>`_.

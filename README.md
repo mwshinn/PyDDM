@@ -25,13 +25,14 @@ Key features include:
 
 See the
 [documentation](https://pyddm.readthedocs.io/en/latest/index.html),
-[FAQs](https://pyddm.readthedocs.io/en/latest/faqs.html),
-or
-[tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html)
-for more information.
+[FAQs](https://pyddm.readthedocs.io/en/latest/faqs.html), or
+[tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html) for
+more information.  You can also sign up for [release announcements by
+email](https://www.freelists.org/list/pyddm-announce).
 
 Please note that PyDDM is still beta software so you may experience
 some glitches or uninformative error messages.
+
 
 ## Installation
 
