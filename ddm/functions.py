@@ -422,7 +422,9 @@ def solve_all_conditions(model, sample, conditions={}, method=None):
         return cache
     else: # Parallelize across pool
         if paranoid_settings.get('enabled') is False:
-            _parallel_pool.map(lambda x : paranoid_settings.set(enabled=False), [None]*_parallel_pool.n_cpus)
+            # The *2 makes sure that this runs on all subprocesses,
+            # since you can't broadcast commands to all processes
+            _parallel_pool.map(lambda x : paranoid_settings.set(enabled=False), [None]*_parallel_pool.n_cpus*2)
         sols = _parallel_pool.map(meth, conds, chunksize=1)
         for c,s in zip(conds, sols):
             cache[frozenset(c.items())] = s
