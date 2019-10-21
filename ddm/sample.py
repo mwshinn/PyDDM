@@ -7,7 +7,7 @@
 import numpy as np
 import itertools
 
-from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Or, Nothing
+from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Maybe, Nothing
 from paranoid.decorators import *
 from .models.paranoid_types import Conditions
 
@@ -265,7 +265,7 @@ class Sample(object):
         if len(cs[cond]) == 3:
             cvs = cvs.union(set(cs[cond][2]))
         return sorted(list(cvs))
-    @accepts(Self, Or(Nothing, List(String)))
+    @accepts(Self, Maybe(List(String)))
     @returns(List(Conditions))
     def condition_combinations(self, required_conditions=None):
         """Get all values for set conditions and return every combination of them.

@@ -23,7 +23,7 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Or, Nothing
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Maybe, Nothing
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 import dis
     
@@ -199,7 +199,7 @@ class Model(object):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, self.dependencies))
-    @accepts(Self, Conditions, Or(Nothing, Positive))
+    @accepts(Self, Conditions, Maybe(Positive))
     def x_domain(self, conditions, t=None):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         # Find the maximum size of the bound across the t-domain in

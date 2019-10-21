@@ -5,7 +5,7 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 from paranoid.decorators import paranoidclass, accepts, returns
-from paranoid.types import Number, Self, String, Unchecked, Dict, Or, Nothing, ExtendedReal
+from paranoid.types import Number, Self, String, Unchecked, Dict, Nothing, ExtendedReal, Maybe
 import numpy as np
 
 @paranoidclass
@@ -17,7 +17,7 @@ class FitResult:
                         value=1.1, prop1="xyz", prop2=-2)
     @staticmethod
     def _test(v):
-        assert v.val in Or(Number, Nothing)
+        assert v.val in Maybe(Number)
         assert v.method in String()
         assert v.loss in String()
         assert v.properties in Dict(String, Unchecked)
