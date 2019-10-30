@@ -253,7 +253,6 @@ class Model(object):
         distribution as a whole.
 
         """
-        assert isinstance(self.get_dependence("overlay"), OverlayNone), "Overlays cannot be simulated"
         self.check_conditions_satisfied(conditions)
         
         h = self.dt
@@ -293,7 +292,13 @@ class Model(object):
             if cutoff and (pos[i] > B or pos[i] < -B):
                 break
 
-        return np.asarray(pos)
+        traj = self.get_dependence("overlay").apply_trajectory(trajectory=np.asarray(pos), model=self, seed=seed, rk4=rk4, conditions=conditions)
+        if cutoff is False:
+            if len(traj) < len(T):
+                traj = np.append(traj, [traj[-1]]*(len(T)-len(traj)))
+            elif len(traj) > len(T):
+                traj = traj[0:len(T)]
+        return traj
 
 
     @accepts(Self, Conditions, Natural1, Boolean, Natural0)

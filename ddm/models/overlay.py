@@ -10,13 +10,16 @@ import numpy as np
 from scipy.special import gamma as sp_gamma
 import scipy.stats
 
-from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0
+from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0, NDArray, Unchecked
+from .paranoid_types import Conditions
 
 from .base import Dependence
 from ..solution import Solution
 
 # TODO in unit test, ensure all overlays with reasonable parameters
 # applied to a Solution add up to 1
+
+# TODO unit tests for apply_trajectory
 
 class Overlay(Dependence):
     """Subclasses can modify distributions after they have been generated.
@@ -52,6 +55,18 @@ class Overlay(Dependence):
         condition-dependent manner.
         """
         raise NotImplementedError("Overlay model %s invalid: must define the apply(self, solution) function" % self.__class__.__name__)
+    def apply_trajectory(self, trajectory, model, rk4, seed, conditions={}):
+        """Apply the overlay to a simulated decision variable trajectory.
+
+        This function is optional and may be redefined in subclasses.
+        It is expected to implement the same mechanism as the method
+        "apply", but to do so on simulated trajectories (i.e. from
+        Model.simulate_trial) instead of on a Solution object.
+
+        This function takes the t domain, the trajectory itself, and
+        task conditions.  It returns the modified trajectory.
+        """
+        raise NotImplementedError("Overlay model %s not compatible with trajectory simulations" % self.__class__.__name__)
 
 @paranoidclass
 class OverlayNone(Overlay):
@@ -73,6 +88,10 @@ class OverlayNone(Overlay):
     @returns(Solution)
     def apply(self, solution):
         return solution
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Number))
+    def apply_trajectory(self, **kwargs):
+        return trajectory
 
 # NOTE: This class is likely to break if any changes are made to the
 # Dependence constructor.  In theory, no changes should be made to the
@@ -146,6 +165,12 @@ class OverlayChain(Overlay):
         for o in self.overlays:
             newsol = o.apply(newsol)
         return newsol
+    @accepts(Self)
+    @returns(NDArray(d=1, t=Number))
+    def apply_trajectory(self, **kwargs):
+        for o in self.overlays:
+            trajectory = o.apply_trajectory(**kwargs)
+        return trajectory
 
 @paranoidclass
 class OverlayUniformMixture(Overlay):
@@ -290,6 +315,18 @@ class OverlayNonDecision(Overlay):
             newcorr = corr
             newerr = err
         return Solution(newcorr, newerr, m, cond, undec)
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @returns(NDArray(d=1, t=Number))
+    def apply_trajectory(self, trajectory, model, **kwargs):
+        shift = int(self.nondectime/model.dt)
+        if shift > 0:
+            trajectory = np.append([trajectory[0]]*shift, trajectory)
+        elif shift < 0:
+            if len(trajectory) > abs(shift):
+                trajectory = trajectory[abs(shift):]
+            else:
+                trajectory = np.asarray([trajectory[-1]])
+        return trajectory
 
 @paranoidclass
 class OverlayNonDecisionUniform(Overlay):
@@ -348,6 +385,19 @@ class OverlayNonDecisionUniform(Overlay):
                 newcorr += corr/len(offsets)
                 newerr += err/len(offsets)
         return Solution(newcorr, newerr, m, cond, undec)
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @returns(NDArray(d=1, t=Number))
+    def apply_trajectory(self, trajectory, model, **kwargs):
+        ndtime = np.random.rand()*2*self.halfwidth + (self.nondectime-self.halfwidth)
+        shift = int(ndtime/model.dt)
+        if shift > 0:
+            np.append([trajectory[0]]*shift, trajectory)
+        elif shift < 0:
+            if len(trajectory) > abs(shift):
+                trajectory = trajectory[abs(shift):]
+            else:
+                trajectory = np.asarray([trajectory[-1]])
+        return trajectory
 
 
 @paranoidclass
@@ -399,6 +449,19 @@ class OverlayNonDecisionGamma(Overlay):
         newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]
         return Solution(newcorr, newerr, solution.model,
                         solution.conditions, solution.undec)
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @returns(NDArray(d=1, t=Number))
+    def apply_trajectory(self, trajectory, model, **kwargs):
+        ndtime = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.nondectime).rvs()
+        shift = int(ndtime/model.dt)
+        if shift > 0:
+            np.append([trajectory[0]]*shift, trajectory)
+        elif shift < 0:
+            if len(trajectory) > abs(shift):
+                trajectory = trajectory[abs(shift):]
+            else:
+                trajectory = np.asarray([trajectory[-1]])
+        return trajectory
 
 @paranoidclass
 class OverlaySimplePause(Overlay):
