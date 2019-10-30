@@ -10,7 +10,7 @@ import numpy as np
 from scipy.special import gamma as sp_gamma
 import scipy.stats
 
-from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, Range, Positive, Number, List, Positive0, NDArray, Unchecked
+from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, paranoidconfig, Range, Positive, Number, List, Positive0, NDArray, Unchecked
 from .paranoid_types import Conditions
 
 from .base import Dependence
@@ -88,9 +88,9 @@ class OverlayNone(Overlay):
     @returns(Solution)
     def apply(self, solution):
         return solution
-    @accepts(Self)
+    @accepts(Self, NDArray(d=1, t=Number))
     @returns(NDArray(d=1, t=Number))
-    def apply_trajectory(self, **kwargs):
+    def apply_trajectory(self, trajectory, **kwargs):
         return trajectory
 
 # NOTE: This class is likely to break if any changes are made to the
@@ -167,6 +167,7 @@ class OverlayChain(Overlay):
         return newsol
     @accepts(Self)
     @returns(NDArray(d=1, t=Number))
+    @paranoidconfig(unit_test=False)
     def apply_trajectory(self, **kwargs):
         for o in self.overlays:
             trajectory = o.apply_trajectory(**kwargs)
