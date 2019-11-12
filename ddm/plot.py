@@ -229,7 +229,6 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax2.set_ylabel("Error RTs")
     ax2.set_xlabel("Time (s)")
     pt = fig.suptitle("")
-    fig.tight_layout()
 
 
 def model_gui(model,
