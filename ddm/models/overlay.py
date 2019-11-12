@@ -165,12 +165,12 @@ class OverlayChain(Overlay):
         for o in self.overlays:
             newsol = o.apply(newsol)
         return newsol
-    @accepts(Self)
+    @accepts(Self, NDArray(d=1, t=Number))
     @returns(NDArray(d=1, t=Number))
     @paranoidconfig(unit_test=False)
-    def apply_trajectory(self, **kwargs):
+    def apply_trajectory(self, trajectory, **kwargs):
         for o in self.overlays:
-            trajectory = o.apply_trajectory(**kwargs)
+            trajectory = o.apply_trajectory(trajectory=trajectory, **kwargs)
         return trajectory
 
 @paranoidclass
