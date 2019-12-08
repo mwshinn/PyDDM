@@ -208,13 +208,14 @@ class OverlayUniformMixture(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         # To make this work with undecided probability, we need to
         # normalize by the sum of the decided density.  That way, this
         # function will never touch the undecided pieces.
         norm = np.sum(corr)+np.sum(err)
         corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
         err = err*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
-        return Solution(corr, err, m, cond, undec)
+        return Solution(corr, err, m, cond, undec, evolution)
 
 @paranoidclass
 class OverlayPoissonMixture(Overlay):
@@ -257,6 +258,7 @@ class OverlayPoissonMixture(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         # To make this work with undecided probability, we need to
         # normalize by the sum of the decided density.  That way, this
         # function will never touch the undecided pieces.
@@ -269,7 +271,7 @@ class OverlayPoissonMixture(Overlay):
         err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm
         #print(corr)
         #print(err)
-        return Solution(corr, err, m, cond, undec)
+        return Solution(corr, err, m, cond, undec, evolution)
 
 @paranoidclass
 class OverlayNonDecision(Overlay):
@@ -303,6 +305,7 @@ class OverlayNonDecision(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         shifts = int(self.nondectime/m.dt) # truncate
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
         newerr = np.zeros(err.shape, dtype=err.dtype)
@@ -315,7 +318,7 @@ class OverlayNonDecision(Overlay):
         else:
             newcorr = corr
             newerr = err
-        return Solution(newcorr, newerr, m, cond, undec)
+        return Solution(newcorr, newerr, m, cond, undec, evolution)
     @accepts(Self, NDArray(d=1, t=Number), Unchecked)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, **kwargs):
@@ -364,6 +367,7 @@ class OverlayNonDecisionUniform(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         # Describe the width and shift of the uniform distribution in
         # terms of list indices
         shift = int(self.nondectime/m.dt) # Discretized non-decision time
@@ -385,7 +389,7 @@ class OverlayNonDecisionUniform(Overlay):
             else:
                 newcorr += corr/len(offsets)
                 newerr += err/len(offsets)
-        return Solution(newcorr, newerr, m, cond, undec)
+        return Solution(newcorr, newerr, m, cond, undec, evolution)
     @accepts(Self, NDArray(d=1, t=Number), Unchecked)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, **kwargs):
@@ -449,7 +453,7 @@ class OverlayNonDecisionGamma(Overlay):
         newcorr = np.convolve(corr, weights, mode="full")[len(corr):(2*len(corr))]
         newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]
         return Solution(newcorr, newerr, solution.model,
-                        solution.conditions, solution.undec)
+                        solution.conditions, solution.undec, solution.evolution)
     @accepts(Self, NDArray(d=1, t=Number), Unchecked)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, **kwargs):
@@ -489,6 +493,7 @@ class OverlaySimplePause(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         start = int(self.pausestart/m.dt) # truncate
         stop = int((self.pausestop)/m.dt) # truncate
         if stop <= start:
@@ -499,7 +504,7 @@ class OverlaySimplePause(Overlay):
         newerr[0:start] = err[0:start]
         newcorr[stop:] = corr[start:-(stop-start)]
         newerr[stop:] = err[start:-(stop-start)]
-        return Solution(newcorr, newerr, m, cond, undec)
+        return Solution(newcorr, newerr, m, cond, undec, evolution)
 
 @paranoidclass
 class OverlayBlurredPause(Overlay):
@@ -526,6 +531,7 @@ class OverlayBlurredPause(Overlay):
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
+        evolution = solution.evolution
         # Make gamma distribution
         gamma_mean = self.pausestop - self.pausestart
         gamma_var = pow(self.pauseblurwidth, 2)
@@ -550,5 +556,5 @@ class OverlayBlurredPause(Overlay):
                 newerr[i:] += err[gamma_start:len(corr)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
             else:
                 raise ValueError("Invalid domain")
-        return Solution(newcorr, newerr, m, cond, undec)
+        return Solution(newcorr, newerr, m, cond, undec, evolution)
 
