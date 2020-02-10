@@ -171,15 +171,13 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     if fig is None:
         fig = plt.gcf()
     
-    # If we just pass a sample and no model, set appropriate T_dur and t_domain
+    # If we just pass a sample and no model, set appropriate T_dur and adjust data_dt if necessary
     if model:
         T_dur = model.T_dur
-        t_domain = model.t_domain()
         if model.dt > data_dt:
             data_dt = model.dt
     elif sample:
         T_dur = max(sample)
-        t_domain = np.linspace(0, T_dur, T_dur/data_dt+1)
     else:
         raise ValueError("Must specify non-empty model or sample in arguments")
     ax1 = fig.add_axes([.12, .56, .85, .43])
@@ -188,15 +186,16 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     # If a sample is given, plot it behind the model.
     if sample:
         sample = sample.subset(**conditions)
+        t_domain_data = np.linspace(0, T_dur, int(T_dur/data_dt+1))
         data_hist_top = np.histogram(sample.corr, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
         data_hist_bot = np.histogram(sample.err, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
         total_samples = len(sample)
-        ax1.fill_between(t_domain, np.asarray(data_hist_top)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
-        ax2.fill_between(t_domain, np.asarray(data_hist_bot)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        ax1.fill_between(t_domain_data, np.asarray(data_hist_top)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        ax2.fill_between(t_domain_data, np.asarray(data_hist_bot)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
     if model:
         s = solve_partial_conditions(model, sample, conditions=conditions, method=method)
-        ax1.plot(t_domain, s.pdf_corr(), lw=2, color='k')
-        ax2.plot(t_domain, s.pdf_err(), lw=2, color='k')
+        ax1.plot(model.t_domain(), s.pdf_corr(), lw=2, color='k')
+        ax2.plot(model.t_domain(), s.pdf_err(), lw=2, color='k')
     # Set up nice looking plots
     for ax in [ax1, ax2]:
         ax.spines['right'].set_visible(False)
