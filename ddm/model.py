@@ -451,9 +451,9 @@ class Model(object):
         # Fix numerical errors
         pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
         if pdfsum > 1:
-            if pdfsum > 1 + 1e-4:
+            if pdfsum > 1.01:
                 print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
+                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
@@ -608,16 +608,25 @@ class Model(object):
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
         if minval < 0:
-            print("Warning: histogram included values less than zero.  Please adjust numerics (i.e. decrease dx or dt)")
+            sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
+            sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
+            if sum_negative_strength < -.01:
+                print("Warning: histogram included values less than zero "
+                      f"(minimum={minval}, total={sum_negative_strength}).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt).")
+            if sum_negative_strength_undec < -.01:
+                print("Warning: remaining FP distribution included values less than zero " \
+                      f"(minimum={minval}, total={sum_negative_strength_undec}).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt).")
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
-            if pdfsum > 1 + 1e-4:
+            if pdfsum > 1.01:
                 print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
+                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
@@ -814,16 +823,25 @@ class Model(object):
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
         if minval < 0:
-            print("Warning: histogram included values less than zero (%f).  Please adjust numerics (i.e. decrease dx or dt)" % minval)
+            sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
+            sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
+            if sum_negative_strength < -.01:
+                print("Warning: histogram included values less than zero "
+                      f"(minimum={minval}, total={sum_negative_strength}).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt).")
+            if sum_negative_strength_undec < -.01:
+                print("Warning: remaining FP distribution included values less than zero " \
+                      f"(minimum={minval}, total={sum_negative_strength_undec}).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt).")
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
-            if pdfsum > 1 + 1e-4:
+            if pdfsum > 1.01:
                 print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, or dx and dt may need to be decreased.")
+                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
