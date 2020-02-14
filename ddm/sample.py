@@ -203,6 +203,9 @@ class Sample(object):
         For each iteration, a two-tuple is returned.  The first
         element is the reaction time, the second is a dictionary
         containing the conditions associated with that reaction time.
+
+        If you just want the list of RTs, you can directly iterate
+        through "sample.corr" and "sample.err".
         """
         return _Sample_Iter_Wraper(self, correct=correct)
     @accepts(Self)
