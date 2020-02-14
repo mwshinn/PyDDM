@@ -612,12 +612,12 @@ class Model(object):
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
             if sum_negative_strength < -.01:
                 print("Warning: histogram included values less than zero "
-                      f"(minimum={minval}, total={sum_negative_strength}).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt).")
+                      "(minimum=%f, total=%f).  "  \
+                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength))
             if sum_negative_strength_undec < -.01:
                 print("Warning: remaining FP distribution included values less than zero " \
-                      f"(minimum={minval}, total={sum_negative_strength_undec}).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt).")
+                      "(minimum=%f, total=%f).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength_undec))
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
@@ -827,12 +827,12 @@ class Model(object):
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
             if sum_negative_strength < -.01:
                 print("Warning: histogram included values less than zero "
-                      f"(minimum={minval}, total={sum_negative_strength}).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt).")
+                      "(minimum=%f, total=%f).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength))
             if sum_negative_strength_undec < -.01:
                 print("Warning: remaining FP distribution included values less than zero " \
-                      f"(minimum={minval}, total={sum_negative_strength_undec}).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt).")
+                      "(minimum=%f, total=%f).  " \
+                      "Please adjust numerics (i.e. decrease dx or dt)."  % (minval, sum_negative_strength_undec))
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
