@@ -10,4 +10,7 @@
 # Parameters.
 dx = .005 #0.008 # grid size
 T_dur = 2. # [s] Duration of simulation
-dt = .002 #0.005 # [s] Time-step.
+dt = .005 #0.005 # [s] Time-step.
+
+# Display warnings
+verbose = True

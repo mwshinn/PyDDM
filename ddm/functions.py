@@ -14,7 +14,7 @@ import copy
 import numpy as np
 from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
 
-from .parameters import dx as default_dx, dt as default_dt
+from . import parameters as param
 from .model import Model, Solution, Fitted, Fittable
 from .sample import Sample
 from .models.drift import DriftConstant
@@ -75,7 +75,7 @@ def fit_model(sample,
               noise=NoiseConstant(noise=1),
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
-              dt=default_dt, dx=default_dx, fitparams=None,
+              dt=param.dt, dx=param.dx, fitparams=None,
               method="differential_evolution",
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
@@ -140,7 +140,7 @@ def fit_model(sample,
 
 
 def fit_adjust_model(sample, model, fitparams=None, method="differential_evolution",
-                     lossfunction=LossLikelihood, verify=False):
+                     lossfunction=LossLikelihood, verify=False, simulation_method=None):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -176,6 +176,9 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     may prevent crashes.  If verification is already disabled, this
     does not re-enable it.
 
+    `simulation_method` gives the method used to solve the model, and
+    can be "analytical", "numerical", "cn", "implicit", or "explicit".
+
     Returns the same model object that was passed to it as an
     argument.  However, the parameters will be modified.  The model is
     modified in place, so a reference is returned to it for
@@ -183,12 +186,13 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
-
     """
     # Disable paranoid if `verify` is False.
     paranoid_state = paranoid_settings.get('enabled')
+    verbose_state = param.verbose
     if paranoid_state and not verify:
         paranoid_settings.set(enabled=False)
+        param.verbose = False
     # Loop through the different components of the model and get the
     # parameters that are fittable.  Save the "Fittable" objects in
     # "params".  Create a list of functions to set the value of these
@@ -258,7 +262,7 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
         x_0.append(default)
     # Set up a loss function
     lf = lossfunction(sample, required_conditions=required_conditions,
-                      T_dur=m.T_dur, dt=m.dt,
+                      T_dur=m.T_dur, dt=m.dt, method=simulation_method,
                       nparams=len(params), samplesize=len(sample))
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
@@ -306,8 +310,9 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     print("Params", x_fit.x, "gave", x_fit.fun)
     for x,s in zip(x_fit.x, setters):
         s(m, x)
-    if paranoid_state and not verify:
-        paranoid_settings.set(enabled=True)
+    if not verify:
+        paranoid_settings.set(enabled=paranoid_state)
+        param.verbose = verbose_state
     return m
 
 def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100):

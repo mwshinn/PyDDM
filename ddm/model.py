@@ -451,9 +451,10 @@ class Model(object):
         # Fix numerical errors
         pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
         if pdfsum > 1:
-            if pdfsum > 1.01:
-                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
+            if pdfsum > 1.01 and param.verbose:
+                print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
+                      "Try decreasing dt.  If that doesn't eliminate this warning, it may be due to " \
+                      "extreme parameter values and/or bugs in your model speficiation.")
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
@@ -490,7 +491,11 @@ class Model(object):
         """
         self.check_conditions_satisfied(conditions)
         if method == "cn":
-            return self.solve_numerical_cn(conditions=conditions)
+            if returnEvolution == False:
+                return self.solve_numerical_cn(conditions=conditions)
+            else:
+                print("Warning: returnEvolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
+                method = "implicit"
 
         # Initial condition of decision variable
         pdf_curr = self.IC(conditions=conditions)
@@ -610,23 +615,25 @@ class Model(object):
         if minval < 0:
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
-            if sum_negative_strength < -.01:
-                print("Warning: histogram included values less than zero "
+            if sum_negative_strength < -.01 and param.verbose:
+                print("Warning: probability density included values less than zero "
                       "(minimum=%f, total=%f).  "  \
-                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength))
-            if sum_negative_strength_undec < -.01:
+                      "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength))
+            if sum_negative_strength_undec < -.01 and param.verbose:
                 print("Warning: remaining FP distribution included values less than zero " \
                       "(minimum=%f, total=%f).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength_undec))
+                      "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength_undec))
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
-            if pdfsum > 1.01:
-                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
+            if pdfsum > 1.01 and param.verbose:
+                print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
+                      "Try decreasing dt or using the implicit (backward Euler) method instead.  " \
+                      "If that doesn't eliminate this warning, it may be due to " \
+                      "extreme parameter values and/or bugs in your model speficiation.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
@@ -819,32 +826,32 @@ class Model(object):
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
-        # Detect and fix below zero errors
+        # Detect and fix below zero errors.  Here, we don't worry
+        # about undecided probability as we did with the implicit
+        # method, because CN tends to oscillate around zero,
+        # especially when noise (sigma) is large.  The user would be
+        # directed to decrease dt.
         pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
+        minval = np.min((np.min(pdf_corr), np.min(pdf_err)))
         if minval < 0:
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
-            sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
-            if sum_negative_strength < -.01:
-                print("Warning: histogram included values less than zero "
+            # For small errors, don't bother alerting the user
+            if sum_negative_strength < -.01 and param.verbose:
+                print("Warning: probability density included values less than zero "
                       "(minimum=%f, total=%f).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt)." % (minval, sum_negative_strength))
-            if sum_negative_strength_undec < -.01:
-                print("Warning: remaining FP distribution included values less than zero " \
-                      "(minimum=%f, total=%f).  " \
-                      "Please adjust numerics (i.e. decrease dx or dt)."  % (minval, sum_negative_strength_undec))
+                      "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength))
             pdf_corr[pdf_corr < 0] = 0
             pdf_err[pdf_err < 0] = 0
-            pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
-            if pdfsum > 1.01:
-                print("Warning: renormalizing model solution histogram from", pdfsum, "to 1." \
-                      "  There may be errors in model specification, and/or dx and dt may need to be decreased.")
+            # If it is only a small renormalization, don't bother alerting the user.
+            if pdfsum > 1.01 and param.verbose:
+                print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
+                      "Try decreasing dt.  If that doesn't eliminate this warning, it may be due to " \
+                      "extreme parameter values and/or bugs in your model speficiation.")
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
-            pdf_undec /= pdfsum
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))

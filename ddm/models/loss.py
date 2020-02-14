@@ -31,6 +31,9 @@ class LossFunction(object):
     and constant variaince would mean `required_conditions` is an
     empty list.
 
+    The optional `method` argument can be "analytical", "numerical",
+    "cn", "implicit", or "explicit".
+
     This will automatically parallelize if set_N_cpus() has been
     called.
     """
@@ -45,10 +48,11 @@ class LossFunction(object):
                 samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
                 yield s(sample=samp, dt=.01, T_dur=2)
     
-    def __init__(self, sample, required_conditions=None, **kwargs):
+    def __init__(self, sample, required_conditions=None, method=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
         self.required_conditions = required_conditions
+        self.method = method
         self.setup(**kwargs)
     def setup(self, **kwargs):
         """Initialize the loss function.
@@ -89,7 +93,7 @@ class LossFunction(object):
         function in subclasses.
         """
         from ..functions import solve_all_conditions
-        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, method=None)
+        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, method=self.method)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
@@ -175,7 +179,7 @@ class LossLikelihood(LossFunction):
             # exception may be the better way to handle this to make
             # sure it doesn't go unnoticed.
             if np.any(sols[k].pdf_corr()<0) or np.any(sols[k].pdf_err()<0):
-                print("Warning: parameter values too extreme for dx.")
+                print("Warning: invalid likelihood function.")
                 return np.inf
             loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]+MIN_LIKELIHOOD))
             loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]+MIN_LIKELIHOOD))
