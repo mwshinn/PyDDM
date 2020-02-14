@@ -164,7 +164,7 @@ class Sample(object):
     @requires('df.shape[1] >= 2')
     @requires('rt_column_name in df')
     @requires('correct_column_name in df')
-    @requires('not np.any(np.isnan(df))')
+    @requires('not np.any(df.isnull())')
     @requires('len(np.setdiff1d(df[correct_column_name], [0, 1])) == 0')
     @requires('all(df[rt_column_name].astype("float") == df[rt_column_name])')
     @ensures('len(df) == len(return)')
@@ -383,17 +383,17 @@ class _Sample_Iter_Wraper(object):
         self.sample = sample_obj
         self.i = 0
         self.correct = correct
+        if self.correct:
+            self.rt = self.sample.corr
+            self.ind = 0
+        elif not self.correct:
+            self.rt = self.sample.err
+            self.ind = 1
     def __iter__(self):
         return self
     def __next__(self):
-        if self.i == len(self.sample):
+        if self.i == len(self.rt):
             raise StopIteration
         self.i += 1
-        if self.correct:
-            rt = self.sample.corr
-            ind = 0
-        elif not self.correct:
-            rt = self.sample.err
-            ind = 1
-        return (rt[self.i-1], {k : self.sample.conditions[k][ind][self.i-1] for k in self.sample.conditions.keys()})
+        return (self.rt[self.i-1], {k : self.sample.conditions[k][self.ind][self.i-1] for k in self.sample.conditions.keys()})
         

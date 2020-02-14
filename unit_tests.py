@@ -439,6 +439,9 @@ class TestSample(TestCase):
         fails(lambda : next(itr), StopIteration)
         itr = self.samps["two"].items(correct=False)
         assert next(itr) == (2, {"conda": "b", "condb": 2})
+        # Create a list to make sure we don't iterate past the end
+        list(self.samps["conds"].items(correct=True))
+        list(self.samps["conds"].items(correct=False))
     def test_subset(self):
         """Filter a sample by some conditions"""
         # Basic access
