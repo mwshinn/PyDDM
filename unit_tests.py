@@ -492,13 +492,17 @@ class TestSolution(TestCase):
         self.quick_ana = ddm.Model(T_dur=2, dt=.02).solve_analytical()
         # Includes undecided
         self.quick_cn = ddm.Model(T_dur=.5).solve_numerical_cn()
+        # Includes undecided
+        self.quick_imp = ddm.Model(T_dur=.5).solve_numerical_implicit()
         # No undecided, with parameters
         self.params_ana = ddm.Model(drift=DriftSimple(), T_dur=2.5, dt=.005).solve_analytical({"coher": .3})
         # Includes undecided, with parameters
         self.params_cn = ddm.Model(drift=DriftSimple(), T_dur=.5).solve_numerical_cn(conditions={"coher": .1})
+        # Includes undecided, with parameters
+        self.params_imp = ddm.Model(drift=DriftSimple(), T_dur=.5).solve_numerical_implicit(conditions={"coher": .1})
         # Dependence with a string argument
         self.params_strarg = ddm.Model(drift=DriftSimpleStringArg(), T_dur=.5).solve_analytical(conditions={"type": "a"})
-        self.all_sols = [self.quick_ana, self.quick_cn, self.params_ana, self.params_cn, self.params_strarg]
+        self.all_sols = [self.quick_ana, self.quick_cn, self.quick_imp, self.params_ana, self.params_cn, self.params_imp, self.params_strarg]
     def test_pdfs(self):
         """Make sure we produce valid distributions from solutions"""
         # For each test model
@@ -519,10 +523,11 @@ class TestSolution(TestCase):
             # Correct time domain
             assert len(s.pdf_corr()) == len(s.model.t_domain())
         # pdf_undec with pdf_corr and pdf_err sums to one if pdf_undec exists
-        for s in [self.quick_cn, self.params_cn]:
+        for s in [self.quick_cn, self.quick_imp, self.params_cn, self.params_imp]:
             dx = s.model.dx
-            # Allow better tolerance since accuracy isn't perfect for undecided pdf
-            assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+            if s.undec is not None:
+                # Allow better tolerance since accuracy isn't perfect for undecided pdf
+                assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
 
 class TestTriDiagMatrix(TestCase):
     def setUp(self):

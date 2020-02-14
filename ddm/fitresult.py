@@ -21,7 +21,7 @@ class FitResult:
         assert v.method in String()
         assert v.loss in String()
         assert v.properties in Dict(String, Unchecked)
-    def __init__(self, method, loss, value, **kwargs):
+    def __init__(self, fitting_method, method, loss, value, **kwargs):
         """An object for simulation results.
 
         - `method` - A string describing the fitting method.

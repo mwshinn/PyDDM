@@ -116,7 +116,7 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     # Generate the distributions.  Note that this is extremely
     # inefficient (it is O(n) with resolution and should be O(1) with
     # resolution) so this should be improved someday...
-    s = model.solve_numerical_implicit(conditions=conditions, returnEvolution=True)
+    s = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
     hists = s.pdf_evolution()
     print(np.max(hists))
     top = s.pdf_corr()

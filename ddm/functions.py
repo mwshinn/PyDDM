@@ -76,7 +76,8 @@ def fit_model(sample,
               bound=BoundConstant(B=1),
               IC=ICPointSourceCenter(),
               dt=param.dt, dx=param.dx, fitparams=None,
-              method="differential_evolution",
+              fitting_method="differential_evolution",
+              method=None,
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
               name="fit_model",
@@ -136,11 +137,11 @@ def fit_model(sample,
     # model is a shortcut for deep copying each individual component
     # of the model.
     m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return fit_adjust_model(sample, m, fitparams=fitparams, method=method, lossfunction=lossfunction)
+    return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=method, method=method, lossfunction=lossfunction)
 
 
-def fit_adjust_model(sample, model, fitparams=None, method="differential_evolution",
-                     lossfunction=LossLikelihood, verify=False, simulation_method=None):
+def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential_evolution",
+                     lossfunction=LossLikelihood, verify=False, method=None):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -148,7 +149,7 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     parameters for one of the components in the model should be a
     "Fitted()" instance, as these will be the parameters to fit.
     
-    `method` specifies how the model should be fit.
+    `fitting_method` specifies how the model should be fit.
     "differential_evolution" is the default, which seems to be able to
     accurately locate the global maximum without using a
     derivative. "simple" uses a derivative-based method to minimize,
@@ -157,8 +158,8 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     optimal solution, which is much slower but also gives better
     results than "simple".  It does not appear to give better results
     than "differential_evolution".  Alternatively, a custom objective
-    function may be used by setting `method` to be a function which
-    accepts the "x_0" parameter (for starting position) and
+    function may be used by setting `fitting_method` to be a function
+    which accepts the "x_0" parameter (for starting position) and
     "constraints" (for min and max values).
 
     `fitparams` is a dictionary of kwargs to be passed directly to the
@@ -176,8 +177,8 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     may prevent crashes.  If verification is already disabled, this
     does not re-enable it.
 
-    `simulation_method` gives the method used to solve the model, and
-    can be "analytical", "numerical", "cn", "implicit", or "explicit".
+    `method` gives the method used to solve the model, and can be
+    "analytical", "numerical", "cn", "implicit", or "explicit".
 
     Returns the same model object that was passed to it as an
     argument.  However, the parameters will be modified.  The model is
@@ -262,7 +263,7 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
         x_0.append(default)
     # Set up a loss function
     lf = lossfunction(sample, required_conditions=required_conditions,
-                      T_dur=m.T_dur, dt=m.dt, method=simulation_method,
+                      T_dur=m.T_dur, dt=m.dt, method=method,
                       nparams=len(params), samplesize=len(sample))
     # A function for the solver to minimize.  Since the model is in
     # this scope, we can make use of it by using, for example, the
@@ -287,23 +288,23 @@ def fit_adjust_model(sample, model, fitparams=None, method="differential_evoluti
     if fitparams is None:
         fitparams = {}
     # Run the solver
-    print(x_0)
-    if method == "simple":
+    if fitting_method == "simple":
         x_fit = minimize(_fit_model, x_0, bounds=constraints)
         assert x_fit.success, "Fit failed: %s" % x_fit.message
-    elif method == "simplex":
+    elif fitting_method == "simplex":
         x_fit = minimize(_fit_model, x_0, method='Nelder-Mead')
-    elif method == "basin":
+    elif fitting_method == "basin":
         x_fit = basinhopping(_fit_model, x_0, minimizer_kwargs={"bounds" : constraints, "method" : "TNC"}, disp=True, **fitparams)
-    elif method == "differential_evolution":
+    elif fitting_method == "differential_evolution":
         x_fit = differential_evolution(_fit_model, constraints, disp=True, **fitparams)
-    elif method == "hillclimb":
+    elif fitting_method == "hillclimb":
         x_fit = evolution_strategy(_fit_model, x_0, **fitparams)
-    elif callable(method):
-        x_fit = method(_fit_model, x_0=x_0, constraints=constraints)
+    elif callable(fitting_method):
+        x_fit = fitting_method(_fit_model, x_0=x_0, constraints=constraints)
     else:
-        raise NotImplementedError("Invalid method")
-    res = FitResult(method=method, loss=lf.name, value=x_fit.fun,
+        raise NotImplementedError("Invalid fitting method")
+    res = FitResult(method=method, fitting_method=fitting_method,
+                    loss=lf.name, value=x_fit.fun,
                     nparams=len(params), samplesize=len(sample),
                     mess=(x_fit.message if "message" in x_fit.__dict__ else ""))
     m.fitresult = res

@@ -398,21 +398,21 @@ class Model(object):
             return False
         return True
     
-    @accepts(Self, conditions=Conditions, returnEvolution=Boolean)
+    @accepts(Self, conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
-    def solve(self, conditions={}, returnEvolution=False):
+    def solve(self, conditions={}, return_evolution=False):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         Return a Solution object describing the joint PDF distribution of reaction times."""
         # TODO solves this using the dis module as described in the
         # comment for can_solve_cn
         self.check_conditions_satisfied(conditions)
-        if self.has_analytical_solution() and returnEvolution is False:
+        if self.has_analytical_solution() and return_evolution is False:
             return self.solve_analytical(conditions=conditions)
-        elif isinstance(self.get_dependence("bound"), BoundConstant) and returnEvolution is False:
+        elif isinstance(self.get_dependence("bound"), BoundConstant) and return_evolution is False:
             return self.solve_numerical_cn(conditions=conditions)
         else:
-            return self.solve_numerical_implicit(conditions=conditions, returnEvolution=returnEvolution)
+            return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution)
 
     @accepts(Self, conditions=Conditions)
     @returns(Solution)
@@ -460,11 +460,11 @@ class Model(object):
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
 
-    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, returnEvolution=Boolean)
+    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
     @requires("method == 'cn' --> self.can_solve_cn()")
-    def solve_numerical(self, method="cn", conditions={}, returnEvolution=False):
+    def solve_numerical(self, method="cn", conditions={}, return_evolution=False):
         """Solve the DDM model numerically.
 
         Use `method` to solve the DDM.  `method` can either be
@@ -485,16 +485,16 @@ class Model(object):
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
         
-        returnEvolution(default=False) governs whether or not the function 
+        return_evolution(default=False) governs whether or not the function 
         returns the full evolution of the pdf as part of the Solution object. 
         This only works with methods "explicit" or "implicit", not with "cn".
         """
         self.check_conditions_satisfied(conditions)
         if method == "cn":
-            if returnEvolution == False:
+            if return_evolution == False:
                 return self.solve_numerical_cn(conditions=conditions)
             else:
-                print("Warning: returnEvolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
+                print("Warning: return_evolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
                 method = "implicit"
 
         # Initial condition of decision variable
@@ -507,7 +507,7 @@ class Model(object):
         x_list = self.x_domain(conditions=conditions)
 
         # If evolution of pdf should be returned, preallocate np.array pdf_evolution for performance reasons
-        if returnEvolution:
+        if return_evolution:
             pdf_evolution = np.zeros((len(x_list), len(self.t_domain()))) 
             pdf_evolution[:,0] = pdf_curr
 
@@ -606,7 +606,7 @@ class Model(object):
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
             # If evolution of pdf should be returned, append pdf_curr to pdf_evolution
-            if returnEvolution:    
+            if return_evolution:    
                 pdf_evolution[:,i_t+1] = pdf_curr
 
         # Detect and fix below zero errors
@@ -638,7 +638,7 @@ class Model(object):
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
 
-        if returnEvolution:
+        if return_evolution:
             return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec, pdf_evolution=pdf_evolution))
         
         return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
@@ -854,7 +854,7 @@ class Model(object):
             pdf_err /= pdfsum
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
+        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=None))
 
 
 @paranoidclass

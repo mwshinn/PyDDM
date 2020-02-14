@@ -132,11 +132,11 @@ simplex method, you can do::
 Retrieve the evolving pdf of a solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Setting returnEvolution=True in solve_numerical() will (with methods "implicit" 
+Setting return_evolution=True in solve_numerical() will (with methods "implicit" 
 and "explicit" only) return an M-by-N array (as part of the Solution) whose 
 columns contain the cross-sectional pdf for every time step::
 
-  sol = model.solve_numerical_implicit(conditions=conditions, returnEvolution=True)
+  sol = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
   sol.pdf_evolution()
      
 This is equivalent to (but much faster than)::
@@ -146,7 +146,7 @@ This is equivalent to (but much faster than)::
     for t_ind, t in enumerate(model.t_domain()[1:]):
         T_dur_backup = model.T_dur
         model.T_dur = t
-        ans = model.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
+        ans = model.solve_numerical_implicit(conditions=conditions, return_evolution=False) 
         model.T_dur = T_dur_backup
         sol[:,t_ind+1] = ans.pdf_undec()    
         

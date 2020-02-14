@@ -41,13 +41,13 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
 
 
 def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1, max_deviation=.01):
-    sol_with_evolution = m.solve_numerical_implicit(conditions=conditions, returnEvolution=True)    
+    sol_with_evolution = m.solve_numerical_implicit(conditions=conditions, return_evolution=True)    
     sol_without_evolution = np.zeros((len(sol_with_evolution.model.x_domain(conditions)), len(sol_with_evolution.model.t_domain())))          
     sol_without_evolution[:,0] = m.IC(conditions=conditions)/m.dx
     for t_ind, t in enumerate(sol_with_evolution.model.t_domain()[1:]):
         T_dur_backup = m.T_dur
         m.T_dur = t
-        sol = m.solve_numerical_implicit(conditions=conditions, returnEvolution=False) 
+        sol = m.solve_numerical_implicit(conditions=conditions, return_evolution=False) 
         m.T_dur = T_dur_backup
         print("Shapes:", sol_without_evolution.shape, sol.pdf_undec().shape)
         sol_without_evolution[:,t_ind+1] = sol.pdf_undec()
