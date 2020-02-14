@@ -137,7 +137,7 @@ def fit_model(sample,
     # model is a shortcut for deep copying each individual component
     # of the model.
     m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=method, method=method, lossfunction=lossfunction)
+    return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=fitting_method, method=method, lossfunction=lossfunction)
 
 
 def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential_evolution",

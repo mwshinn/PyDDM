@@ -13,7 +13,7 @@ class FitResult:
     """An object to describe the result of a model fit."""
     @staticmethod
     def _generate():
-        yield FitResult(method="Test method", loss="Likelihood",
+        yield FitResult(fitting_method="Test method", loss="Likelihood", method="cn",
                         value=1.1, prop1="xyz", prop2=-2)
     @staticmethod
     def _test(v):
