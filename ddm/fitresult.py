@@ -10,7 +10,26 @@ import numpy as np
 
 @paranoidclass
 class FitResult:
-    """An object to describe the result of a model fit."""
+    """An object to describe the result of a model fit.
+
+    This keeps track of information related to the fitting procedure.
+    It has the following elements:
+
+    - method: the name of the solver used to solve the model,
+      e.g. "analytical" or "implicit"
+    - fitting_method: the name of the algorithm used to minimize the
+      loss function method (e.g. "differential_evolution")
+    - loss: the name of the loss function (e.g. "BIC")
+    - properties: a dictionary containing any additional values saved
+      by the loss function or fitting procedure (e.g. "likelihood" for
+      BIC loss function, or "mess" for a message describing the output).
+
+    So, for example, can access FitResult.method to get the name of
+    the numerical algorithm used to solve the equation.
+
+    To access the output value of the loss function, use
+    FitResult.value().
+    """
     @staticmethod
     def _generate():
         yield FitResult(fitting_method="Test method", loss="Likelihood", method="cn",
@@ -24,10 +43,12 @@ class FitResult:
     def __init__(self, fitting_method, method, loss, value, **kwargs):
         """An object for simulation results.
 
-        - `method` - A string describing the fitting method.
+        - `fitting_method` - A string describing the fitting method.
         - `loss` - A string describing the loss function
         - `value` - The optimal value of the loss function for this
           model
+        - `method` - The algorithm used to create the correct/error
+          PDFs
         - `kwargs` is a dict of any additional properties that should
           be saved for the fit.
         """
@@ -35,29 +56,19 @@ class FitResult:
         self.method = method
         self.loss = loss
         self.properties = kwargs
+        self.fitting_method = fitting_method
     @accepts(Self)
     @returns(ExtendedReal)
     def value(self):
-        """Returns the objective function value of the fit."""
+        """Returns the objective function value of the fit.
+
+        If there was an error, or if no fit was performed, return
+        inf.
+        """
         if self.val is not None:
             return self.val
         else:
             return np.inf
-    @accepts(Self, String)
-    def property(self, prop):
-        """Get extra fit data associated with the fit.
-
-        `prop` should be a string of the name of the property to get.
-        If that property doesn't exist, None is returned.
-
-        For example, BIC is computed using likelihood, so
-        property("likelihood") is set by the BIC fitting method.
-        """
-
-        if prop in self.properties.keys():
-            return self.properties[prop]
-        else:
-            return None
 
 class FitResultEmpty(FitResult):
     """A default Fit object before a model has been fit."""

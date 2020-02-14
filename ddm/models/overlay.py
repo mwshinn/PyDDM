@@ -76,7 +76,7 @@ class OverlayNone(Overlay):
 
       | overlay = OverlayNone()
     """
-    name = "None"
+    name = "No overlay"
     required_parameters = []
     @staticmethod
     def _test(v):

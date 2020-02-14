@@ -29,7 +29,7 @@ from paranoid.decorators import accepts, returns, requires, ensures, paranoidcon
 from paranoid.settings import Settings as paranoid_settings
 from .models.paranoid_types import Conditions
 
-from .fitresult import FitResult
+from .fitresult import FitResult, FitResultEmpty
 
 # For parallelization support
 _parallel_pool = None # Note: do not change this directly.  Call set_N_cpus() instead.
@@ -120,11 +120,15 @@ def fit_model(sample,
     does not re-enable it.
 
     Returns a "Model()" object with the specified `drift`, `noise`,
-    `bound`, and `IC`.
+    `bound`, `IC`, and `overlay`.
+
+    The model will include a "FitResult" object, accessed as
+    m.fitresult.  This can be used to get the value of the objective
+    function, as well as to access diagnostic information about the
+    fit.
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
-
     """
     
     # Use the reaction time data (a list of reaction times) to
@@ -184,6 +188,11 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     argument.  However, the parameters will be modified.  The model is
     modified in place, so a reference is returned to it for
     convenience only.
+
+    After running this function, the model will be modified to include
+    a "FitResult" object, accessed as m.fitresult.  This can be used
+    to get the value of the objective function, as well as to access
+    diagnostic information about the fit.
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
@@ -303,8 +312,8 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
         x_fit = fitting_method(_fit_model, x_0=x_0, constraints=constraints)
     else:
         raise NotImplementedError("Invalid fitting method")
-    res = FitResult(method=method, fitting_method=fitting_method,
-                    loss=lf.name, value=x_fit.fun,
+    res = FitResult(method=(method if method is not None else "auto"),
+                    fitting_method=fitting_method, loss=lf.name, value=x_fit.fun,
                     nparams=len(params), samplesize=len(sample),
                     mess=(x_fit.message if "message" in x_fit.__dict__ else ""))
     m.fitresult = res
@@ -620,6 +629,18 @@ def display_model(model, print_output=True):
                 OUT += display_component(o, prefix="        ")
         else:
             OUT += display_component(component, prefix="    ")
+    if not isinstance(model.fitresult, FitResultEmpty):
+        OUT += "Fit information:\n"
+        OUT += "    Loss function: %s\n" % model.fitresult.loss
+        OUT += "    Loss function value: %s\n" % model.fitresult.value()
+        OUT += "    Fitting method: %s\n" % model.fitresult.fitting_method
+        OUT += "    Solver: %s\n" % ("forward Euler" if model.fitresult.method == "explicit" \
+                                     else "backward Euler" if model.fitresult.method == "implicit" \
+                                     else "Crank-Nicoloson" if model.fitresult.method == "cn" \
+                                     else model.fitresult.method)
+        OUT += "    Other properties:\n"
+        for p,v in model.fitresult.properties.items():
+            OUT += "        - %s: %s\n" % (p,repr(v))
     if not print_output:
         return OUT
     else:

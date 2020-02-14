@@ -189,8 +189,8 @@ class LossLikelihood(LossFunction):
 
 @paranoidclass
 class LossBIC(LossLikelihood):
-    """BIC loss function"""
-    name = "Use BIC loss function, functionally equivalent to LossLikelihood"
+    """BIC loss function, functionally equivalent to LossLikelihood"""
+    name = "BIC"
     @staticmethod
     def _test(v):
         assert v.nparams in Natural1()

@@ -201,7 +201,8 @@ We can confirm that these two methods of loading data produce the same results:
 Fitting a model to data
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Now that we have loaded these data, we can fit a model to them.
+Now that we have loaded these data, we can fit a model to them.  First
+we will fit a DDM, and then we will fit a GDDM.
 
 First, we want to let the drift rate vary with the coherence.  To do
 so, we must subclass :class:`.Drift`.  Each subclass must contain a name
@@ -244,7 +245,7 @@ fitting algorithm is stochastic)::
   Drift component DriftCoherence:
       Drift depends linearly on coherence
       Fitted parameters:
-      - driftcoh: 10.364161
+      - driftcoh: 10.388292
   Noise component NoiseConstant:
       constant
       Fixed parameters:
@@ -252,7 +253,7 @@ fitting algorithm is stochastic)::
   Bound component BoundConstant:
       constant
       Fitted parameters:
-      - B: 0.744062
+      - B: 0.744209
   IC component ICPointSourceCenter:
       point_source_center
       (No parameters)
@@ -260,12 +261,21 @@ fitting algorithm is stochastic)::
       Overlay component OverlayNonDecision:
           Add a non-decision by shifting the histogram
           Fitted parameters:
-          - nondectime: 0.313715
+          - nondectime: 0.312433
       Overlay component OverlayPoissonMixture:
           Poisson distribution mixture model (lapse rate)
           Fixed parameters:
           - pmixturecoef: 0.020000
           - rate: 1.000000
+  Fit information:
+      Loss function: Negative log likelihood
+      Loss function value: 199.3406727870083
+      Fitting method: differential_evolution
+      Solver: auto
+      Other properties:
+          - nparams: 3
+          - samplesize: 2611
+          - mess: ''
 
 Note that if you see "Warning: renormalizing model solution from X to
 1." for some X, this is okay as long as X is close ($<10^{-5}$ or so)
