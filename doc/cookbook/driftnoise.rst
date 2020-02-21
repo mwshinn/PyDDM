@@ -106,10 +106,10 @@ effects), we may want the drift rate to be biased in a certain
 direction (called "me" in some models) depending on task parameters.
 In the case of reward bias, whereby high reward trials have a higher
 drift rate, we need two task parameters: one describing the coherence
-of the trial (`coh`) and one indicator of whether the trial was high
-reward (1) or low reward (0) (`highreward`).  Then we have to
+of the trial ("coh") and one indicator of whether the trial was high
+reward (1) or low reward (0) ("highreward").  Then we have to
 parameters: the amount by which coherence impacts the drift rate
-(`driftcoh`) and the amount of reward bias (`rewbias`).
+("driftcoh") and the amount of reward bias ("rewbias").
 
 .. literalinclude:: ../downloads/cookbook.py
    :language: python

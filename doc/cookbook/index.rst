@@ -37,7 +37,7 @@ I want:
 
 - :ref:`A drift rate which depends linearly on a task parameter (e.g. coherence) <drift-coh>`
 
-- :ref:`A linear drift with a constant bias dependent on a task condition (e.g. reward or choice history) <drift-coh-rew>`
+- :ref:`A biased drift dependent on a task condition (e.g. reward or choice history) <drift-coh-rew>`
 
 - :ref:`A leaky integrator with a drift rate which depends linearly on a task parameter (e.g. coherence) <drift-coh-leak>`
 
