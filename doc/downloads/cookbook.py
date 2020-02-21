@@ -157,6 +157,19 @@ class DriftCoherence(Drift):
         return self.driftcoh * conditions['coh']
 # End DriftCoherence
 
+# Start DriftCoherenceRewBias
+from ddm import Drift
+class DriftCoherenceRewBias(Drift):
+    name = "Drift depends linearly on coherence, with a reward bias"
+    required_parameters = ["driftcoh", "rewbias"] # <-- Parameters we want to include in the model
+    required_conditions = ["coh", "highreward"] # <-- Task parameters ("conditions"). Should be the same name as in the sample.
+    
+    # We must always define the get_drift function, which is used to compute the instantaneous value of drift.
+    def get_drift(self, conditions, **kwargs):
+        rew_bias = self.rewbias * (1 if conditions['highreward'] == 1 else -1)
+        return self.driftcoh * conditions['coh'] + rew_bias
+# End DriftCoherenceRewBias
+
 # Start DriftCoherenceLeak
 from ddm import Drift
 class DriftCoherenceLeak(Drift):

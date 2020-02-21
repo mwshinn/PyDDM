@@ -95,6 +95,38 @@ Try it out with::
   model_gui(model, conditions={"coh": [0, .25, .5]})
 
 
+.. _drift-coh-rew:
+
+Biased coherence-dependent drift rate
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To model tasks in which some trials are expected to have a biased
+drift rate (e.g. tasks with a reward bias or strong trial history
+effects), we may want the drift rate to be biased in a certain
+direction (called "me" in some models) depending on task parameters.
+In the case of reward bias, whereby high reward trials have a higher
+drift rate, we need two task parameters: one describing the coherence
+of the trial (`coh`) and one indicator of whether the trial was high
+reward (1) or low reward (0) (`highreward`).  Then we have to
+parameters: the amount by which coherence impacts the drift rate
+(`driftcoh`) and the amount of reward bias (`rewbias`).
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftCoherenceRewBias
+   :end-before: # End DriftCoherenceRewBias
+
+Try it out with::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(drift=DriftCoherenceRewBias(
+                          driftcoh=Fittable(minval=0, maxval=1),
+                          rewbias=Fittable(minval=0, maxval=1)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"coh": [0, .25, .5], "highreward": [0, 1]})
+
+
 .. _drift-coh-leak:
 
 Coherence-dependent drift rate with leak
