@@ -135,6 +135,11 @@ class Model(object):
                     params += ",\n" + " "*(len(type(self).__name__)+1)
                 else:
                     params += ", "
+        if not isinstance(self.fitresult, FitResultEmpty):
+            if pretty:
+                params += ",\n  " + repr(self.fitresult)
+            else:
+                params += ", " + repr(self.fitresult)
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)

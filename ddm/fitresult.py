@@ -57,6 +57,13 @@ class FitResult:
         self.loss = loss
         self.properties = kwargs
         self.fitting_method = fitting_method
+    def __repr__(self):
+        components = ["fitting_method=%s" % repr(self.fitting_method),
+                      "method=%s" % repr(self.method),
+                      "loss=%s" % repr(self.loss),
+                      "value=%s" % repr(self.val)]
+        components += ["%s=%s" % (k,repr(v)) for k,v in self.properties.items()]
+        return type(self).__name__ + "(" + ", ".join(components) + ")"
     @accepts(Self)
     @returns(ExtendedReal)
     def value(self):
@@ -72,6 +79,8 @@ class FitResult:
 
 class FitResultEmpty(FitResult):
     """A default Fit object before a model has been fit."""
+    def __repr__(self):
+        return type(self).__name__ + "()"
     def __init__(self):
         self.val = None
         self.properties = {}

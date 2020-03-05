@@ -429,6 +429,8 @@ def solve_all_conditions(model, sample, conditions={}, method=None):
         meth = model.solve_numerical_implicit
     elif method == "explicit":
         meth = model.solve_numerical_explicit
+    else:
+        raise ValueError("Invalid method "+method)
 
     cache = {}
     if _parallel_pool is None: # No parallelization
