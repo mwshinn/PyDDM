@@ -80,6 +80,7 @@ def fit_model(sample,
               method=None,
               overlay=OverlayNone(),
               lossfunction=LossLikelihood,
+              suppress_output=False,
               name="fit_model",
               verify=False):
     """Fit a model to reaction time data.
@@ -118,6 +119,9 @@ def fit_model(sample,
     errors is disabled during the fit. This can decrease runtime and
     may prevent crashes.  If verification is already disabled, this
     does not re-enable it.
+    
+    `suppress_output` disables out-of-boundaries warnings and suppresses 
+    printing the model information at each evaluation of the fitness function.
 
     Returns a "Model()" object with the specified `drift`, `noise`,
     `bound`, `IC`, and `overlay`.
@@ -141,11 +145,12 @@ def fit_model(sample,
     # model is a shortcut for deep copying each individual component
     # of the model.
     m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
-    return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=fitting_method, method=method, lossfunction=lossfunction)
+    return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=fitting_method, 
+                            method=method, lossfunction=lossfunction, suppress_output=suppress_output)
 
 
 def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential_evolution",
-                     lossfunction=LossLikelihood, verify=False, method=None):
+                     lossfunction=LossLikelihood, verify=False, method=None, suppress_output=False):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -183,6 +188,9 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
 
     `method` gives the method used to solve the model, and can be
     "analytical", "numerical", "cn", "implicit", or "explicit".
+
+    `suppress_output` disables out-of-boundaries warnings and suppresses 
+    printing the model information at each evaluation of the fitness function.
 
     Returns the same model object that was passed to it as an
     argument.  However, the parameters will be modified.  The model is
@@ -284,14 +292,17 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
             # they will give 1.000000000001.  This fixes that problem
             # to make sure the model is within its domain.
             if x > p.maxval:
-                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
+                if not suppress_output:
+                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
                 x = p.maxval
             if x < p.minval:
-                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
+                if not suppress_output:
+                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
                 x = p.minval
             s(m, x)
         lossf = lf.loss(m)
-        print(repr(m), "loss="+str(lossf))
+        if not suppress_output:
+            print(repr(m), "loss="+ str(lossf))
         return lossf
     # Cast to a dictionary if necessary
     if fitparams is None:
