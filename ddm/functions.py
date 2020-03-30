@@ -145,7 +145,7 @@ def fit_model(sample,
 
 
 def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential_evolution",
-                     lossfunction=LossLikelihood, verify=False, method=None):
+                     lossfunction=LossLikelihood, verify=False, method=None, suppress_output=False):
     """Modify parameters of a model which has already been fit.
     
     The data `sample` should be a Sample object of the reaction times
@@ -284,14 +284,17 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
             # they will give 1.000000000001.  This fixes that problem
             # to make sure the model is within its domain.
             if x > p.maxval:
-                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
+                if not suppress_output:
+                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
                 x = p.maxval
             if x < p.minval:
-                print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
+                if not suppress_output:
+                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
                 x = p.minval
             s(m, x)
         lossf = lf.loss(m)
-        print(repr(m), "loss="+str(lossf))
+        if not suppress_output:
+            print(repr(m), "loss="+ str(lossf))
         return lossf
     # Cast to a dictionary if necessary
     if fitparams is None:
