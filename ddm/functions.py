@@ -120,7 +120,7 @@ def fit_model(sample,
     may prevent crashes.  If verification is already disabled, this
     does not re-enable it.
     
-    'suppress_output' disables out-of-boundaries warnings and suppresses 
+    `suppress_output` disables out-of-boundaries warnings and suppresses 
     printing the model information at each evaluation of the fitness function.
 
     Returns a "Model()" object with the specified `drift`, `noise`,
@@ -189,7 +189,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     `method` gives the method used to solve the model, and can be
     "analytical", "numerical", "cn", "implicit", or "explicit".
 
-    'suppress_output' disables out-of-boundaries warnings and suppresses 
+    `suppress_output` disables out-of-boundaries warnings and suppresses 
     printing the model information at each evaluation of the fitness function.
 
     Returns the same model object that was passed to it as an
