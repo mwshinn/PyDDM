@@ -15,15 +15,15 @@ class ICPointRew(InitialCondition):
     required_parameters = ["x0"]
     required_conditions = ["highreward"]
     def get_IC(self, x, dx, conditions):
-        start = np.round(self.x0/dx)
+        x0 = self.x0
         # Positive bias for high reward conditions, negative for low reward
         if not conditions['highreward']:
-            start = -start
-        shift_i = int(start + (len(x)-1)/2)
+            x0 = 1-x0
+        shift_i = int((len(x)-1)*x0)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
         pdf = np.zeros(len(x))
-        pdf[shift_i] = 1. # Initial condition at x=self.x0.
-        return pdf
+        pdf[shift_i] = 1. # Initial condition at x=self.x0*2*B.
+        return pdf    
 # End ICPointRew
 
 # Start ICPointRewInterp
