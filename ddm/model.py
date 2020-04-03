@@ -146,14 +146,28 @@ class Model(object):
     def get_model_parameters(self):
         """Get an ordered list of all model parameters.
         
-        Returns a list of each model parameter which can be varied during
-        a fitting procedure.  The ordering is arbitrary but is guaranteed
-        to be in the same order as set_model_parameters().
+        Returns a list of each model parameter which can be varied
+        during a fitting procedure.  The ordering is arbitrary but is
+        guaranteed to be in the same order as
+        get_model_parameter_names() and set_model_parameters().
         """
         params = []
         for d in self.dependencies:
             for p in d.required_parameters:
                 params.append(getattr(d, p))
+        return params
+
+    def get_model_parameter_names(self):
+        """Get an ordered list of the names of all parameters in the model.
+
+        Returns the name of each model parameter.  The ordering is
+        arbitrary, but is uaranteed to be in the same order as
+        get_model_parameters() and set_model_parameters().
+        """
+        params = []
+        for d in self.dependencies:
+            for p in d.required_parameters:
+                params.append(p)
         return params
 
     def get_fit_result(self):
