@@ -72,6 +72,26 @@ In practice, these are very similar, but the latter gives a smoother
 derivative, which may be useful for gradient-based fitting methods
 (which are not used by default).
 
+When fitting both the initial condition and the bound height, it can
+be preferable to express the initial condition as a proportion of the total
+distance between the bounds. This ensures that the initial condition will always
+stay within the bounds, preventing errors in fitting.
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start ICPointRewRatio
+   :end-before: # End ICPointRewRatio
+
+Try it out with:: 
+
+  from ddm import Model, Fittable
+  from ddm.models import BoundConstant
+  from ddm.plot import model_gui
+  model = Model(IC=ICPointRewRatio(x0=Fittable(minval=-1, maxval=1)),
+                bound=BoundConstant(B=Fittable(minval=.1, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"highreward": [0, 1]})
+
 .. _ic-biased-range:
 
 Biased Initial Condition Range

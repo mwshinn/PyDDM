@@ -54,6 +54,26 @@ class ICPointRewInterp(InitialCondition):
         return pdf
 # End ICPointRewInterp
 
+# Start ICPointRewRatio
+import numpy as np
+from ddm import InitialCondition
+class ICPointRewRatio(InitialCondition):
+    name = "A reward-biased starting point expressed as a proportion of the distance between the bounds."
+    required_parameters = ["x0"]
+    required_conditions = ["highreward"]
+    def get_IC(self, x, dx, conditions):
+        x0 = self.x0/2 + .5 #rescale to between 0 and 1
+        # Bias > .5 for high reward, bias < .5 for low reward. 
+        # On original scale, positive bias for high reward conditions, negative for low reward
+        if not conditions['highreward']:
+            x0 = 1-x0
+        shift_i = int((len(x)-1)*x0)
+        assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
+        pdf = np.zeros(len(x))
+        pdf[shift_i] = 1. # Initial condition at x=x0*2*B.
+        return pdf    
+# End ICPointRewRatio
+
 # Start ICPointRange
 import numpy as np
 import scipy.stats
