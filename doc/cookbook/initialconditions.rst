@@ -87,7 +87,7 @@ Try it out with::
   from ddm import Model, Fittable
   from ddm.models import BoundConstant
   from ddm.plot import model_gui
-  model = Model(IC=ICPointRewRatio(x0=Fittable(minval=0, maxval=1)),
+  model = Model(IC=ICPointRewRatio(x0=Fittable(minval=-1, maxval=1)),
                 bound=BoundConstant(B=Fittable(minval=.1, maxval=2)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"highreward": [0, 1]})
