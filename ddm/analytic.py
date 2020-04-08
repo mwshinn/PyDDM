@@ -31,7 +31,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
 
     # Initialization
     nMax     = 100  # Maximum looping number
-    # errbnd   = 1e-7 # Error bound for looping
+    errbnd   = 1e-10 # Error bound for looping
     suminc   = 0
     # checkerr = 0
 
@@ -40,13 +40,13 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
         inc = np.exp(tmp*n*((n+1)*a1-n*a2))*((2*n+1)*a1-2*n*a2)-\
               np.exp(tmp*(n+1)*(n*a1-(n+1)*a2))*((2*n+1)*a1-2*(n+1)*a2)
         suminc += inc
-        # Break when the relative increment is low for two consecutive updates
-        # if(max(abs(inc/suminc)) < errbnd):
-        #     checkerr += 1
-        #     if(checkerr == 2):
-        #         break
-        # else:
-        #     checkerr = 0
+        # Break when the relative increment is low for three consecutive updates
+        if np.max(np.abs(inc/suminc)) < errbnd:
+            checkerr += 1
+            if checkerr == 3:
+                break
+        else:
+            checkerr = 0
 
     # Probability Distribution of reaction time
     dist = np.exp(-(a1+b1*teval)**2./teval/2)/np.sqrt(2*np.pi)/teval**1.5*suminc

@@ -49,6 +49,22 @@ class Sample(object):
         # Most testing is done in the constructor and the data is read
         # only, so this isn't strictly necessary
         assert type(v) is cls
+        assert v.corr in NDArray(d=1, t=Number), "sample_corr not a numpy array, it is " + str(type(v.corr))
+        assert v.err in NDArray(d=1, t=Number), "sample_err not a numpy array, it is " + str(type(v.err))
+        assert v.undecided in Natural0(), "undecided not a natural number"
+        for k,val in v.conditions.items():
+            # Make sure shape and type are correct
+            assert k, "Invalid key"
+            assert isinstance(val, tuple)
+            assert len(val) in [2, 3]
+            assert val[0] in NDArray(d=1)
+            assert val[1] in NDArray(d=1)
+            assert len(val[0]) == len(v.corr)
+            assert len(val[1]) == len(v.err)
+            if len(val) == 3:
+                assert len(val[2]) == v.undecided
+            else:
+                assert v.undecided == 0
     @staticmethod
     def _generate():
         aa = lambda x : np.asarray(x)
@@ -69,8 +85,9 @@ class Sample(object):
         self.err.flags.writeable = False
         # Make sure the kwarg parameters/conditions are in the correct
         # format
-        for _,v in kwargs.items():
+        for k,v in kwargs.items():
             # Make sure shape and type are correct
+            assert k, "Invalid key"
             assert isinstance(v, tuple)
             assert len(v) in [2, 3]
             assert v[0] in NDArray(d=1)
@@ -156,7 +173,7 @@ class Sample(object):
                 arr = arr.astype(int)
             return arr
 
-        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), []) for i,k in enumerate(column_names)}
+        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), np.asarray([])) for i,k in enumerate(column_names)}
         return Sample(pt(data[c,0]), pt(data[nc,0]), 0, **conditions)
     @staticmethod
     @accepts(Unchecked, String, String) # TODO change unchecked to pandas
@@ -232,21 +249,30 @@ class Sample(object):
             if hasattr(v, '__call__'):
                 mask_corr = np.logical_and(mask_corr, [v(i) for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [v(i) for i in  self.conditions[k][1]])
-                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [v(i) for i in self.conditions[k][2]])
+                mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, [v(i) for i in self.conditions[k][2]])
             elif hasattr(v, '__contains__'):
                 mask_corr = np.logical_and(mask_corr, [i in v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
-                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [i in v for i in self.conditions[k][2]])
+                mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, [i in v for i in self.conditions[k][2]])
             else:
-                mask_corr = np.logical_and(mask_corr, [i == v for i in self.conditions[k][0]])
-                mask_err = np.logical_and(mask_err, [i == v for i in self.conditions[k][1]])
-                mask_undec = [] if self.undecided == 0 else np.logical_and(mask_undec, [i == v for i in self.conditions[k][2]])
-        filtered_conditions = {k : (np.asarray(list(itertools.compress(v[0], mask_corr))),
-                                    np.asarray(list(itertools.compress(v[1], mask_err))),
-                                    (np.asarray(list(itertools.compress(v[2], mask_undec))) if len(v) == 3 else np.asarray([])))
+                mask_corr = np.logical_and(mask_corr, v == self.conditions[k][0])
+                mask_err = np.logical_and(mask_err, v == self.conditions[k][1])
+                mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, v == self.conditions[k][2])
+        for k,v in self.conditions.items():
+            assert len(v[0]) == len(mask_corr)
+            assert len(v[1]) == len(mask_err)
+            assert mask_corr.dtype == bool
+            v[0][mask_corr]
+            v[1][mask_err],
+            if len(v) == 3:
+                assert len(v[2]) == len(mask_undec), f"{len(v[2])} != {len(mask_undec)}"
+            v[2][mask_undec] if len(v) == 3 else np.asarray([])
+        filtered_conditions = {k : (v[0][mask_corr.astype(bool)],
+                                    v[1][mask_err.astype(bool)],
+                                    (v[2][mask_undec.astype(bool)] if len(v) == 3 else np.asarray([])))
                                for k,v in self.conditions.items()}
-        return Sample(np.asarray(list(itertools.compress(self.corr, list(mask_corr)))),
-                      np.asarray(list(itertools.compress(self.err, list(mask_err)))),
+        return Sample(self.corr[mask_corr],
+                      self.err[mask_err],
                       sum(mask_undec),
                       **filtered_conditions)
     @accepts(Self)
@@ -370,6 +396,13 @@ class Sample(object):
     def prob_error_forced(self):
         """The probability of selecting the incorrect response if a response is forced."""
         return self.prob_error() + self.prob_undecided()/2.
+
+    @accepts(Self)
+    @requires("len(self.corr) > 0")
+    @returns(Positive0)
+    def mean_decision_time(self):
+        """The mean decision time in the correct trials."""
+        return np.mean(self.corr)
 
 class _Sample_Iter_Wraper(object):
     """Provide an iterator for sample objects.

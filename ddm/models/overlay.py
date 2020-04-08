@@ -264,8 +264,8 @@ class OverlayPoissonMixture(Overlay):
         # function will never touch the undecided pieces.
         norm = np.sum(corr)+np.sum(err)
         lapses = lambda t : 2*self.rate*np.exp(-1*self.rate*t)
-        X = [i*m.dt for i in range(0, len(corr))]
-        Y = np.asarray(list(map(lapses, X)))/len(X)
+        X = m.dt * np.arange(0, len(corr))
+        Y = lapses(X)
         Y /= np.sum(Y)
         corr = corr*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm # Assume numpy ndarrays, not lists
         err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm

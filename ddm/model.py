@@ -367,7 +367,7 @@ class Model(object):
                 raise SystemError("Internal error: Invalid particle simulation")
             
         aa = lambda x : np.asarray(x)
-        conds = {k:(aa(len(corr_times)*[v]), aa(len(err_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items()}
+        conds = {k:(aa(len(corr_times)*[v]), aa(len(err_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items() if k and v}
         return Sample(aa(corr_times), aa(err_times), undec_count, **conds)
 
     @accepts(Self)
@@ -828,16 +828,20 @@ class Model(object):
             _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
             _inner_B_err = x_list[x_index_inner]
             _outer_B_err = x_list[x_index_outer]
+            flux_outer_B_corr = self.flux(_outer_B_corr, t, conditions=conditions)
+            flux_inner_B_corr = self.flux(_inner_B_corr, t, conditions=conditions)
+            flux_outer_B_err = self.flux(_outer_B_err, t, conditions=conditions)
+            flux_inner_B_err = self.flux(_inner_B_err, t, conditions=conditions)
             if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
                 pdf_inner = np.array([0])
-            pdf_corr[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
-                            +  0.5*weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
-            pdf_err[i_t+1]  += 0.5*weight_outer * pdf_outer[0]  * self.flux(_outer_B_err,  t, conditions=conditions) \
-                            +  0.5*weight_inner * pdf_inner[0]  * self.flux(_inner_B_err,  t, conditions=conditions)
-            pdf_corr[i_t]   += 0.5*weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
-                            +  0.5*weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
-            pdf_err[i_t]    += 0.5*weight_outer * pdf_outer[0]  * self.flux(_outer_B_err,  t, conditions=conditions) \
-                            +  0.5*weight_inner * pdf_inner[0]  * self.flux(_inner_B_err,  t, conditions=conditions)
+            pdf_corr[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_corr \
+                            +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_corr
+            pdf_err[i_t+1]  += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_err \
+                            +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_err
+            pdf_corr[i_t]   += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_corr \
+                            +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_corr
+            pdf_err[i_t]    += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_err \
+                            +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_err
 
             # Renormalize when the channel size has <1 grid, although
             # all hell breaks loose in this regime.

@@ -426,6 +426,7 @@ class TestSample(TestCase):
             assert np.isclose(fsum([fsum(s.pdf_corr(T_dur=4, dt=dt))*dt, fsum(s.pdf_err(T_dur=4, dt=dt))*dt, s.prob_undecided()]), 1)
             assert np.isclose(fsum(s.pdf_corr(T_dur=4, dt=dt)*dt), s.prob_correct())
             assert np.isclose(fsum(s.pdf_err(T_dur=4, dt=dt)*dt), s.prob_error())
+            assert s.mean_decision_time() > 0
             if s.prob_undecided() == 0:
                 assert s.prob_correct() == s.prob_correct_forced()
                 assert s.prob_error() == s.prob_error_forced()
@@ -516,6 +517,7 @@ class TestSolution(TestCase):
             # Correct and error probabilities are sensible
             assert np.isclose(fsum(s.pdf_corr()*dt), s.prob_correct())
             assert np.isclose(fsum(s.pdf_err()*dt), s.prob_error())
+            assert s.mean_decision_time() > 0
             if s.prob_undecided() == 0:
                 assert s.prob_correct() == s.prob_correct_forced()
                 assert s.prob_error() == s.prob_error_forced()
