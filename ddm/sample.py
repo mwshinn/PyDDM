@@ -265,7 +265,7 @@ class Sample(object):
             v[0][mask_corr]
             v[1][mask_err],
             if len(v) == 3:
-                assert len(v[2]) == len(mask_undec), f"{len(v[2])} != {len(mask_undec)}"
+                assert len(v[2]) == len(mask_undec)
             v[2][mask_undec] if len(v) == 3 else np.asarray([])
         filtered_conditions = {k : (v[0][mask_corr.astype(bool)],
                                     v[1][mask_err.astype(bool)],
