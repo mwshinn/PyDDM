@@ -72,7 +72,10 @@ class TriDiagMatrix:
     @pns.returns(sparse.spmatrix)
     def to_scipy_sparse(self):
         """Returns the matrix as a scipy sparse matrix in CSR format."""
-        return sparse.diags([self.up, self.diag, self.down], [1, 0, -1], format="csr")
+        if len(self.up) == 0:
+            return sparse.diags([self.diag], [0])
+        else:
+            return sparse.diags([self.up, self.diag, self.down], [1, 0, -1], format="csr")
     @classmethod
     def eye(cls, size):
         """Return an identity matrix of size `size`."""
