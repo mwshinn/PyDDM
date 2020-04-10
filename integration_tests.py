@@ -105,6 +105,10 @@ class TestSimulation(TestCase):
                                            max_diff=.3, mean_diff=.2, prob_diff=.05)
         self.basic.dx = prev_dx
         self.basic.dt = prev_dt
+    def test_collapsing_bounds(self):
+        """Bounds collapse to zero"""
+        m = ddm.Model(bound=ddm.BoundCollapsingLinear(B=1, t=2))
+        _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
     def test_overlay_chain_distribution_integrates_to_1(self):
         """Overlays integrate to 1"""
         m = ddm.Model(name="Overlay_test", drift=ddm.DriftConstant(drift=2), T_dur=5,

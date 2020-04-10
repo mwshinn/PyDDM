@@ -39,6 +39,7 @@ class TriDiagMatrix:
         assert not np.any(np.isnan(v.down))
     @staticmethod
     def _generate():
+        yield TriDiagMatrix.eye(1)*1.1
         yield TriDiagMatrix.eye(2)
         yield TriDiagMatrix.eye(101)
         yield TriDiagMatrix(diag=np.asarray([1, 2, 3, 4]),
@@ -50,7 +51,6 @@ class TriDiagMatrix:
                           up=pt.NDArray(d=1, t=pt.Number),
                           down=pt.NDArray(d=1, t=pt.Number))
     @pns.requires("len(up) == len(down)")
-    @pns.requires("len(up) > 0")
     @pns.requires("diag is not None --> len(diag) == len(up) + 1")
     def __init__(self, diag=None, up=None, down=None):
         """Create a new TriDiagMatirx object from three vectors.
@@ -70,7 +70,6 @@ class TriDiagMatrix:
         self.shape = (len(self.diag), len(self.diag))
     @pns.accepts(pt.Self)
     @pns.returns(sparse.spmatrix)
-    @pns.requires("len(self.diag) >= 2")
     def to_scipy_sparse(self):
         """Returns the matrix as a scipy sparse matrix in CSR format."""
         return sparse.diags([self.up, self.diag, self.down], [1, 0, -1], format="csr")
@@ -106,6 +105,8 @@ class TriDiagMatrix:
 
         """
         if self.shape == other.shape: # Matrix multiplication
+            if self.shape == (1,1):
+                return (self * other).to_scipy_sparse()
             downdown = self.down[1:] * other.down[:-1]
             down = self.down * other.diag[:-1] + self.diag[1:] * other.down
             diag = self.diag * other.diag
@@ -121,8 +122,9 @@ class TriDiagMatrix:
                 return sparse.diags([up, diag, down], [1, 0, -1], format="csr")
         elif (self.shape[0],) == other.shape: # Multiply by a vector
             v = self.diag * other
-            v[:-1] += self.up * other[1:]
-            v[1:] += self.down * other[:-1]
+            if self.shape[0] > 1:
+                v[:-1] += self.up * other[1:]
+                v[1:] += self.down * other[:-1]
             return v
         else:
             raise ValueError("Incompatible shapes " + str(self.shape) + " and " + str(other.shape))
@@ -132,6 +134,8 @@ class TriDiagMatrix:
     def spsolve(self, vec):
         """For a matrix A, solves the equation "Ax = vec" for x.
         """
+        if len(vec) == 1:
+            return vec/self.diag
         (_, _, _, x, _) = lapack.dgtsv(self.down, self.diag, self.up, vec)
         return x
     @pns.accepts(pt.Self, pt.Or(pt.Number, pt.Self))
