@@ -589,7 +589,7 @@ class Model(object):
                 if method == "implicit":
                     pdf_inner = diffusion_matrix.splice(1,-1).spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
                 elif method == "explicit":
-                    pdf_inner = diffusion_matrix_explicit.splice(1,-1).dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner]).A.squeeze()
+                    pdf_inner = diffusion_matrix_explicit.splice(1,-1).dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
             # Pdfs out of bound is considered decisions made.
             pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
