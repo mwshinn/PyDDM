@@ -7,7 +7,7 @@
 __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',
            'hit_boundary', 'dependence_hit_boundary', 'display_model',
-           'set_N_cpus']
+           'get_model_loss', 'set_N_cpus']
 
 import copy
 
@@ -69,6 +69,32 @@ def models_close(m1, m2, tol=.1):
         if np.abs(mp1-mp2) > tol:
             return False
     return True
+
+def get_model_loss(model, sample, lossfunction=LossLikelihood, method=None):
+    """A shortcut to compusing the loss of a model.
+
+    A shortcut method to compute the loss (under loss function
+    `lossfunction`) of Model `model` with respect to Sample `sample`.
+    Optionaly, specificy the numerical method `method` to use
+    (e.g. analytical, numerical, implicit, etc.)
+    
+    Note that this should not be used when performing model fits, as
+    it is faster to use the optimizations implemented in
+    fit_adjust_model.
+    """
+    # Count parameters (for AIC/BIC), making sure not to double count
+    # for repeated parameters.
+    params = []
+    for component in model.dependencies:
+        for param_name in component.required_parameters:
+            pv = getattr(component, param_name) # Parameter value in the object
+            if pv not in params and isinstance(pv, Fittable):
+                params.append(pv)
+    lf = lossfunction(sample, required_conditions=model.required_conditions,
+                      T_dur=model.T_dur, dt=model.dt, method=method,
+                      nparams=len(params), samplesize=len(sample))
+    return lf.loss(model)
+
 
 def fit_model(sample,
               drift=DriftConstant(drift=0),

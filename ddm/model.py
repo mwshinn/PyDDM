@@ -698,8 +698,6 @@ class Model(object):
         pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain(conditions=conditions)
-        x_index_inner = self.x_domain(conditions=conditions)
-        x_index_outer = self.x_domain(conditions=conditions)
 
         bound_shift = 0.
         # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
@@ -798,11 +796,12 @@ class Model(object):
                 si3_from = x_index_inner_shift
                 si3_to = len(x_list)-2*x_index_inner+x_index_inner_shift
 
-                #diffusion_matrix = diffusion_matrix.to_scipy_sparse()
-                #diffusion_matrix_prev = diffusion_matrix_prev.to_scipy_sparse()
                 pdf_outer = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to])
-                pdf_inner = diffusion_matrix.splice(si_from,si_to).spsolve(
-                                                  diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to])
+                if x_index_inner == x_index_outer: # Should always be the case, since we removed CN changing bounds support
+                    pdf_inner = pdf_outer
+                else:
+                    pdf_inner = diffusion_matrix.splice(si_from,si_to).spsolve(
+                                                      diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to])
 
 
                 # Pdfs out of bound is considered decisions made.
