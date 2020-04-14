@@ -63,6 +63,7 @@ class Sample(object):
             assert len(val[1]) == len(v.err)
             if len(val) == 3:
                 assert len(val[2]) == v.undecided
+                assert val[2] in NDArray(d=1)
             else:
                 assert v.undecided == 0
     @staticmethod
@@ -208,7 +209,7 @@ class Sample(object):
             return arr
 
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
-        conditions = {k: (pt(df[c][k]), pt(df[nc][k]), []) for k in column_names}
+        conditions = {k: (pt(df[c][k]), pt(df[nc][k]), np.asarray([])) for k in column_names}
         return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, **conditions)
     def items(self, correct):
         """Iterate through the reaction times.
@@ -262,8 +263,6 @@ class Sample(object):
             assert len(v[0]) == len(mask_corr)
             assert len(v[1]) == len(mask_err)
             assert mask_corr.dtype == bool
-            v[0][mask_corr]
-            v[1][mask_err],
             if len(v) == 3:
                 assert len(v[2]) == len(mask_undec)
             v[2][mask_undec] if len(v) == 3 else np.asarray([])
