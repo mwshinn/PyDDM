@@ -278,6 +278,26 @@ class BoundCollapsingWeibull(Bound):
         return a - (1 - np.exp(-(t/l)**k)) * (a - aprime)
 # End BoundCollapsingWeibull
 
+# Start BoundCollapsingExponentialDelay
+class BoundCollapsingExponentialDelay(Bound):
+    """Bound collapses exponentially over time.
+
+    Takes three parameters: 
+
+    `B` - the bound at time t = 0.
+    `tau` - the time constant for the collapse, should be greater than
+    zero.
+    `t1` - the time at which the collapse begins, in seconds
+    """
+    name = "Delayed exponential collapsing bound"
+    required_parameters = ["B", "tau", "t1"]
+    def get_bound(self, t, conditions, **kwargs):
+        if t <= self.t1:
+            return self.B
+        if t > self.t1:
+            return self.B * np.exp(-self.tau*(t-self.t1))
+# End BoundCollapsingExponentialDelay
+
 # Start LossByMeans
 import numpy as np
 from ddm import LossFunction
@@ -373,4 +393,3 @@ ddm.plot.model_gui(m, ddm.Sample(np.asarray([1, 1.1, 1.2, 1.3, 1.4, 1.5]), np.as
 from ddm import ICGaussian
 r = ICPointRew(x0=.99)
 #print(r.get_IC(np.linspace(-1, 1, 201), dx=.01, conditions={"highreward": 1}))
-

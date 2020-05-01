@@ -69,6 +69,20 @@ Try it out with::
 from [0,1], whereas our diffusion goes from [-1,1].  Thus, the 0.5
 term was removed.)
 
+
+.. _bound-exp-delay:
+
+Delayed collapsing bounds
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following implements exponentially collapsing bounds with a delay:
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start BoundCollapsingExponentialDelay
+   :end-before: # End BoundCollapsingExponentialDelay
+
+
 .. _bound-speedacc:
 
 Bounds which depend on task conditions (e.g. speed vs accuracy tradeoff)

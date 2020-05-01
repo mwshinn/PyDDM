@@ -358,7 +358,7 @@ Going further
 
 Just as we created DriftCoherence above (by inheriting from :class:`.Drift`)
 to modify the drift rate based on coherence, we can modify other
-portions of the model.  See :doc:`recipes` for more examples.  Also
+portions of the model.  See :doc:`cookbook/index` for more examples.  Also
 see the :doc:`apidoc/index` for more specific details about overloading
 classes.
 

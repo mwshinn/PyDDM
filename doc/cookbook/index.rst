@@ -57,6 +57,8 @@ I instead want bounds which:
 
 - :class:`Collapse exponentially <.BoundCollapsingExponential>`
 
+- :ref:`Collapse exponentially after a delay <bound-exp-delay>`
+
 - :ref:`Collapse according to a Weibull CDF <bound-weibull-cdf>`
 
 - :ref:`Collapse according to a step function <bound-step>`
@@ -164,6 +166,13 @@ evolution), but would rather fit using:
 (While using a fitting method other than differential evolution will
 likely reduce the time needed for fitting models, other methods may
 not offer robust parameter estimation for high-dimensional models.)
+
+Models from specific papers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*If you have a paper which used PyDDM, please* `send us your model <mailto:maxwell.shinn@yale.edu>`_ *so we can include them here!*
+
+- :doc:`papers/shinn2020`
 
 Other recipes
 ~~~~~~~~~~~~~
