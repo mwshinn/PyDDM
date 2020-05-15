@@ -112,11 +112,13 @@ class BoundCollapsingExponential(Bound):
     Takes two parameters: 
 
     - `B` - the bound at time t = 0.
-    - `tau` - the time constant for the collapse, should be greater than zero.
+    - `tau` - one divided by the time constant for the collapse,
+      should be greater than zero for collapsing bounds, less than
+      zero for increasing bounds.  0 gives constant bounds.
 
     Example usage:
 
-      | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 2.1
+      | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 1/2.1
     """
     name = "collapsing_exponential"
     required_parameters = ["B", "tau"]

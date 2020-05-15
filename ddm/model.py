@@ -54,6 +54,9 @@ class Model(object):
     services, such as analytical or numerical simulations of the
     resulting reaction time distribution.
     """
+    # TODO it would be nice to have explicit "save" and "load"
+    # functions, which just provide safe wrappers around saving and
+    # loading text files with "repr" and "exec".
     @staticmethod
     def _test(v):
         assert v.get_dependence("drift") in Generic(Drift)
@@ -80,7 +83,8 @@ class Model(object):
                  bound=BoundConstant(B=1),
                  IC=ICPointSourceCenter(),
                  overlay=OverlayNone(), name="",
-                 dx=param.dx, dt=param.dt, T_dur=param.T_dur):
+                 dx=param.dx, dt=param.dt,
+                 T_dur=param.T_dur, fitresult=None):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
@@ -97,6 +101,14 @@ class Model(object):
         and spacial precision (`dt` and `dx`) and the simulation
         duration `T_dur`.  If not specified, they will be taken from
         the defaults specified in the parameters file.
+
+        If you are creating a model, `fitresult` should always be
+        None.  This is provided as an optional parameter because when
+        models are output as a string (using "str" or "repr"), they
+        must save fitting information.  Thus, this allows you to fit a
+        model, convert it to a string, save that string to a text
+        file, and then run "exec" on that file in a new script to load
+        the model.
 
         The `name` parameter is exclusively for convenience, and may
         be used in plotting or in debugging.
@@ -118,7 +130,7 @@ class Model(object):
         self.dx = dx
         self.dt = dt
         self.T_dur = T_dur
-        self.fitresult = FitResultEmpty() # If the model was fit, store the status here
+        self.fitresult = FitResultEmpty() if fitresult is None else fitresult # If the model was fit, store the status here
     # Get a string representation of the model
     def __repr__(self, pretty=False):
         # Use a list so they can be sorted
@@ -137,9 +149,9 @@ class Model(object):
                     params += ", "
         if not isinstance(self.fitresult, FitResultEmpty):
             if pretty:
-                params += ",\n  " + repr(self.fitresult)
+                params += ",\n  fitresult=" + repr(self.fitresult)
             else:
-                params += ", " + repr(self.fitresult)
+                params += ", fitresult=" + repr(self.fitresult)
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
