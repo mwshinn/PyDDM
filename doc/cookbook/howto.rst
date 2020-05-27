@@ -8,9 +8,9 @@ Shared parameters
 
 In order to use the same parameter for multiple different components
 of the model, pass the same :class:`.Fittable` instance to both.  As a
-concrete example, suppose we want both the drift rate and the variance
-to increase by some factor ``boost`` at time ``tboost``.  We could make
-:class:`.Drift` and :class:`.Noise` objects as follows::
+concrete example, suppose we want both the drift rate and the standard
+deviation to increase by some factor ``boost`` at time ``tboost``.  We
+could make :class:`.Drift` and :class:`.Noise` objects as follows::
 
   from ddm.models import Drift, Noise
   class DriftBoost(Drift):

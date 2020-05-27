@@ -143,7 +143,7 @@ class NoiseShinn2020(ddm.models.Noise):
     @accepts(Self, t=Positive0, conditions=Conditions)
     @returns(Positive)
     def get_noise(self, t, conditions, **kwargs):
-        """Scale variance by current urgency"""
+        """Scale standard deviation by current urgency"""
         return urgency(t, self.noise, self.t1, self.t1slope) + .001
     # More Paranoid Scientist annotations
     @staticmethod

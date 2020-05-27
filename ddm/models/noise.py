@@ -15,7 +15,7 @@ from .paranoid_types import Conditions
 
 @paranoidclass
 class Noise(Dependence):
-    """Subclass this to specify how diffusion rate/noise varies with position and time.
+    """Subclass this to specify how noise level varies with position and time.
 
     This abstract class provides the methods which define a dependence
     of noise on x and t.  To subclass it, implement get_noise.  Since
@@ -66,7 +66,7 @@ class Noise(Dependence):
         """
         return 0.5*dt/dx**2 * self.get_noise(x=x_bound, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)**2
     def get_noise(self, conditions, **kwargs):
-        """Calculate the instantaneous noise (diffusion rate).
+        """Calculate the instantaneous noise (standard deviation of noise).
 
         This function must be redefined in subclasses.
 
@@ -78,8 +78,8 @@ class Noise(Dependence):
         - `conditions` - A dictionary describing the task conditions
 
         It should return a number or an NDArray (the same as `x`)
-        indicating the noise (diffusion rate) at that particular time,
-        position(s), and task conditions.
+        indicating the standard deviation of the noise at that
+        particular time, position(s), and task conditions.
 
         Definitions of this method in subclasses should only have
         arguments for needed variables and should always be followed
@@ -104,9 +104,9 @@ class Noise(Dependence):
 
 @paranoidclass
 class NoiseConstant(Noise):
-    """Simga dependence: diffusion rate/noise is constant throughout the simulation.
+    """Noise level is constant over time.
 
-    Only take one parameter: noise, the diffusion rate.
+    Only take one parameter: noise, the standard deviation of the noise.
 
     Note that this is a special case of NoiseLinear.
 
@@ -133,13 +133,13 @@ class NoiseConstant(Noise):
 
 @paranoidclass
 class NoiseLinear(Noise):
-    """Noise dependence: diffusion rate varies linearly with position and time.
+    """Noise level varies linearly with position and time.
 
     Take three parameters:
 
-    - `noise` - The starting diffusion rate/noise
-    - `x` - The coefficient by which noise varies with x
-    - `t` - The coefficient by which noise varies with t
+    - `noise` - The inital noise standard deviation
+    - `x` - The coefficient by which noise standard deviation varies with x
+    - `t` - The coefficient by which noise standard deviation varies with t
 
     Example usage:
 

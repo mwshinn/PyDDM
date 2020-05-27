@@ -174,10 +174,10 @@ class LossLikelihood(LossFunction):
             # turn come from the dx parameter being set too low.  This
             # comes up when fitting, because sometimes the algorithm
             # will "explore" and look at extreme parameter values.
-            # For example, this arrises when variance is very close to
-            # 0.  We will issue a warning now, but throwing an
-            # exception may be the better way to handle this to make
-            # sure it doesn't go unnoticed.
+            # For example, this arises when standard deviation is very
+            # close to 0.  We will issue a warning now, but throwing
+            # an exception may be the better way to handle this to
+            # make sure it doesn't go unnoticed.
             with np.errstate(all='raise'):
                 try:
                     loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]) + self._robustness_param)
