@@ -136,3 +136,40 @@ hierarchical models, but you are welcome to implement the feature
 yourself and submit a pull request on Github.  If you plan to
 implement this feature, please let us know so we can help you get
 familiar with the code.
+
+What is the difference between LossLikelihood and LossRobustLikelihood or LossBIC and LossRobustBIC?
+----------------------------------------------------------------------------------------------------
+
+Maximum likelihood in general is not good at handling probabilities of
+zero.  When performing fitting using maximum likelihood (or
+equivalently, BIC), the fit will fail if there are any times at which
+the likelihood is zero.  If there is even one trial in the
+experimental data which falls into a region where the simulated
+probability distribution is zero, then the likelihood of the model
+under that data is zero, and hence negative log likelihood is
+infinity.  (See Ratcliff and Tuerlinckx (2002) for a more complete
+discussion.)  In practice, there can be several locations where the
+likelihood is theoretically zero.  For example, the non-decision time
+by definition should have no responses.  However, data are noisy, and
+some responses may be spurious.  This means that when fitting with
+likelihood, the non-decision time cannot be any longer than the
+shortest response in the data.  Clearly this is not acceptable.
+
+PyDDM has two ways of circumventing this problem.  The most robust
+way is to fit the data with a mixture model.  Here, the DDM process is
+mixed with another distribution (called a "lapse", "contaminant", or
+"outlier" distribution) which represent responses which came from a
+non-DDM process.  Traditionally :class:`a uniform distribution
+<.OverlayUniformMixture>` has been used, but PyDDM also offers the
+option of using :class:`an exponential distribution
+<.OverlayPoissonMixture>`, which has the benefit of providing a flat
+lapse rate hazard function.  If you would also like to have a
+non-decision time, you may need to :class:`chain together multiple
+overlays <.OverlayChain>`.
+
+The easier option is to use the LossRobustLikelihood function.  This
+imposes a minimum value for the likelihood.  In theory, it is similar
+to imposing a uniform distribution, but with an unspecified mixture
+probability.  It will give nearly identical results as LossLikelihood
+if there are no invalid results, but due to the minimum it imposes,
+it is more of an approximation than the true likelihood.

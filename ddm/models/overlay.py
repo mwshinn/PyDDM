@@ -4,7 +4,7 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayNonDecision", "OverlayNonDecisionGamma", "OverlayNonDecisionUniform", "OverlaySimplePause", "OverlayBlurredPause"]
+__all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayExponentialMixture", "OverlayNonDecision", "OverlayNonDecisionGamma", "OverlayNonDecisionUniform", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
 from scipy.special import gamma as sp_gamma
@@ -218,7 +218,7 @@ class OverlayUniformMixture(Overlay):
         return Solution(corr, err, m, cond, undec, evolution)
 
 @paranoidclass
-class OverlayPoissonMixture(Overlay):
+class OverlayExponentialMixture(Overlay):
     """An exponential mixture distribution.
 
     The output distribution should be pmixturecoef*100 percent exponential
@@ -272,6 +272,10 @@ class OverlayPoissonMixture(Overlay):
         #print(corr)
         #print(err)
         return Solution(corr, err, m, cond, undec, evolution)
+
+# Backward compatibility
+class OverlayPoissonMixture(OverlayExponentialMixture):
+    pass
 
 @paranoidclass
 class OverlayNonDecision(Overlay):

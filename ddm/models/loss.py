@@ -4,7 +4,7 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC']
+__all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC', 'LossRobustLikelihood', 'LossRobustBIC']
 
 import numpy as np
 
@@ -131,6 +131,7 @@ class LossSquaredError(LossFunction):
 class LossLikelihood(LossFunction):
     """Likelihood loss function"""
     name = "Negative log likelihood"
+    _robustness_param = 0
     @staticmethod
     def _test(v):
         assert v.dt in Positive0()
@@ -166,7 +167,6 @@ class LossLikelihood(LossFunction):
     @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
-        MIN_LIKELIHOOD = 1e-8 # Avoid log(0)
         sols = self.cache_by_conditions(model)
         loglikelihood = 0
         for k in sols.keys():
@@ -178,14 +178,21 @@ class LossLikelihood(LossFunction):
             # 0.  We will issue a warning now, but throwing an
             # exception may be the better way to handle this to make
             # sure it doesn't go unnoticed.
-            if np.any(sols[k].pdf_corr()<0) or np.any(sols[k].pdf_err()<0):
-                print("Warning: invalid likelihood function.")
-                return np.inf
-            loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]+MIN_LIKELIHOOD))
-            loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]+MIN_LIKELIHOOD))
+            with np.errstate(all='raise'):
+                try:
+                    loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]) + self._robustness_param)
+                    loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]) + self._robustness_param)
+                except FloatingPointError:
+                    minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
+                    if minlike == 0:
+                        print("Warning: infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
+                    elif minlike < 0:
+                        print("Warning: infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                    return np.inf
             if sols[k].prob_undecided() > 0:
                 loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
+
 
 @paranoidclass
 class LossBIC(LossLikelihood):
@@ -209,3 +216,21 @@ class LossBIC(LossLikelihood):
     def loss(self, model):
         loglikelihood = -LossLikelihood.loss(self, model)
         return np.log(self.samplesize)*self.nparams - 2*loglikelihood
+
+class LossRobustLikelihood(LossLikelihood):
+    """Likelihood loss function which will not fail for infinite likelihoods.
+
+    Usually you will want to use LossLikelihood instead.  See the FAQs
+    in the documentation for more information on how this differs from
+    LossLikelihood.
+    """
+    _robustness_param = 1e-20
+
+class LossRobustBIC(LossBIC):
+    """BIC loss function which will not fail for infinite likelihoods.
+
+    Usually you will want to use LossBIC instead.  See the FAQs in the
+    documentation for more information on how this differs from
+    LossBIC.
+    """
+    _robustness_param = 1e-20

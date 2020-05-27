@@ -24,7 +24,7 @@ samp = sol.resample(1000)
 # Fit a model identical to the one described above on the newly
 # generated data so show that parameters can be recovered.
 from ddm import Fittable
-from ddm.models import LossBIC
+from ddm.models import LossRobustBIC
 from ddm.functions import fit_adjust_model
 model_fit = Model(name='Simple model (fitted)',
                   drift=DriftConstant(drift=Fittable(minval=0, maxval=4)),
@@ -34,8 +34,8 @@ model_fit = Model(name='Simple model (fitted)',
                   dx=.001, dt=.01, T_dur=2)
 
 fit_adjust_model(samp, model_fit,
-                 method="differential_evolution",
-                 lossfunction=LossBIC)
+                 fitting_method="differential_evolution",
+                 lossfunction=LossRobustBIC)
 
 display_model(model_fit)
 

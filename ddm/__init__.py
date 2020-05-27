@@ -4,7 +4,7 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["Sample", "Solution", "Model", "Fittable", "Fitted"]
+__all__ = ["Sample", "Solution", "Model", "Fittable", "Fitted", "FitResult"]
 
 # Check that Python3 is running
 import sys
@@ -12,7 +12,7 @@ if sys.version_info.major != 3:
     raise ImportError("PyDDM only supports Python 3")
 
 from .models import *
-from .model import Model, Fittable, Fitted
+from .model import Model, Fittable, Fitted, FitResult
 from .sample import Sample
 from .solution import Solution
 from .functions import *
