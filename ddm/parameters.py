@@ -13,4 +13,4 @@ T_dur = 2. # [s] Duration of simulation
 dt = .005 #0.005 # [s] Time-step.
 
 # Display warnings
-verbose = True
+renorm_warnings = True

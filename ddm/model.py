@@ -482,7 +482,7 @@ class Model(object):
         # Fix numerical errors
         pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
         if pdfsum > 1:
-            if pdfsum > 1.01 and param.verbose:
+            if pdfsum > 1.01 and param.renorm_warnings:
                 print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
                       "Try decreasing dt.  If that doesn't eliminate this warning, it may be due to " \
                       "extreme parameter values and/or bugs in your model speficiation.")
@@ -646,11 +646,11 @@ class Model(object):
         if minval < 0:
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
-            if sum_negative_strength < -.01 and param.verbose:
+            if sum_negative_strength < -.01 and param.renorm_warnings:
                 print("Warning: probability density included values less than zero "
                       "(minimum=%f, total=%f).  "  \
                       "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength))
-            if sum_negative_strength_undec < -.01 and param.verbose:
+            if sum_negative_strength_undec < -.01 and param.renorm_warnings:
                 print("Warning: remaining FP distribution included values less than zero " \
                       "(minimum=%f, total=%f).  " \
                       "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength_undec))
@@ -660,7 +660,7 @@ class Model(object):
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
-            if pdfsum > 1.01 and param.verbose:
+            if pdfsum > 1.01 and param.renorm_warnings:
                 print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
                       "Try decreasing dt or using the implicit (backward Euler) method instead.  " \
                       "If that doesn't eliminate this warning, it may be due to " \
@@ -870,7 +870,7 @@ class Model(object):
         if minval < 0:
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
             # For small errors, don't bother alerting the user
-            if sum_negative_strength < -.01 and param.verbose:
+            if sum_negative_strength < -.01 and param.renorm_warnings:
                 print("Warning: probability density included values less than zero "
                       "(minimum=%f, total=%f).  " \
                       "Please decrease dt and/or avoid extreme parameter values." % (minval, sum_negative_strength))
@@ -880,7 +880,7 @@ class Model(object):
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
         if pdfsum > 1:
             # If it is only a small renormalization, don't bother alerting the user.
-            if pdfsum > 1.01 and param.verbose:
+            if pdfsum > 1.01 and param.renorm_warnings:
                 print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
                       "Try decreasing dt.  If that doesn't eliminate this warning, it may be due to " \
                       "extreme parameter values and/or bugs in your model speficiation.")
