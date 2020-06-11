@@ -191,3 +191,45 @@ utilizes :ref:`shared parameters <howto-shared-params>`::
             dt=.01, dx=.01)
   model_gui(model=m)
 
+
+
+.. _drift-uniform:
+
+Across-trial variability in drift rate
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+While across-trial variability in drift rate is possible in PyDDM, it
+is not efficient or ergonomic.  Unlike variability in starting
+position or non-decision time, the distribution of drift rates must be
+discretized, and each must be run separately.  Here, we demonstrate
+how to do this for a uniform distribution.
+
+In order to run such a model, first you must prepare your Sample by
+running it through the following function.  This makes one duplicate
+of each of your data points according to each discretization point.
+As a result, note that that likelihood, BIC, and other summary
+statistics about the data or fit quality may be inaccurate.
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start prepare_sample_for_variable_drift
+   :end-before: # End prepare_sample_for_variable_drift
+
+After using the above function to generate a new sample, use a class
+such as the following, which provides a uniformly-distributed drift
+rate.
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftUniform
+   :end-before: # End DriftUniform
+
+This can be used like any other Drift class.  For example::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  model = Model(drift=DriftUniform(drift=Fittable(minval=0, maxval=2),
+                                   width=Fittable(minval=0, maxval=2)),
+                dx=.01, dt=.01)
+  model_gui(model, conditions={"driftnum": list(range(0, 11))})
+

@@ -356,40 +356,43 @@ class NoiseUrgencyGain(Noise):
         return urgency_gain(t, self.gain_start, self.gain_slope)
 # End NoiseUrgencyGain
 
-
-
+# Start prepare_sample_for_variable_drift
 import ddm
+import numpy as np
+RESOLUTION = 11
+def prepare_sample_for_variable_drift(sample, resolution=RESOLUTION):
+    new_samples = []
+    for i in range(0, resolution):
+        corr = sample.corr.copy()
+        err = sample.err.copy()
+        undecided = sample.undecided
+        conditions = copy.deepcopy(sample.conditions)
+        conditions['driftnum'] = (np.asarray([i]*len(corr)),
+                                  np.asarray([i]*len(err)),
+                                  np.asarray([i]*undecided))
+        new_samples.append(ddm.Sample(corr, err, undecided, **conditions))
+    new_sample = new_samples.pop()
+    for s in new_samples:
+        new_sample += s
+    return new_sample
+# End prepare_sample_for_variable_drift
 
-class FakePointModel(ddm.Model):
-    def solve(self, conditions={}, *args, **kwargs):
-        corr = self.t_domain()*0
-        corr[1] = .8
-        err = self.t_domain()*0
-        err[1] = .2
-        return self._overlay.apply(ddm.Solution(corr, err, self, conditions))
-FakePointModel.solve_analytical = FakePointModel.solve
-FakePointModel.solve_numerical = FakePointModel.solve
-FakePointModel.solve_numerical_cn = FakePointModel.solve
-FakePointModel.solve_numerical_implicit = FakePointModel.solve
-FakePointModel.solve_numerical_explicit = FakePointModel.solve
+# Start DriftUniform
+class DriftUniform(ddm.Drift):
+    """Drift with trial-to-trial variability.
+    
+    Note that this is a numerical approximation to trial-to-trial
+    drift rate variability and is inefficient.  It also requires
+    running the "prepare_sample_for_variable_drift" function above on
+    the data.
+    """
+    name = "Uniformly-distributed drift"
+    resolution = RESOLUTION # Number of bins, should be an odd number
+    required_parameters = ['drift', 'width'] # Mean drift and the width of the uniform distribution
+    required_conditions = ['driftnum']
+    def get_drift(self, conditions, **kwargs):
+        stepsize = self.width/(self.resolution-1)
+        mindrift = self.drift - self.width/2
+        return mindrift + stepsize*conditions['driftnum']
+# End DriftUniform
 
-m = FakePointModel()
-s = m.solve()
-
-so = OverlayNonDecisionUniform(nondectime=-.05,st=.1).apply(s)
-so2 = OverlayNonDecisionUniform2(nondectime=-.05,st=.1).apply(s)
-assert np.all(so.corr == so2.corr)
-
-so = OverlayNonDecisionGamma(shape=4, scale=.01, nondectime=.1).apply(s)
-print(list(so.corr))
-print(np.sum(so.corr))
-
-#m = FakePointModel(overlay=OverlayNonDecisionGamma(shape=ddm.Fittable(minval=1, maxval=3), scale=ddm.Fittable(minval=0, maxval=.2), nondectime=ddm.Fittable(minval=0, maxval=1)))
-m = FakePointModel(overlay=OverlayNonDecisionGaussian(ndsigma=ddm.Fittable(minval=0, maxval=1), nondectime=ddm.Fittable(minval=0, maxval=1)))
-#m = FakePointModel(overlay=OverlayNonDecisionUniform(st=ddm.Fittable(minval=0, maxval=1), nondectime=ddm.Fittable(minval=0, maxval=1)))
-import ddm.plot
-ddm.plot.model_gui(m, ddm.Sample(np.asarray([1, 1.1, 1.2, 1.3, 1.4, 1.5]), np.asarray([1])))
-
-from ddm import ICGaussian
-r = ICPointRew(x0=.99)
-#print(r.get_IC(np.linspace(-1, 1, 201), dx=.01, conditions={"highreward": 1}))

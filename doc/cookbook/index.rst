@@ -43,6 +43,8 @@ I want:
 
 - :ref:`An urgency gain function <drift-gain-function>`
 
+- :ref:`Drift rate variability (uniform distribution) <drift-uniform>`
+
 - Something else :doc:`(Write your own, using these as a guide.) <driftnoise>`
 
 
