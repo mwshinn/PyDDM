@@ -474,6 +474,10 @@ class TestSample(TestCase):
         cond_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': [1, 1, 2]})
         assert ddm.Sample.from_pandas_dataframe(cond_df, 'rt', 'c') == self.samps['conds']
         assert ddm.Sample.from_pandas_dataframe(cond_df, correct_column_name='c', rt_column_name='rt') == self.samps['condsexp']
+    def test_to_pandas(self):
+        for _,s in self.samps.items():
+            if s.undecided == 0:
+                assert s == ddm.Sample.from_pandas_dataframe(s.to_pandas_dataframe("a", "b"), "a", "b")
 
 class TestSolution(TestCase):
     def setUp(self):

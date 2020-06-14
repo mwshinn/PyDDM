@@ -211,6 +211,24 @@ class Sample(object):
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
         conditions = {k: (pt(df[c][k]), pt(df[nc][k]), np.asarray([])) for k in column_names}
         return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, **conditions)
+    @accepts(Self, String, String)
+    @requires("self.undecided == 0") # No undecided trials for this method
+    def to_pandas_dataframe(self, rt_column_name='RT', correct_column_name='correct'):
+        """Convert the sample to a Pandas dataframe.
+
+        `correct_column_name` is the column label for the response
+        time, and `rt_column_name` is the column label for whether a
+        trial is correct or incorrect.
+        """
+        import pandas
+        all_trials = []
+        conditions = list(self.condition_names())
+        columns = [correct_column_name, rt_column_name] + conditions
+        for trial in self.items(correct=True):
+            all_trials.append([1, trial[0]] + [trial[1][c] for c in conditions])
+        for trial in self.items(correct=False):
+            all_trials.append([0, trial[0]] + [trial[1][c] for c in conditions])
+        return pandas.DataFrame(all_trials, columns=columns)
     def items(self, correct):
         """Iterate through the reaction times.
 
