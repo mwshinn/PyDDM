@@ -50,7 +50,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
 
     # Probability Distribution of reaction time
     dist = np.exp(-(a1+b1*teval)**2./teval/2)/np.sqrt(2*np.pi)/teval**1.5*suminc
-    dist = dist*(dist>np.finfo(np.float64).tiny) # make sure non-negative/won' cause underflow error
+    dist = dist*(dist>np.finfo(np.float64).tiny) # make sure non-negative/won't cause underflow error
     return dist
 
 def analytic_ddm(drift, noise, b, teval, b_slope=0):
