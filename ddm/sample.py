@@ -171,7 +171,7 @@ class Sample(object):
         def pt(x): # Pythonic types
             arr = np.asarray(x)
             if np.all(arr == np.round(arr)):
-                arr = arr.astype(int)
+                arr = arr.astype(np.int64)
             return arr
 
         conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), np.asarray([])) for i,k in enumerate(column_names)}
@@ -205,7 +205,7 @@ class Sample(object):
         def pt(x): # Pythonic types
             arr = np.asarray(x)
             if np.all(arr == np.round(arr)):
-                arr = arr.astype(int)
+                arr = arr.astype(np.int64)
             return arr
 
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
