@@ -129,6 +129,10 @@ class Model(object):
         self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
         self.dx = dx
         self.dt = dt
+        if self.dx > .01:
+            print("WARNING: dx is large.  Estimated pdfs may be imprecise.  Decrease dx to 0.01 or less.")
+        if self.dt > .01:
+            print("WARNING: dt is large.  Estimated pdfs may be imprecise.  Decrease dt to 0.01 or less.")
         self.T_dur = T_dur
         self.fitresult = FitResultEmpty() if fitresult is None else fitresult # If the model was fit, store the status here
     # Get a string representation of the model

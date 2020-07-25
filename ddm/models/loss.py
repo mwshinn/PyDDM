@@ -178,7 +178,7 @@ class LossLikelihood(LossFunction):
             # close to 0.  We will issue a warning now, but throwing
             # an exception may be the better way to handle this to
             # make sure it doesn't go unnoticed.
-            with np.errstate(all='raise'):
+            with np.errstate(all='raise', under='ignore'):
                 try:
                     loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]) + self._robustness_param)
                     loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]) + self._robustness_param)

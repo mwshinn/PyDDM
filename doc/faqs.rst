@@ -173,3 +173,36 @@ to imposing a uniform distribution, but with an unspecified mixture
 probability.  It will give nearly identical results as LossLikelihood
 if there are no invalid results, but due to the minimum it imposes,
 it is more of an approximation than the true likelihood.
+
+Why do I get oscillations in my simulated RT distribution?
+----------------------------------------------------------
+
+Oscillations occur in the Crank-Nicolson method when your dt is too
+large.  Try decreasing dt.  You should almost never use a dt larger
+than .01, but smaller values are ideal.
+
+Why is PyDDM so slow?
+---------------------
+
+Your model may be slow for a number of different reasons.
+
+- **You have a lot of conditions** -- Each time you solve the model
+  (e.g. by calling :meth:`.Model.solve`), PyDDM internally needs to
+  simulate one pdf per potential combination of conditions.  For
+  example, if you are using 200 different coherence values, then PyDDM
+  will need to simulate 200 different pdfs for each call you make to
+  :meth:`.Model.solve`.  This also compounds multiplicativly: if you
+  have 200 coherence conditions and 10 reward conditions, you will get
+  :math:`200 \times 10=2000` pdf simulations per call to
+  :meth:`.Model.solve`.  During fitting, :meth:`.Model.solve` is
+  called hundreds of times.  As you can imagine, having too many
+  conditions slows things down quite a bit.  Minimizing the number of
+  conditions will thus lead to substantial speedups.
+- **Your numerics (dx and dt) are too small** -- Larger values of dx
+  and dt can lead to imprecise estimations of the response time
+  distribution.  Therefore, be cautious when adjusting dx and dt.  As
+  a rule of thumb, dx and dt should almost always be smaller than 0.01
+  and larger than 0.0001.  Setting them to 0.001 is a good place to
+  start.  If dx and dt are larger than 0.01, your estimated response
+  time distribution will be inaccurate, and if dx and dt are smaller
+  than 0.0001, solving the model will be extremely slow.
