@@ -552,12 +552,12 @@ class TestTriDiagMatrix(TestCase):
     def test_multiply(self):
         for m in self.matrices:
             for s in self.scalars:
-                assert np.all(((m * s).to_scipy_sparse() == m.to_scipy_sparse().dot(s)).todense())
-                assert np.all(((m * s).to_scipy_sparse() == (m.to_scipy_sparse()*s)).todense())
+                assert not np.any(((m * s).to_scipy_sparse() != m.to_scipy_sparse().dot(s)).todense())
+                assert not np.any(((m * s).to_scipy_sparse() != (m.to_scipy_sparse()*s)).todense())
             for m2 in self.matrices:
                 if m.shape == m2.shape:
-                    assert np.all(((m.dot(m2)) == m.to_scipy_sparse().dot(m2.to_scipy_sparse())).todense())
-                    assert np.all((m * m2).to_scipy_sparse() == m.to_scipy_sparse().multiply(m2.to_scipy_sparse()).todense())
+                    assert not np.any(((m.dot(m2)) != m.to_scipy_sparse().dot(m2.to_scipy_sparse())).todense())
+                    assert not np.any((m * m2).to_scipy_sparse() != m.to_scipy_sparse().multiply(m2.to_scipy_sparse()).todense())
     def test_add_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
@@ -570,41 +570,40 @@ class TestTriDiagMatrix(TestCase):
             #    np.sum((m + s).to_scipy_sparse() != m.to_scipy_sparse() + s)
             for m2 in self.matrices:
                 if m.shape == m2.shape:
-                    assert np.all(((m + m2).to_scipy_sparse() == (m.to_scipy_sparse() + m2.to_scipy_sparse())).todense())
+                    assert not np.any(((m + m2).to_scipy_sparse() != (m.to_scipy_sparse() + m2.to_scipy_sparse())).todense())
     def test_add_r(self):
         for m in self.matrices:
             #for s in self.scalars:
             #    np.sum((s + m).to_scipy_sparse() != s + m.to_scipy_sparse())
             for m2 in self.matrices:
                 if m.shape == m2.shape:
-                    assert np.all(((m2 + m).to_scipy_sparse() == (m2.to_scipy_sparse() + m.to_scipy_sparse())).todense())
+                    assert not np.any(((m2 + m).to_scipy_sparse() != (m2.to_scipy_sparse() + m.to_scipy_sparse())).todense())
     def test_add_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
             m += 1.4
             m += mo
-            assert m == (mo + 1.4) + mo
+            assert not m != (mo + 1.4) + mo
     def test_subtract(self):
         for m in self.matrices:
             #for s in self.scalars:
             #    np.sum((m - s).to_scipy_sparse() != m.to_scipy_sparse() + -s)
             for m2 in self.matrices:
                 if m.shape == m2.shape:
-                    assert np.all(((m - m2).to_scipy_sparse() == (m.to_scipy_sparse() - m2.to_scipy_sparse())).todense())
+                    assert not np.any(((m - m2).to_scipy_sparse() != (m.to_scipy_sparse() - m2.to_scipy_sparse())).todense())
     def test_subtract_r(self):
         for m in self.matrices:
             #for s in self.scalars:
             #    np.sum((s - m).to_scipy_sparse() != s - m.to_scipy_sparse())
             for m2 in self.matrices:
                 if m.shape == m2.shape:
-                    assert np.all(((m2 - m).to_scipy_sparse() == (m2.to_scipy_sparse() - m.to_scipy_sparse())).todense())
+                    assert not np.any(((m2 - m).to_scipy_sparse() != (m2.to_scipy_sparse() - m.to_scipy_sparse())).todense())
     def test_subtract_inplace(self):
         ms = [copy.deepcopy(m) for m in self.matrices]
         for m,mo in zip(ms, self.matrices):
             m -= 1.4
             m -= mo
-            assert m == (mo - 1.4) - mo
-                
+            assert not m != (mo - 1.4) - mo
 
 class TestMisc(TestCase):
     def test_analytic_lin_collapse(self):
@@ -614,8 +613,19 @@ class TestMisc(TestCase):
         m = ddm.Model(bound=b, T_dur=2)
         s = m.solve()
         assert len(s.pdf_corr()) == len(m.t_domain())
+    def test_get_set_parameters_functions(self):
+        """Test get_parameters, set_parameters, and get_parameter_names"""
+        p1 = ddm.Fittable(minval=0, maxval=1)
+        p2 = ddm.Fittable(minval=.3, maxval=.9, default=.4)
+        m = ddm.Model(drift=ddm.DriftConstant(drift=p1), noise=ddm.NoiseLinear(noise=p2, x=.2, t=p1))
+        print(m.get_model_parameters())
+        assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
+        assert all(a == b for a,b in zip(m.get_model_parameter_names(), ["drift/t", "noise"]))
+        m.set_model_parameters(m.get_model_parameters())
+        assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
+        m.set_model_parameters([.5, .5])
+        assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
         
-
 
         
 # TODO test if there is no overlay, then corr + err + undecided = 1

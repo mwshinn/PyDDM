@@ -165,12 +165,21 @@ class Model(object):
         Returns a list of each model parameter which can be varied
         during a fitting procedure.  The ordering is arbitrary but is
         guaranteed to be in the same order as
-        get_model_parameter_names() and set_model_parameters().
+        get_model_parameter_names() and set_model_parameters().  If
+        multiple parameters refer to the same "Fittable" object, then
+        that object will only be listed once.
         """
         params = []
-        for d in self.dependencies:
-            for p in d.required_parameters:
-                params.append(getattr(d, p))
+        for dep in self.dependencies:
+            for param_name in dep.required_parameters:
+                param_value = getattr(dep, param_name)
+                # If this can be fit to data
+                if isinstance(param_value, Fittable):
+                    # be fit) via optimization If we have the same
+                    # Fittable object in two different components
+                    # inside the model, we only want to list it once.
+                    if id(param_value) not in map(id, params):
+                        params.append(param_value)
         return params
 
     def get_model_parameter_names(self):
@@ -178,13 +187,52 @@ class Model(object):
 
         Returns the name of each model parameter.  The ordering is
         arbitrary, but is uaranteed to be in the same order as
-        get_model_parameters() and set_model_parameters().
+        get_model_parameters() and set_model_parameters(). If multiple
+        parameters refer to the same "Fittable" object, then that
+        object will only be listed once, however the names of the
+        parameters will be separated by a "/" character.
         """
         params = []
-        for d in self.dependencies:
-            for p in d.required_parameters:
-                params.append(p)
-        return params
+        param_names = []
+        for dep in self.dependencies:
+            for param_name in dep.required_parameters:
+                param_value = getattr(dep, param_name)
+                # If this can be fit to data
+                if isinstance(param_value, Fittable):
+                    # If we have the same Fittable object in two
+                    # different components inside the model, we only
+                    # want to list it once.
+                    if id(param_value) not in map(id, params):
+                        param_names.append(param_name)
+                        params.append(param_value)
+                    else:
+                        ind = list(map(id, params)).index(id(param_value))
+                        if param_name not in param_names[ind].split("/"):
+                            param_names[ind] += "/" + param_name
+        return param_names
+
+    def set_model_parameters(self, params):
+        """Set the parameters of the model from an ordered list.
+
+        Takes as an argument a list of parameters in the same order as
+        those from get_model_parameters().  Sets the associated
+        parameters as a "Fitted" object. If multiple parameters refer
+        to the same "Fittable" object, then that object will only be
+        listed once.
+        """
+        old_params = self.get_model_parameters()
+        param_object_ids = list(map(id, old_params))
+        assert len(params) == len(param_object_ids), "Invalid params"
+        new_params = [p if isinstance(p, Fittable) else op.make_fitted(p) \
+                      for p,op in zip(params, old_params)]
+        for dep in self.dependencies:
+            for param_name in dep.required_parameters:
+                param_value = getattr(dep, param_name)
+                # If this can be fit to data
+                if isinstance(param_value, Fittable):
+                    i = param_object_ids.index(id(param_value))
+                    setattr(dep, param_name, new_params[i])
+
 
     def get_fit_result(self):
         """Returns a FitResult object describing how the model was fit.
@@ -196,20 +244,6 @@ class Model(object):
         """
         return self.fitresult
     
-    def set_model_parameters(self, params):
-        """Set the parameters of the model from an ordered list.
-
-        Takes as an argument a list of parameters in the same order as
-        those from get_model_parameters().  Sets the associated
-        parameters.
-        """
-        assert len(params) == len(self.get_model_parameters()), "Invalid params"
-        i = 0
-        for d in self.dependencies:
-            for p in d.required_parameters:
-                setattr(d, p, params[i])
-                i += 1
-
     def get_dependence(self, name):
         """Return the dependence object given by the string `name`."""
         if name.lower() in ["drift", "driftdep", "_driftdep"]:
