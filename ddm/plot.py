@@ -7,6 +7,7 @@
 import numpy as np
 import sys
 import traceback
+import time
 from paranoid.settings import Settings as paranoid_settings
 
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
@@ -263,6 +264,8 @@ def model_gui(model,
 
     Some of this code is taken from `fit_model`.
     """
+    # WARNING: This function REALLY needs to be refactored.  See
+    # model_gui_jupyter for an example of how this could look.
     assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
         " this, please import ddm.plot BEFORE matplotlib.pyplot."
@@ -503,3 +506,117 @@ def model_gui(model,
     if paranoid_state and not verify:
         paranoid_settings.set(enabled=True)
     return m
+
+
+def model_gui_jupyter(model,
+                      sample=None,
+                      data_dt=.01,
+                      plot=plot_fit_diagnostics,
+                      conditions=None,
+                      verify=False):
+    """Mess around with model parameters visually in a Jupyter notebook.
+
+    This function is equivalent to model_gui, but displays in a
+    Jupyter notebook with controls.  It does nothing when called
+    outside a Jupyter notebook.
+    """
+    # Exit if we are not in a Jupyter notebook.  Note that it is not
+    # possible to reliably detect whenther you are in a Jupyter
+    # notebook (e.g. in jupyter-console vs ipython) but that is a
+    # fundamental design flaw which the Jupyter developers have
+    # carefully enforced.
+    try:
+        get_ipython
+        import ipywidgets as widgets
+        from IPython.display import display
+    except (NameError, ImportError):
+        return
+    # Set up conditions
+    if model:
+        # All of the conditions required by at least one of the model
+        # components.
+        required_conditions = model.required_conditions
+        if sample:
+            sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
+        else:
+            assert all(c in conditions.keys() for c in required_conditions), \
+                "Please pass all conditions needed by the model in the 'conditions' argument."
+            sample_condition_values = {c : (list(sorted(conditions[c])) if isinstance(c, list) else conditions[c]) \
+                                       for c in required_conditions}
+    elif sample:
+        components_list = []
+        required_conditions = sample.condition_names()
+        sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
+    else:
+        print("Must define model, sample, or both")
+        return
+    # Set up params
+    params = model.get_model_parameters()
+    default_params = [p.default() for p in params]
+    param_names = model.get_model_parameter_names()
+    # Update the plot, as a callback function
+    def draw_update(**kwargs):
+        print("Drawing")
+        conditions = {}
+        parameters = {}
+        # To make this work with the ipython library, we prefix
+        # parameters starting with a "_p_" and conditions starting
+        # with a "_c_".  Here we detect what is what, and strip away
+        # the prefix.
+        if not util_widgets[0].value and not util_widgets[2].value:
+            return
+        for k,v in kwargs.items():
+            if k.startswith("_c_"):
+                conditions[k[3:]] = v
+            elif k.startswith("_p_"):
+                parameters[k[3:]] = v
+        ordered_parameters = [parameters[p] for p in param_names]
+        model.set_model_parameters(ordered_parameters)
+        plot(model=model, sample=sample, conditions=conditions, data_dt=data_dt)
+        util_widgets[2].value = False
+    def draw(*args, **kwargs):
+        util_widgets[2].value = True
+    # Reset to default values
+    def reset(*args, **kwargs):
+        for w,d in zip(param_widgets,default_params):
+            # Temporarily disable callbacks and then re-enable after
+            # setting the value.  This prevents redraw after changing
+            # each parameter.
+            changes_tmp = w._trait_notifiers['value']['change']
+            w._trait_notifiers['value']['change'] = []
+            w.value = d
+            w._trait_notifiers['value']['change'] = changes_tmp
+        # Now run the redraw only once
+        draw()
+
+    # Set up all of the widgets we will use to control the plot
+    param_widgets = [widgets.FloatSlider(min=p.minval,
+                                         max=p.maxval,
+                                         value=dp,
+                                         description=name,
+                                         continuous_update=False,
+                                         step=(p.maxval-p.minval)/100)
+                     for p,name,dp in zip(params,param_names,default_params)]
+    condition_widgets = [widgets.Dropdown(options=[("All", sample_condition_values[name])]+
+                                                  [(c, [c]) for c in sample_condition_values[name]],
+                                          value=conditions[name],
+                                          description=name)
+                         for name in required_conditions]
+    util_widgets = [widgets.Checkbox(value=True, description="Real-time"),
+                    widgets.Button(description='Reset to defaults'),
+                    widgets.ToggleButton(description='Update')]
+    util_widgets[1].on_click(reset)
+
+    # Make three columns: parameters, conditions, and buttons/settings
+    layout = widgets.HBox([widgets.VBox(param_widgets),
+                           widgets.VBox(condition_widgets),
+                           widgets.VBox(util_widgets)])
+
+    # Add prefixes to parameters/conditions (see "draw" function)
+    allargs = {**{"_p_"+n:p for n,p in zip(param_names,param_widgets)},
+               **{"_c_"+n:c for n,c in zip(required_conditions,condition_widgets)},
+               **{"_update_": util_widgets[2]}}
+    # Run the display
+    out = widgets.interactive_output(draw_update, allargs)
+    disp = display(layout, out)
+
