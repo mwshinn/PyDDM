@@ -5,6 +5,8 @@ Shinn et al. (2020) - Confluence of timing and reward biases in perceptual decis
 
 :download:`Download all code referenced here (shinn2020.py) <../../downloads/shinn2020.py>`
 
+`Run this model online interactively <https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/shinn2020.ipynb>`_
+
 Model definition
 ----------------
 
