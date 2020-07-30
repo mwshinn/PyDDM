@@ -336,7 +336,7 @@ from ddm import Fittable, OverlayNonDecision, OverlayChain, Model, BoundConstant
 
 # Try both the delayed gain function version and the delayed
 # collapsing bounds versions of the model.
-if name == "__main__":
+if __name__ == "__main__":
     for URGENCY in ["collapse", "gain"]:
         # BEGIN demo
         # Define params separately from the model mechanisms, since some params will be shared.

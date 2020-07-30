@@ -556,7 +556,6 @@ def model_gui_jupyter(model,
     param_names = model.get_model_parameter_names()
     # Update the plot, as a callback function
     def draw_update(**kwargs):
-        print("Drawing")
         conditions = {}
         parameters = {}
         # To make this work with the ipython library, we prefix
@@ -564,6 +563,7 @@ def model_gui_jupyter(model,
         # with a "_c_".  Here we detect what is what, and strip away
         # the prefix.
         if not util_widgets[0].value and not util_widgets[2].value:
+            print("Update to see new plot")
             return
         for k,v in kwargs.items():
             if k.startswith("_c_"):
@@ -573,7 +573,11 @@ def model_gui_jupyter(model,
         ordered_parameters = [parameters[p] for p in param_names]
         model.set_model_parameters(ordered_parameters)
         plot(model=model, sample=sample, conditions=conditions, data_dt=data_dt)
+        # Set the "update" button back to False, but don't trigger a redraw
+        changes_tmp = util_widgets[2]._trait_notifiers['value']['change']
+        util_widgets[2]._trait_notifiers['value']['change'] = []
         util_widgets[2].value = False
+        util_widgets[2]._trait_notifiers['value']['change'] = changes_tmp
     def draw(*args, **kwargs):
         util_widgets[2].value = True
     # Reset to default values
@@ -618,5 +622,4 @@ def model_gui_jupyter(model,
                **{"_update_": util_widgets[2]}}
     # Run the display
     out = widgets.interactive_output(draw_update, allargs)
-    disp = display(layout, out)
-
+    return display(layout, out)
