@@ -13,3 +13,13 @@ of the model on only specific task parameters.  The sliders on the
 right may be used to control the parameter fit values.  The function
 to plot may also be customized; see :func:`.plot.model_gui` for more
 details.
+
+Jupyter notebook GUI
+--------------------
+
+In addition, this GUI is also compatible with Jupyter notebooks.
+
+.. image:: images/jupyter-gui.png
+
+`Try it out on Google Colab!
+<https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_demo_leaky_collapse.ipynb>`_
