@@ -176,6 +176,8 @@ Models from specific papers
 
 - :doc:`papers/shinn2020`
 
+- :doc:`papers/degee2020`
+
 Other recipes
 ~~~~~~~~~~~~~
 
