@@ -180,8 +180,8 @@ class LossLikelihood(LossFunction):
             # make sure it doesn't go unnoticed.
             with np.errstate(all='raise', under='ignore'):
                 try:
-                    loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]]) + self._robustness_param)
-                    loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]]) + self._robustness_param)
+                    loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]] + self._robustness_param))
+                    loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]] + self._robustness_param))
                 except FloatingPointError:
                     minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
                     if minlike == 0:
