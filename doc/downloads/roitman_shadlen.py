@@ -87,7 +87,7 @@ model_rs = Model(name='Roitman data, drift varies with coherence',
 
 # Fitting this will also be fast because PyDDM can automatically
 # determine that DriftCoherence will allow an analytical solution.
-fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs)
+fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, verbose=False)
 display_model(fit_model_rs)
 
 

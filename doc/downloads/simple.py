@@ -35,7 +35,7 @@ model_fit = Model(name='Simple model (fitted)',
 
 fit_adjust_model(samp, model_fit,
                  fitting_method="differential_evolution",
-                 lossfunction=LossRobustBIC)
+                 lossfunction=LossRobustBIC, verbose=False)
 
 display_model(model_fit)
 
