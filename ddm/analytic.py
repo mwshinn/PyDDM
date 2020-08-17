@@ -33,7 +33,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     nMax     = 100  # Maximum looping number
     errbnd   = 1e-10 # Error bound for looping
     suminc   = 0
-    # checkerr = 0
+    checkerr = 0
 
     for n in range(nMax):
         # increment
@@ -41,7 +41,8 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
               np.exp(tmp*(n+1)*(n*a1-(n+1)*a2))*((2*n+1)*a1-2*(n+1)*a2)
         suminc += inc
         # Break when the relative increment is low for three consecutive updates
-        if np.max(np.abs(inc/suminc)) < errbnd:
+        # np.where statement avoids dividing by 0
+        if np.max(np.abs(inc/np.where(suminc==0,1e-30,suminc))) < errbnd:
             checkerr += 1
             if checkerr == 3:
                 break
@@ -53,15 +54,17 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     dist = dist*(dist>0) # make sure non-negative
     return dist
 
-def analytic_ddm(drift, noise, b, teval, b_slope=0):
+def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0):
     '''
     Calculate the reaction time distribution of a Drift Diffusion model
     Parameters
     -------------------------------------------------------------------
     drift : Drift rate
     noise : Noise intensity
-    B     : Constant boundary
+    b     : Constant boundary (half of total bound height)
     teval : The array of time points where the reaction time distribution is evaluated
+    shift : (Optional) A shift in the starting point on the interval [0,1], expressed as a proportion
+              of total bound height 2*b, where 0.5 is the center.
     b_slope : (Optional) If provided, then the upper boundary is B(t) = b + b_slope*t,
               and the lower boundary is B(t) = -b - b_slope*t
 
@@ -69,16 +72,26 @@ def analytic_ddm(drift, noise, b, teval, b_slope=0):
     dist_cor : Reaction time distribution at teval for correct trials
     dist_err : Reaction time distribution at teval for error trials
     '''
-    # Scale B, drift, and (implicitly) noise so new noise is 1
-    b       /= noise
+    
+    #find bounds based on initial condition
+    if shift is None:
+        b_lower = b
+        b_upper = b
+    else:
+        b_lower = 2. * b * shift
+        b_upper = 2. * b - b_lower
+    
+    # Scale b, drift, and (implicitly) noise so new noise is 1
+    b_lower /= noise
+    b_upper /= noise
     drift   /= noise
     b_slope /= noise
 
     # Get valid time points (before two bounds collapsed)
     teval_valid = teval[b+b_slope*teval>0]
 
-    dist_cor = analytic_ddm_linbound(b, -drift+b_slope, -b, -drift-b_slope, teval_valid)
-    dist_err = analytic_ddm_linbound(b,  drift+b_slope, -b,  drift-b_slope, teval_valid)
+    dist_cor = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
+    dist_err = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
 
     # For invalid time points, set the probability to be a very small number
     if len(teval_valid) < len(teval):
