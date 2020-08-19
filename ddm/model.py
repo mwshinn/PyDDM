@@ -15,7 +15,7 @@ from . import parameters as param
 from .analytic import analytic_ddm
 from .models.drift import DriftConstant, Drift
 from .models.noise import NoiseConstant, Noise
-from .models.ic import ICPointSourceCenter, InitialCondition
+from .models.ic import ICPointSourceCenter, ICPoint, InitialCondition
 from .models.bound import BoundConstant, BoundCollapsingLinear, Bound
 from .models.overlay import OverlayNone, Overlay
 from .models.paranoid_types import Conditions
@@ -435,10 +435,11 @@ class Model(object):
         if "t" in noisefuncsig.parameters or "x" in noisefuncsig.parameters:
             return False
         # Check to make sure bound is one that we can solve for
-        if mt["Bound"] not in [BoundConstant, BoundCollapsingLinear]:
+        boundfuncsig = inspect.signature(mt["Bound"].get_bound)
+        if "t" in boundfuncsig.parameters and mt["Bound"]!=BoundCollapsingLinear:
             return False
-        # Make sure initial condition is at the center
-        if mt["IC"] != ICPointSourceCenter:
+        # Make sure initial condition is a single point
+        if not issubclass(mt['IC'],(ICPointSourceCenter,ICPoint)):
             return False
         # Assuming none of these is the case, return True.
         return True
@@ -490,26 +491,36 @@ class Model(object):
 
         Analytic solutions are only possible in a select number of
         special cases; in particular, it works for simple DDM and for
-        linearly collapsing bounds.  (See Anderson (1960) for
-        implementation details.)  For most reasonably complex models,
-        the method will fail.  Check whether a solution is possible
-        with has_analytic_solution().
+        linearly collapsing bounds and arbitrary single-point initial 
+        conditions. (See Anderson (1960) for implementation details.)  
+        For most reasonably complex models, the method will fail.  
+        Check whether a solution is possible with has_analytic_solution().
 
         If successful, this returns a Solution object describing the
         joint PDF.  If unsuccessful, this will raise an exception.
         """
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
         self.check_conditions_satisfied(conditions)
+        
+        #calculate shift in initial conditions if present
+        if isinstance(self.get_dependence('IC'),ICPoint):
+            ic = self.IC(conditions=conditions)
+            assert np.count_nonzero(ic)==1, "Cannot solve analytically for models with non-point initial conditions"
+            shift = np.flatnonzero(ic) / (len(ic) - 1) #rescale to proprotion of total bound height
+        else:
+            shift = None
+        
         # The analytic_ddm function does the heavy lifting.
-        if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
-                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), self.t_domain())
-        elif isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
+        if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions),
-                                                       self.t_domain(), -self.get_dependence("bound").t) # TODO why must this be negative? -MS
+                                                       self.t_domain(), shift, -self.get_dependence("bound").t) # TODO why must this be negative? -MS
+        else: # Constant bound DDM
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
+                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), 
+                                                       self.t_domain(), shift)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
         anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
@@ -528,7 +539,7 @@ class Model(object):
             anal_pdf_err /= pdfsum
 
         return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
-
+    
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
