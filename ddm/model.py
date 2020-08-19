@@ -435,7 +435,8 @@ class Model(object):
         if "t" in noisefuncsig.parameters or "x" in noisefuncsig.parameters:
             return False
         # Check to make sure bound is one that we can solve for
-        if not issubclass(mt["Bound"],(BoundConstant, BoundCollapsingLinear)):
+        boundfuncsig = inspect.signature(mt["Bound"].get_bound)
+        if "t" in boundfuncsig.parameters and mt["Bound"]!=BoundCollapsingLinear:
             return False
         # Make sure initial condition is a single point
         if not issubclass(mt['IC'],(ICPointSourceCenter,ICPoint)):
@@ -510,16 +511,16 @@ class Model(object):
             shift = None
         
         # The analytic_ddm function does the heavy lifting.
-        if isinstance(self.get_dependence('bound'), BoundConstant): # Simple DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
-                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), 
-                                                       self.t_domain(), shift)
-        elif isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
+        if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions),
                                                        self.t_domain(), shift, -self.get_dependence("bound").t) # TODO why must this be negative? -MS
+        else: # Constant bound DDM
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
+                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), 
+                                                       self.t_domain(), shift)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
         anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...

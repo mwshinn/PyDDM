@@ -135,6 +135,22 @@ class TestSimulation(TestCase):
         # maximum.
         # 
         # _modeltest_pdf_evolution(self.bound)
+    def test_ICPoint(self):
+        """Arbitrary pointwise initial condition"""
+        m = ddm.Model(name='ICPoint_test',
+              drift=ddm.DriftConstant(drift=2),
+              noise=ddm.NoiseConstant(noise=1.5),
+              bound=ddm.BoundConstant(B=1),
+              IC=ddm.ICPoint(x0=-.25))
+        _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+    def test_ICPoint_collapsing_bounds(self):
+        m = ddm.Model(name='ICPoint_BCollapsingLin_test',
+              drift=ddm.DriftConstant(drift=2),
+              noise=ddm.NoiseConstant(noise=1.5),
+              bound=ddm.BoundCollapsingLinear(B=1,t=0.5),
+              IC=ddm.ICPoint(x0=-.25))
+        _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+
 
 class TestFit(TestCase):
     def setUp(self):
