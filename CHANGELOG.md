@@ -1,3 +1,46 @@
+# Version 0.5.0
+
+Released: September 15, 2020
+
+## New features
+
+- Jupyter notebook compatibility
+
+    In addition to the classic model GUI, it is now possible to
+    explore models interactively in Jupyter notebooks using the
+    "ddm.plot.model_gui_jupyter" function.  With this change, PyDDM
+    also now offers online interactive examples.
+
+- Analytical solutions for arbitrary point source initial conditions (thanks Nathan!)
+
+    Analytical solutions are now implemented for point source initial
+    conditions at points other than x=0.  The analytical solver will
+    automatically detect if you have specified a compatible model, and
+    if so, it will solve it analytically instead of numerically.  This
+    leads to speed boosts of several orders of magnitude for these
+    models.
+
+- Prescriptive warning messages
+
+    When possible, warnings now give details of how to correct the
+    model, for example, by decreasing dx or dt.
+
+## Bug fixes
+
+- Fix broken robust loss functions
+- Example code no longer gives warning messages
+- Fixed integer overflows on Windows
+- Fixed underflow warning messages on model simulation for specific
+  models (thanks Nathan!)
+
+## Breaking changes
+
+- The "get_model_parameters" function now does not return repeated
+  parameters.  So, if two parameters in your model share the same
+  Fittable object, meaning they are fit together, only one copy of
+  this will be listed in calls to "get_model_parameters".
+  Corresponding changes were made to "set_model_parameters".
+
 # Version 0.4.0
 
 Released: June 19, 2020
