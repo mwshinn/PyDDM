@@ -603,7 +603,7 @@ def model_gui_jupyter(model,
                      for p,name,dp in zip(params,param_names,default_params)]
     condition_widgets = [widgets.Dropdown(options=[("All", sample_condition_values[name])]+
                                                   [(c, [c]) for c in sample_condition_values[name]],
-                                          value=conditions[name],
+                                          value=sample_condition_values[name],
                                           description=name)
                          for name in required_conditions]
     util_widgets = [widgets.Checkbox(value=True, description="Real-time"),
