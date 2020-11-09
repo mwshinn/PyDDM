@@ -206,3 +206,30 @@ Your model may be slow for a number of different reasons.
   start.  If dx and dt are larger than 0.01, your estimated response
   time distribution will be inaccurate, and if dx and dt are smaller
   than 0.0001, solving the model will be extremely slow.
+
+How many trials do I need to fit a GDDM to data?
+------------------------------------------------
+
+Since the GDDM is a framework rather than a specific model, there is no firm
+minimum number of trials you need to fit a GDDM.  All GDDMs are different, and
+so different models, fitting procedures, and objective functions could require
+different sample sizes.
+
+However, in general, there cannot be a "minimum sample size", because the more
+data available, the more precise the parameters estimates will be.  Therefore,
+the required sample size depends on how much variability one is willing to
+tolerate in the parameter estimates.  This is true for other packages as well,
+and so when other packages make claims about minimum sample size, these
+estimates should be interpreted as rough guides of what people tend to use
+rather than interpreted literally.
+
+However, PyDDM makes it easy to test parameter recovery, which can be considered
+a gold standard for determining the required sample size.  This allows you to
+determine how many trials you need in order to get the parameter variability
+you're willing to tolerate.  The idea is to build the model you want to fit,
+choose reasonable-ish default parameters, and then simulate several trials from
+that model using the :meth:`.Solution.resample` method.  After you simulate
+these trials for different sample sizes, you fit the same model (but with
+Fittable parameters) to the generated data. Then, you can find how close the
+parameter estimates are to the actual parameters when you have different sample
+sizes.
