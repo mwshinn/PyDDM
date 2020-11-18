@@ -331,14 +331,14 @@ class Sample(object):
         if required_conditions is not None:
             names = [n for n in names if n in required_conditions]
         for c in names:
-            conditions.append(list(set(cs[c][0]).union(set(cs[c][1]))))
-        combs = []
-        for p in itertools.product(*conditions):
-            if len(self.subset(**dict(zip(names, p)))) != 0:
-                combs.append(dict(zip(names, p)))
+            undecided = cs[c][2] if len(cs) == 3 else np.asarray([])
+            joined = np.concatenate([cs[c][0], cs[c][1], undecided])
+            conditions.append(joined)
+        alljoined = np.asarray(conditions)
+        combs = list(set(tuple(row) for row in alljoined.T))
         if len(combs) == 0: # Generally not needed since iterools.product does this
             return [{}]
-        return combs
+        return [dict(zip(names, c)) for c in combs]
 
     @staticmethod
     @accepts(dt=Positive, T_dur=Positive)
