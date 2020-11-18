@@ -331,11 +331,11 @@ class Sample(object):
         if required_conditions is not None:
             names = [n for n in names if n in required_conditions]
         for c in names:
-            undecided = cs[c][2] if len(cs) == 3 else np.asarray([])
+            undecided = cs[c][2] if len(cs[c]) == 3 else np.asarray([])
             joined = np.concatenate([cs[c][0], cs[c][1], undecided])
             conditions.append(joined)
-        alljoined = np.asarray(conditions)
-        combs = list(set(tuple(row) for row in alljoined.T))
+        alljoined = list(zip(*conditions))
+        combs = list(set(alljoined))
         if len(combs) == 0: # Generally not needed since iterools.product does this
             return [{}]
         return [dict(zip(names, c)) for c in combs]

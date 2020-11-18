@@ -403,21 +403,28 @@ class TestSample(TestCase):
         assert self.samps["two"].condition_values("condb") == [1, 2]
     def test_condition_combinations(self):
         """Condition combinations are a cartesian product of condition values"""
+        def identical_conditions(c1, c2):
+            for cond in c1:
+                if cond not in c2:
+                    return False
+            for cond in c2:
+                if cond not in c1:
+                    return False
+            return True
         # If we want nothing
         assert self.samps["conds"].condition_combinations([]) == [{}]
         # If nothing matches
         assert self.samps["conds"].condition_combinations(["xyz"]) == [{}]
         # If we want everything
-        assert self.samps["conds"].condition_combinations(None) == [{"cond1": 1}, {"cond1": 2}]
+        assert identical_conditions(self.samps["conds"].condition_combinations(None), [{"cond1": 1}, {"cond1": 2}])
         # Limit to one condition
-        assert self.samps["conds"].condition_combinations(["cond1"]) == [{"cond1": 1}, {"cond1": 2}]
+        assert identical_conditions(self.samps["conds"].condition_combinations(["cond1"]), [{"cond1": 1}, {"cond1": 2}])
         # More conditions
         conds_two = self.samps["two"].condition_combinations()
         exp_conds_two = [{"conda": "a", "condb": 1},
                          {"conda": "b", "condb": 2},
                          {"conda": "a", "condb": 2}]
-        assert all(a in exp_conds_two for a in conds_two)
-        assert all(a in conds_two for a in exp_conds_two)
+        assert identical_conditions(conds_two, exp_conds_two)
     def test_pdfs(self):
         """Produce valid distributions which sum to one"""
         dt = .02
