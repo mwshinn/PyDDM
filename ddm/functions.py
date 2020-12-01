@@ -340,9 +340,11 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     elif fitting_method == "simplex":
         x_fit = minimize(_fit_model, x_0, method='Nelder-Mead')
     elif fitting_method == "basin":
-        x_fit = basinhopping(_fit_model, x_0, minimizer_kwargs={"bounds" : constraints, "method" : "TNC"}, disp=True, **fitparams)
+        x_fit = basinhopping(_fit_model, x_0, minimizer_kwargs={"bounds" : constraints, "method" : "TNC"}, **fitparams)
     elif fitting_method == "differential_evolution":
-        x_fit = differential_evolution(_fit_model, constraints, disp=True, **fitparams)
+        if "disp" not in fitparams.keys():
+            fitparams["disp"] = verbose
+        x_fit = differential_evolution(_fit_model, constraints, **fitparams)
     elif fitting_method == "hillclimb":
         x_fit = evolution_strategy(_fit_model, x_0, **fitparams)
     elif callable(fitting_method):
