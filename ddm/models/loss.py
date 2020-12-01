@@ -189,8 +189,9 @@ class LossLikelihood(LossFunction):
                     elif minlike < 0:
                         print("Warning: infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
                     return np.inf
-            if sols[k].prob_undecided() > 0:
-                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+            # This is not a valid way to incorporate undecided trials into a likelihood
+            #if sols[k].prob_undecided() > 0:
+            #    loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
 

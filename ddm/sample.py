@@ -49,8 +49,8 @@ class Sample(object):
         # Most testing is done in the constructor and the data is read
         # only, so this isn't strictly necessary
         assert type(v) is cls
-        assert v.corr in NDArray(d=1, t=Number), "sample_corr not a numpy array, it is " + str(type(v.corr))
-        assert v.err in NDArray(d=1, t=Number), "sample_err not a numpy array, it is " + str(type(v.err))
+        assert v.corr in NDArray(d=1, t=Positive0), "sample_corr not a numpy array with elements greater than 0, it is " + str(type(v.corr))
+        assert v.err in NDArray(d=1, t=Positive0), "sample_err not a numpy array with elements greater than 0, it is " + str(type(v.err))
         assert v.undecided in Natural0(), "undecided not a natural number"
         for k,val in v.conditions.items():
             # Make sure shape and type are correct
