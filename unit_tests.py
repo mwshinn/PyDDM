@@ -485,6 +485,8 @@ class TestSample(TestCase):
         for _,s in self.samps.items():
             if s.undecided == 0:
                 assert s == ddm.Sample.from_pandas_dataframe(s.to_pandas_dataframe("a", "b"), "a", "b")
+            else:
+                assert len(s.corr)+len(s.err) == len(s.to_pandas_dataframe("a", "b", drop_undecided=True))
 
 class TestSolution(TestCase):
     def setUp(self):

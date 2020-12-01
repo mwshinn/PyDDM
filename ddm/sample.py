@@ -7,7 +7,7 @@
 import numpy as np
 import itertools
 
-from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Maybe, Nothing
+from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Maybe, Nothing, Boolean
 from paranoid.decorators import *
 from .models.paranoid_types import Conditions
 
@@ -211,14 +211,20 @@ class Sample(object):
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
         conditions = {k: (pt(df[c][k]), pt(df[nc][k]), np.asarray([])) for k in column_names}
         return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, **conditions)
-    @accepts(Self, String, String)
-    @requires("self.undecided == 0") # No undecided trials for this method
-    def to_pandas_dataframe(self, rt_column_name='RT', correct_column_name='correct'):
+    @accepts(Self, String, String, Boolean)
+    @requires("self.undecided == 0 or drop_undecided is True") # Undecided trials require the drop_undecided flag
+    def to_pandas_dataframe(self, rt_column_name='RT', correct_column_name='correct', drop_undecided=False):
         """Convert the sample to a Pandas dataframe.
 
         `correct_column_name` is the column label for the response
         time, and `rt_column_name` is the column label for whether a
         trial is correct or incorrect.
+
+        Because undecided trials do not have an RT or correct/error, they are
+        cannot be added to the data frame.  To ignore them, thereby creating a
+        dataframe which is smaller than the sample, set `drop_undecided` to
+        True.
+
         """
         import pandas
         all_trials = []
