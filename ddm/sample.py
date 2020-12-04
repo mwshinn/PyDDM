@@ -211,8 +211,6 @@ class Sample(object):
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
         conditions = {k: (pt(df[c][k]), pt(df[nc][k]), np.asarray([])) for k in column_names}
         return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, **conditions)
-    @accepts(Self, String, String, Boolean)
-    @requires("self.undecided == 0 or drop_undecided is True") # Undecided trials require the drop_undecided flag
     def to_pandas_dataframe(self, rt_column_name='RT', correct_column_name='correct', drop_undecided=False):
         """Convert the sample to a Pandas dataframe.
 
@@ -228,6 +226,8 @@ class Sample(object):
         """
         import pandas
         all_trials = []
+        if self.undecided != 0 and drop_undecided is False:
+            raise ValueError("The sample object has undecided trials.  These do not have an RT or a P(correct), so they cannot be converted to a data frame.  Please use the 'drop_undecided' flag when calling this function.")
         conditions = list(self.condition_names())
         columns = [correct_column_name, rt_column_name] + conditions
         for trial in self.items(correct=True):
