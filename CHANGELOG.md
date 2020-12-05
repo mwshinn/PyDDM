@@ -1,3 +1,21 @@
+# Version 0.5.1
+
+Released December 4, 2020
+
+## Minor changes
+
+- Option to suppress output in differential evolution
+- Option to drop undecided trials when converting a sample to a pandas dataframe
+
+## Bug fixes
+
+- Fixes a bug in which Solution.resample can sometimes give negative RTs under
+  certain conditions
+- Fixes a bug in likelihood-based fitting methods which produced incorrect
+  results when fitting with undecided trials
+- Fixes a bug in condition_combinations which made fitting very slow for Samples
+  with many conditions
+
 # Version 0.5.0
 
 Released: September 15, 2020

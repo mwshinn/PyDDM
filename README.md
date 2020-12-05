@@ -24,9 +24,9 @@ Key features include:
   techniques
 
 See the
-[documentation](https://pyddm.readthedocs.io/en/stable/index.html),
-[FAQs](https://pyddm.readthedocs.io/en/stable/faqs.html), or
-[tutorial](https://pyddm.readthedocs.io/en/stable/quickstart.html) for
+[documentation](https://pyddm.readthedocs.io/en/latest/index.html),
+[FAQs](https://pyddm.readthedocs.io/en/latest/faqs.html), or
+[tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html) for
 more information.  You can also sign up for [release announcements by
 email](https://www.freelists.org/list/pyddm-announce).
 
