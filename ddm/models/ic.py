@@ -87,7 +87,8 @@ class ICPoint(InitialCondition):
         start = np.round(self.x0/dx)
         # Positive bias for high reward conditions, negative for low reward
         shift_i = int(start + (len(x)-1)/2)
-        assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
+        assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions: " \
+            "Please ensure the value of the parameter x0 falls within the bounds."
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=self.x0.
         return pdf
