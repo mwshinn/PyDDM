@@ -85,6 +85,8 @@ default).  Instead, I want my initial conditions to be:
 
   - :ref:`A single point at an arbitrary location with a sign which depends on task conditions <ic-biased>`
 
+  - :ref:`A single point determined as a ratio of bound height (useful for fitting bound height) <ic-ratio>`
+
 - A uniform distribution
 
   - :class:`A uniform distribution across all potential starting positions <.ICUniform>`
@@ -128,7 +130,7 @@ according to:
 
 - :class:`A uniform distribution <.OverlayUniformMixture>`
 
-- :class:`An exponential distribution <.OverlayPoissonMixture>`
+- :class:`An exponential distribution (corresponding to a Poisson process) <.OverlayExponentialMixture>`
 
 - Something else (Write your own)
 

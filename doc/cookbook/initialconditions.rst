@@ -72,6 +72,12 @@ In practice, these are very similar, but the latter gives a smoother
 derivative, which may be useful for gradient-based fitting methods
 (which are not used by default).
 
+
+.. _ic-ratio:
+
+Fixed ratio instead of fixed value
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 When fitting both the initial condition and the bound height, it can
 be preferable to express the initial condition as a proportion of the total
 distance between the bounds. This ensures that the initial condition will always

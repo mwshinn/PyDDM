@@ -5,7 +5,7 @@ How do I know if my model will run analytically or numerically?
 ---------------------------------------------------------------
 
 The function :func:`~ddm.model.Model.solve` will automatically choose the best
-solver for your model.  Solves, in order of preference, are
+solver for your model.  Solvers, in order of preference, are
 
 1. Analytical
 2. Crank-Nicolson
@@ -162,17 +162,17 @@ mixed with another distribution (called a "lapse", "contaminant", or
 non-DDM process.  Traditionally :class:`a uniform distribution
 <.OverlayUniformMixture>` has been used, but PyDDM also offers the
 option of using :class:`an exponential distribution
-<.OverlayPoissonMixture>`, which has the benefit of providing a flat
+<.OverlayExponentialMixture>`, which has the benefit of providing a flat
 lapse rate hazard function.  If you would also like to have a
 non-decision time, you may need to :class:`chain together multiple
 overlays <.OverlayChain>`.
 
-The easier option is to use the LossRobustLikelihood function.  This
-imposes a minimum value for the likelihood.  In theory, it is similar
-to imposing a uniform distribution, but with an unspecified mixture
-probability.  It will give nearly identical results as LossLikelihood
-if there are no invalid results, but due to the minimum it imposes,
-it is more of an approximation than the true likelihood.
+The easier option is to use the :class:`LossRobustLikelihood
+<.LossRobustLikelihood>` loss function.  This imposes a minimum value for the
+likelihood.  In theory, it is similar to imposing a uniform distribution, but
+with an unspecified mixture probability.  It will give nearly identical results
+as LossLikelihood if there are no invalid results, but due to the minimum it
+imposes, it is more of an approximation than the true likelihood.
 
 Why do I get oscillations in my simulated RT distribution?
 ----------------------------------------------------------
