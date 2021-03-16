@@ -473,7 +473,15 @@ class Model(object):
     def solve(self, conditions={}, return_evolution=False):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
-        Return a Solution object describing the joint PDF distribution of reaction times."""
+        First, it tries to use Crank-Nicolson as the solver, and then backward
+        Euler.  See documentation of Model.solve_numerical() for more information.
+
+        The return_evolution argument should be set to True if you need to use
+        the Solution.get_evolution() function from the returned Solution.
+
+        Return a Solution object describing the joint PDF distribution of reaction times.
+
+        """
         # TODO solves this using the dis module as described in the
         # comment for can_solve_cn
         self.check_conditions_satisfied(conditions)
@@ -727,13 +735,19 @@ class Model(object):
     @returns(Solution)
     @requires("self.can_solve_explicit(conditions=conditions)")
     def solve_numerical_explicit(self, conditions={}, **kwargs):
-        """Solve the model using the explicit method (Forward Euler)."""
+        """Solve the model using the explicit method (Forward Euler).
+
+        See documentation for the solve_numerical method.
+        """
         return self.solve_numerical(method="explicit", conditions=conditions, **kwargs)
 
     @accepts(Self, Conditions)
     @returns(Solution)
     def solve_numerical_implicit(self, conditions={}, **kwargs):
-        """Solve the model using the implicit method (Backward Euler)."""
+        """Solve the model using the implicit method (Backward Euler).
+
+        See documentation for the solve_numerical method.
+        """
         return self.solve_numerical(method="implicit", conditions=conditions, **kwargs)
 
     @accepts(Self, conditions=Conditions)
