@@ -454,8 +454,9 @@ class OverlayNonDecisionGamma(Overlay):
         weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.nondectime).pdf(times)
         if np.sum(weights) > 0:
             weights /= np.sum(weights) # Ensure it integrates to 1
-        newcorr = np.convolve(corr, weights, mode="full")[len(corr):(2*len(corr))]
-        newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]
+        # Divide by 1+1e-14 to avoid numerical errors after the convolution, which are on the order of 10^-16
+        newcorr = np.convolve(corr, weights, mode="full")[len(corr):(2*len(corr))]/(1+1e-14)
+        newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]/(1+1e-14)
         return Solution(newcorr, newerr, solution.model,
                         solution.conditions, solution.undec, solution.evolution)
     @accepts(Self, NDArray(d=1, t=Number), Unchecked)
