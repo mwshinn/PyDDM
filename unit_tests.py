@@ -355,6 +355,9 @@ class TestSample(TestCase):
             # Sample with conditions
             "conds": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
                                 cond1=(aa([1, 1, 2]), aa([]))),
+            # Sample with conditions as strings
+            "condsstr": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
+                                cond1=(aa(["x", "yy", "z z z"]), aa([]))),
             # Sample with conditions and explicitly showing undecided
             "condsexp": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
                                    cond1=(aa([1, 1, 2]), aa([]), aa([]))),
@@ -450,10 +453,13 @@ class TestSample(TestCase):
         # Create a list to make sure we don't iterate past the end
         list(self.samps["conds"].items(correct=True))
         list(self.samps["conds"].items(correct=False))
+        list(self.samps["condsstr"].items(correct=True))
+        list(self.samps["condsstr"].items(correct=False))
     def test_subset(self):
         """Filter a sample by some conditions"""
         # Basic access
         assert len(self.samps['conds'].subset(cond1=2)) == 1
+        assert len(self.samps['condsstr'].subset(cond1="z z z")) == 1
         # The elements being accessed
         assert list(self.samps['conds'].subset(cond1=1).corr) == [1, 2]
         # An empty subset with two conditions
@@ -481,6 +487,8 @@ class TestSample(TestCase):
         cond_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': [1, 1, 2]})
         assert ddm.Sample.from_pandas_dataframe(cond_df, 'rt', 'c') == self.samps['conds']
         assert ddm.Sample.from_pandas_dataframe(cond_df, correct_column_name='c', rt_column_name='rt') == self.samps['condsexp']
+        condsstr_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': ["x", "yy", "z z z"]})
+        assert ddm.Sample.from_pandas_dataframe(condsstr_df, 'rt', 'c') == self.samps['condsstr']
     def test_to_pandas(self):
         for _,s in self.samps.items():
             if s.undecided == 0:

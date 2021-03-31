@@ -204,7 +204,9 @@ class Sample(object):
         nc = (1-df[correct_column_name]).astype(bool)
         def pt(x): # Pythonic types
             arr = np.asarray(x)
-            if np.all(arr == np.round(arr)):
+            # Need to use the (slow) array operation here because of a bug in
+            # numpy.isreal for strings.
+            if np.all([np.isreal(a) for a in arr]) and np.all(arr == np.round(arr)):
                 arr = arr.astype(np.int64)
             return arr
 
