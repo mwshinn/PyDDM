@@ -111,9 +111,8 @@ class BoundCollapsingExponential(Bound):
     Takes two parameters: 
 
     - `B` - the bound at time t = 0.
-    - `tau` - one divided by the time constant for the collapse,
-      should be greater than zero for collapsing bounds, less than
-      zero for increasing bounds.  0 gives constant bounds.
+    - `tau` - one divided by the time constant for the collapse.
+      0 gives constant bounds.
 
     Example usage:
 
