@@ -151,6 +151,14 @@ class TestDependences(TestCase):
         ic = icrange.get_IC(x=np.arange(-.48, .48001, .02), dx=.02)
         assert np.all(np.isclose(ic, ic[::-1]))
         assert len(set(ic)) == 2
+    def test_ICGaussian(self):
+        """Gaussian distribution of starting conditions centered at 0"""
+        # Make sure it integrates to 1
+        icgauss1 = ddm.models.ICGaussian(stdev=.1)
+        icgauss2 = ddm.models.ICGaussian(stdev=.9)
+        params = dict(x=np.arange(-1, 1.0001, .01), dx=.01)
+        assert np.all(np.isclose(np.sum(icgauss1.get_IC(**params)), 1))
+        assert np.all(np.isclose(np.sum(icgauss2.get_IC(**params)), 1))
     def test_OverlayNone(self):
         """No overlay"""
         s = ddm.Model().solve()

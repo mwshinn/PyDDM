@@ -168,7 +168,7 @@ class ICGaussian(InitialCondition):
     def _generate():
         yield ICGaussian(stdev=.2)
     @accepts(Self, NDArray(d=1, t=Number), Positive)
-    @requires("np.all(np.isclose(x-x[::-1], 0))") # Symmetric across x=y
+    @requires("np.all(np.isclose(x+x[::-1], 0))") # Symmetric around 0
     @returns(NDArray(t=Number, d=1))
     @ensures('np.isclose(np.sum(return), 1)')
     @ensures('np.all(np.isclose(return[::-1], return))') # Symmetric
