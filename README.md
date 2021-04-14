@@ -23,11 +23,12 @@ Key features include:
 - Verified accuracy of simulations using novel program verification
   techniques
 
-See the
-[documentation](https://pyddm.readthedocs.io/en/latest/index.html),
+See the [documentation](https://pyddm.readthedocs.io/en/latest/index.html),
 [FAQs](https://pyddm.readthedocs.io/en/latest/faqs.html), or
-[tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html) for
-more information.  You can also sign up for [release announcements by
+[tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html) for more
+information.  See the [Github
+Forums](https://github.com/mwshinn/PyDDM/discussions) for help from the PyDDM
+community.  You can also sign up for [release announcements by
 email](https://www.freelists.org/list/pyddm-announce).
 
 Please note that PyDDM is still beta software so you may experience
@@ -61,13 +62,16 @@ If installing from source, [download the source code](https://github.com/mwshinn
 
 ## Contact
 
+For help on using PyDDM, see the [Github
+Forums](https://github.com/mwshinn/PyDDM/discussions).
+
 Please report bugs to <https://github.com/mwshinn/pyddm/issues>.  This
-includes any problems with the documentation.  PRs for bugs are
+includes any problems with the documentation.  Pull Requests for bugs are
 greatly appreciated.
 
 Feature requests are currently not being accepted due to limited
 resources.  If you implement a new feature in PyDDM, please do the
-following before submitting a PR on Github:
+following before submitting a Pull Request on Github:
 
 - Make sure your code is clean and well commented
 - If appropriate, update the official documentation in the docs/
