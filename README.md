@@ -1,7 +1,5 @@
 # PyDDM - A drift-diffusion model simulator
 
-[![Build Status](https://travis-ci.com/mwshinn/PyDDM.svg?branch=master)](https://travis-ci.com/mwshinn/PyDDM)
-
 # Overview
 
 PyDDM is a simulator and modeling framework for drift-diffusion models
@@ -54,7 +52,7 @@ If installing from source, [download the source code](https://github.com/mwshinn
 
 - Python 3.5 or above
 - Numpy version 1.9.2 or higher
-- Scipy version 0.15.1 or higher
+- Scipy version 0.16.0 or higher
 - Matplotlib
 - [Paranoid Scientist](<https://github.com/mwshinn/paranoidscientist>)
 - Pathos (optional, for multiprocessing support)
