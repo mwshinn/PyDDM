@@ -1,9 +1,9 @@
-# PyDDM - A drift-diffusion model simulator
+# PyDDM - A generalized drift-diffusion model simulator
 
 # Overview
 
-PyDDM is a simulator and modeling framework for drift-diffusion models
-(DDM), with a focus on cognitive neuroscience.
+PyDDM is a simulator and modeling framework for generalized drift-diffusion
+models (DDM), with a focus on cognitive neuroscience.
 
 Key features include:
 
@@ -28,9 +28,6 @@ information.  See the [Github
 Forums](https://github.com/mwshinn/PyDDM/discussions) for help from the PyDDM
 community.  You can also sign up for [release announcements by
 email](https://www.freelists.org/list/pyddm-announce).
-
-Please note that PyDDM is still beta software so you may experience
-some glitches or uninformative error messages.
 
 
 ## Installation
