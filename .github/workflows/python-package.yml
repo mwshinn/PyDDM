@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.5, 3.6, 3.7, 3.8, 3.9]
-        dep-versions: [numpy scipy pandas]
+        dep-versions: [numpy scipy pandas matplotlib]
         include:
           - python-version: 3.5
-            dep-versions: numpy==1.9.2 scipy==0.16.0 pandas==0.16.2
+            dep-versions: numpy==1.9.2 scipy==0.16.0 pandas==0.18.1 matplotlib==1.5.3
           - python-version: 3.6
-            dep-versions: numpy==1.9.2 scipy==0.16.0 pandas==0.16.2
+            dep-versions: numpy==1.9.2 scipy==0.16.0 pandas==0.18.1 matplotlib==1.5.3
             
 
     steps:
@@ -32,7 +32,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install ${{ matrix.dep-versions }}
-        python -m pip install pytest paranoid-scientist matplotlib
+        python -m pip install pytest paranoid-scientist pathos
     - name: Run tests
       run: |
         ./runtests.sh
