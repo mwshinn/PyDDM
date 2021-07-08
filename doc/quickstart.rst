@@ -144,6 +144,29 @@ using :meth:`~.Solution.pdf_err`.
 See :class:`the Solution object documentation <.Solution>` for more
 such functions.
 
+To save the model for later use, we can use the repr() function built-in to
+Python.  This function outputs a string with all the information needed to
+recreate the object.  It is very similar to the print() function, except it
+saves the result as a string rather than displaying it.  To save, do the
+following:
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 53-54
+
+Then, you can load the saved model with the following.  You may need to add
+additional imports from PyDDM if you get an "import error".
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 57-59
+
+If you would like to just access the parameters for a separate analysis, you can
+save them with :meth:`~.Model.get_model_parameters`.  The names of these
+parameters can be accessed with :meth:`~.Model.get_model_parameter_names`.  Note
+that any "Fitted" value can be used as if it is a number/float.  (It is actually
+a subclass of "float"!)
+
 :download:`Download this full example <downloads/simple.py>`
            
 Working with data

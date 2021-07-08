@@ -2,7 +2,7 @@
 
 # Create a simple model with constant drift, noise, and bounds.
 from ddm import Model
-from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision
+from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision, ICPointSourceCenter
 from ddm.functions import fit_adjust_model, display_model
 
 model = Model(name='Simple model',
@@ -23,7 +23,7 @@ samp = sol.resample(1000)
 
 # Fit a model identical to the one described above on the newly
 # generated data so show that parameters can be recovered.
-from ddm import Fittable
+from ddm import Fittable, Fitted
 from ddm.models import LossRobustBIC
 from ddm.functions import fit_adjust_model
 model_fit = Model(name='Simple model (fitted)',
@@ -48,3 +48,12 @@ plt.show()
 
 print(sol.prob_correct())
 print(sol.pdf_err())
+
+# Save the model
+with open("model.txt", "w") as f:
+    f.write(repr(model_fit))
+
+# Load the model
+from ddm import FitResult
+with open("model.txt", "r") as f:
+    model_loaded = eval(f.read())
