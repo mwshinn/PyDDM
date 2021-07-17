@@ -57,7 +57,7 @@ rewards, and we hypothesize that different bounds are used in these
 two cases.  We could create the following Bound object which allows
 the bounds in the two blocks to be fit independently::
 
-  class BoundReward(ddm.Drift):
+  class BoundReward(ddm.Bound):
       name = "Reward-modulated bounds"
       required_conditions = ["block"]
       required_parameters = ["bound1", "bound2"]
@@ -83,7 +83,7 @@ described above modulates the rate of collapse in exponentially
 collapsing bounds.  This could be modeled as::
 
   import numpy as np
-  class BoundReward(ddm.Drift):
+  class BoundReward(ddm.Bound):
       name = "Reward-modulated bounds"
       required_conditions = ["block"]
       required_parameters = ["rate1", "rate2", "B0"]
