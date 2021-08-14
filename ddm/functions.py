@@ -550,13 +550,17 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
         # Build cond_combs as the data matrix iteratively. Initial
         # value is a correct response with an RT of 1 (as per the
         # first expected elements of Sample.from_numpy_array().
-        cond_combs = [[0, 1]] 
+        cond_combs = [[0, 1]]
         all_conds = list(sorted(conditions.keys()))
         for c in all_conds:
             vs = conditions[c]
             if not isinstance(vs, list):
                 vs = [vs]
             cond_combs = [cc + [v] for cc in cond_combs for v in vs]
+        # Quick fix for bug with a tuple as a condition and only one set of
+        # conditions
+        if len(cond_combs) == 1:
+            cond_combs = cond_combs + cond_combs
         samp = Sample.from_numpy_array(np.asarray(cond_combs), all_conds)
     model_corr = 0*model.t_domain()
     model_err = 0*model.t_domain()

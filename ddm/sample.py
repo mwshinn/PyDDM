@@ -146,7 +146,7 @@ class Sample(object):
             conditions[k] = (bothc, bothe, bothn)
         return Sample(corr, err, undecided, **conditions)
     @staticmethod
-    @accepts(NDArray(d=2, t=Number), List(String))
+    @accepts(NDArray(d=2), List(String))
     @returns(Self)
     @requires('data.shape[1] >= 2')
     @requires('set(list(data[:,1])) - {0, 1} == set()')
@@ -170,8 +170,16 @@ class Sample(object):
         nc = (1-data[:,1]).astype(bool)
         def pt(x): # Pythonic types
             arr = np.asarray(x)
-            if np.all(arr == np.round(arr)):
-                arr = arr.astype(np.int64)
+            # The following is somewhat of a hack to get rid of object arrays
+            # when a condition is not a number (e.g. string or tuple)
+            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
+                return arr
+            arr = np.asarray(arr.tolist())
+            try:
+                if np.all(arr == np.round(arr)):
+                    arr = arr.astype(np.int64)
+            except TypeError:
+                pass
             return arr
 
         conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), np.asarray([])) for i,k in enumerate(column_names)}
@@ -198,16 +206,27 @@ class Sample(object):
         remaining columns should be conditions.  This function does
         not yet work with undecided trials.
         """
+        if len(df) == 0:
+            print("Warning: Empty DataFrame")
         if np.mean(df[rt_column_name]) > 50:
             print("Warning: RTs should be specified in seconds, not milliseconds")
+        for _,col in df.items():
+            if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
+                raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")
         c = df[correct_column_name].astype(bool)
         nc = (1-df[correct_column_name]).astype(bool)
         def pt(x): # Pythonic types
             arr = np.asarray(x)
-            # Need to use the (slow) array operation here because of a bug in
-            # numpy.isreal for strings.
-            if np.all([np.isreal(a) for a in arr]) and np.all(arr == np.round(arr)):
-                arr = arr.astype(np.int64)
+            # The following is somewhat of a hack to get rid of object arrays
+            # when a condition is not a number (e.g. string or tuple)
+            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
+                return arr
+            arr = np.asarray(arr.tolist())
+            try:
+                if np.all(arr == np.round(arr)):
+                    arr = arr.astype(np.int64)
+            except TypeError:
+                pass
             return arr
 
         column_names = [e for e in df.columns if not e in [rt_column_name, correct_column_name]]
@@ -277,14 +296,17 @@ class Sample(object):
                 mask_corr = np.logical_and(mask_corr, [v(i) for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [v(i) for i in  self.conditions[k][1]])
                 mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, [v(i) for i in self.conditions[k][2]])
-            elif hasattr(v, '__contains__'):
+            elif isinstance(v, (list, np.ndarray)):
                 mask_corr = np.logical_and(mask_corr, [i in v for i in self.conditions[k][0]])
                 mask_err = np.logical_and(mask_err, [i in v for i in self.conditions[k][1]])
                 mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, [i in v for i in self.conditions[k][2]])
             else:
-                mask_corr = np.logical_and(mask_corr, v == self.conditions[k][0])
-                mask_err = np.logical_and(mask_err, v == self.conditions[k][1])
-                mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, v == self.conditions[k][2])
+                # Create a zero-dimensional array so this will work with tuples too
+                val = np.array(None)
+                val[()] = v
+                mask_corr = np.logical_and(mask_corr, val == self.conditions[k][0])
+                mask_err = np.logical_and(mask_err, val == self.conditions[k][1])
+                mask_undec = np.asarray([], dtype=bool) if self.undecided == 0 else np.logical_and(mask_undec, val == self.conditions[k][2])
         for k,v in self.conditions.items():
             assert len(v[0]) == len(mask_corr)
             assert len(v[1]) == len(mask_err)
@@ -319,6 +341,12 @@ class Sample(object):
         if len(cs[cond]) == 3:
             cvs = cvs.union(set(cs[cond][2]))
         return sorted(list(cvs))
+        # Saved in case we later come across a bug with sets not working for mutable condition values
+        # if len(cs[cond]) == 3:
+        #     grouped = itertools.groupby(sorted(list(cs[cond][0])+list(cs[cond][1])+list(cs[cond][2])))
+        # elif len(cs[cond]) == 2:
+        #     grouped = itertools.groupby(sorted(list(cs[cond][0])+list(cs[cond][1])))
+        # return [g for g,_ in grouped]
     @accepts(Self, Maybe(List(String)))
     @returns(List(Conditions))
     def condition_combinations(self, required_conditions=None):
@@ -343,6 +371,8 @@ class Sample(object):
             joined = np.concatenate([cs[c][0], cs[c][1], undecided])
             conditions.append(joined)
         alljoined = list(zip(*conditions))
+        # Saved in case we later come across a bug with sets not working for mutable condition values
+        # combs = [g for g,_ in itertools.groupby(sorted(alljoined))]
         combs = list(set(alljoined))
         if len(combs) == 0: # Generally not needed since iterools.product does this
             return [{}]
