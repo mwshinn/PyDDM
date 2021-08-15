@@ -561,7 +561,7 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
         # conditions
         if len(cond_combs) == 1:
             cond_combs = cond_combs + cond_combs
-        samp = Sample.from_numpy_array(np.asarray(cond_combs), all_conds)
+        samp = Sample.from_numpy_array(np.asarray(cond_combs, dtype=object), all_conds)
     model_corr = 0*model.t_domain()
     model_err = 0*model.t_domain()
     model_undec = -1 # Set to dummy value -1 so we can detect this in our loop

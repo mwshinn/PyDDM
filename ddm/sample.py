@@ -169,7 +169,7 @@ class Sample(object):
         c = data[:,1].astype(bool)
         nc = (1-data[:,1]).astype(bool)
         def pt(x): # Pythonic types
-            arr = np.asarray(x)
+            arr = np.asarray(x, dtype=object)
             # The following is somewhat of a hack to get rid of object arrays
             # when a condition is not a number (e.g. string or tuple)
             if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
@@ -216,7 +216,7 @@ class Sample(object):
         c = df[correct_column_name].astype(bool)
         nc = (1-df[correct_column_name]).astype(bool)
         def pt(x): # Pythonic types
-            arr = np.asarray(x)
+            arr = np.asarray(x, dtype=object)
             # The following is somewhat of a hack to get rid of object arrays
             # when a condition is not a number (e.g. string or tuple)
             if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
