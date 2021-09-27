@@ -10,7 +10,7 @@ Shinn et al. (2021) - Transient neuronal suppression for exploitation  of new se
 Model definition
 ~~~~~~~~~~~~~~~~
 
-Let's import the libraries we'll need::
+Let's import the libraries we'll need:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
@@ -23,28 +23,28 @@ implementation, each is given a "`diptype`" code: the "pause model" is
 is `diptype=3`.  For no dip, we use the convention `diptype=-1`.
 
 First, we define several helper functions which we will use throughout in the
-model::
+model:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
    :start-after: # BEGIN functions
    :end-before: # END functions
 
-Now we define the drift rate::
+Now we define the drift rate:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
    :start-after: # BEGIN drift
    :end-before: # END drift
 
-And the noise, which corresponds to the drift rate we just defined::
+And the noise, which corresponds to the drift rate we just defined:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
    :start-after: # BEGIN noise
    :end-before: # END noise
 
-And the starting position::
+And the starting position:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
@@ -53,7 +53,7 @@ And the starting position::
 
 For motor suppression, we use an increasing bound as an equivalent formulation
 of a motor decision variable.  It increases smoothly (according to a Beta(3,3)
-function) to avoid numerical transients::
+function) to avoid numerical transients:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
@@ -66,7 +66,7 @@ achieves this by eliminating the dip mechanism (setting `diptype=-1`),
 re-simulating the model, and then blending the resulting histogram with the
 actual model's simulation with the given ratio.  This also implements a
 trial-by-trial method, whereby the choice between the two models is
-probabilistic::
+probabilistic:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
@@ -76,23 +76,27 @@ probabilistic::
 Running the model
 ~~~~~~~~~~~~~~~~~
 
-Now that we have defined all of the pieces, let's test the model with the GUI::
+Now that we have defined all of the pieces, let's test the model with the GUI:
 
 .. literalinclude:: ../../downloads/shinn2021.py
    :language: python
    :start-after: # BEGIN demo
    :end-before: # END demo
 
-Optionally, we can run the model in parallel with 4 CPUs using::
+Optionally, we can run the model in parallel with 4 CPUs using:
 
   ddm.set_N_cpus(4)
 
 Finally, plot the model in a GUI interface::
 
-  ddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70], "presample": [0, 400, 800], "highreward": [0, 1]})
+  ddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70],
+                                          "presample": [0, 400, 800],
+                                          "highreward": [0, 1]})
 
 Or, if running a Jupyter notebook::
 
-  ddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70], "presample": [0, 400, 800], "highreward": [0, 1]})
+  ddm.plot.model_gui_jupyter(model=m, conditions={"coherence": [50, 53, 60, 70],
+                                                  "presample": [0, 400, 800],
+                                                  "highreward": [0, 1]})
 
 Voila, look at that!  It's a dip!

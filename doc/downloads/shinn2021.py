@@ -32,8 +32,9 @@ def get_detect_prob(coh, param):
 
 # BEGIN drift
 class DriftDip(ddm.models.Drift):
-    name = "Drift with piecewise linear urgency signal, reward/timing interaction bias, and coherence change transient"
-    required_parameters = ["snr", "noise", "t1", "t1slope", "maxcoh", "leak", "leaktarget", "leaktargramp", "dipstart", "dipstop", "diptype", "dipparam"]
+    name = "Piecewise urgency signal, reward bias, and coherence change transient"
+    required_parameters = ["snr", "noise", "t1", "t1slope", "maxcoh", "leak", "leaktarget",
+                           "leaktargramp", "dipstart", "dipstop", "diptype", "dipparam"]
     required_conditions = ["coherence", "presample", "highreward"]
     default_parameters = {"leaktargramp": 0, "dipparam": 0, "diptype": -1}
 
@@ -172,32 +173,32 @@ if __name__ == "__main__":
     dipparam = ddm.Fittable(minval=0, maxval=50) if diptype == 2 else 0
     pmixturecoef = ddm.Fittable(minval=0, maxval=.2, default=.03)
     rate = ddm.Fittable(minval=.1, maxval=10, default=1)
-    m = ddm.Model(drift=                 DriftDip(snr=snr,
-                                                  noise=noise,
-                                                  t1=t1,
-                                                  t1slope=t1slope,
-                                                  leak=leak,
-                                                  maxcoh=70,
-                                                  leaktarget=x0,
-                                                  leaktargramp=leaktargramp,
-                                                  dipstart=dipstart,
-                                                  dipstop=dipstop,
-                                                  diptype=diptype,
-                                                  dipparam=dipparam,
-                                                  ),
-                  noise=                 NoiseDip(noise=noise,
-                                                  t1=t1,
-                                                  t1slope=t1slope,
-                                                  dipstart=dipstart,
-                                                  dipstop=dipstop,
-                                                  diptype=diptype,
-                                                  ),
-                  IC=                     ICPoint(x0=x0),
-                  bound=                 BoundDip(B=1,
-                                                  dipstart=dipstart,
-                                                  dipstop=dipstop,
-                                                  diptype=diptype
-                                                  ),
+    m = ddm.Model(drift = DriftDip(snr=snr,
+                                   noise=noise,
+                                   t1=t1,
+                                   t1slope=t1slope,
+                                   leak=leak,
+                                   maxcoh=70,
+                                   leaktarget=x0,
+                                   leaktargramp=leaktargramp,
+                                   dipstart=dipstart,
+                                   dipstop=dipstop,
+                                   diptype=diptype,
+                                   dipparam=dipparam,
+                                   ),
+                  noise = NoiseDip(noise=noise,
+                                   t1=t1,
+                                   t1slope=t1slope,
+                                   dipstart=dipstart,
+                                   dipstop=dipstop,
+                                   diptype=diptype,
+                                   ),
+                  IC =     ICPoint(x0=x0),
+                  bound = BoundDip(B=1,
+                                   dipstart=dipstart,
+                                   dipstop=dipstop,
+                                   diptype=diptype
+                                   ),
                   overlay=ddm.OverlayChain(overlays=[
                                     ddm.OverlayNonDecision(nondectime=nondectime),
                                            OverlayDipRatio(detect=detect,
