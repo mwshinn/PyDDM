@@ -1,7 +1,7 @@
 Shinn et al. (2020) - Confluence of timing and reward biases in perceptual decision-making dynamics
 ===================================================================================================
 
-`Read the paper <https://www.biorxiv.org/content/10.1101/865501v1>`_
+`Read the paper <https://www.jneurosci.org/content/40/38/7326>`_
 
 :download:`Download all code referenced here (shinn2020.py) <../../downloads/shinn2020.py>`
 

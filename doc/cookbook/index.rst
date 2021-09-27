@@ -180,6 +180,8 @@ Models from specific papers
 
 - :doc:`papers/degee2020`
 
+- :doc:`papers/dip`
+
 Other recipes
 ~~~~~~~~~~~~~
 
