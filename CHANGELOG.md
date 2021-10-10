@@ -1,3 +1,26 @@
+# Version 0.5.2
+
+Released October 10, 2021
+
+## Major changes
+
+- Allow strings and tuples as conditions
+
+    Previously, task conditions could only be specified by a single number.
+    Now, they can be specified by either a string or a tuple.  Strings make
+    "flags" more readable.  Tuples make it easier to work with long and/or
+    variable-length task conditions, e.g., for stimuli which change over time in
+    a different way on each trial.
+
+## Bug fixes
+
+- Fixed the gamma distribution non-decision time
+
+## Other
+
+- Improved documentation and error messages
+- Switched continuous integration platforms from Travis to Github Actions
+
 # Version 0.5.1
 
 Released December 4, 2020
