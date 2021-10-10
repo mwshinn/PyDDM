@@ -12,6 +12,7 @@ from numpy import asarray as aa
 
 import ddm
 
+
 def fails(f, exception=BaseException):
     failed = False
     try:
@@ -355,6 +356,10 @@ class TestDependences(TestCase):
 
 class TestSample(TestCase):
     def setUp(self):
+        # You need some gymnastics to get numpy to accept an array of
+        # same-length tuples
+        _tuple_same_length = np.empty(3, dtype=object)
+        _tuple_same_length[:] = [(3,1,2), (3,3,3), (5,4,3)]
         self.samps = {
             # Empty sample
             "empty": ddm.Sample(aa([]), aa([]), 0),
@@ -366,6 +371,12 @@ class TestSample(TestCase):
             # Sample with conditions as strings
             "condsstr": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
                                 cond1=(aa(["x", "yy", "z z z"]), aa([]))),
+            # Sample with conditions as tuples
+            "condstuple": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
+                                cond1=(aa([(3, 1, 2), (5, 5), (1, 1, 1, 1, 1)], dtype=object), aa([]))),
+            # Sample with conditions as tuples which are the same length
+            "condstuplesame": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
+                                cond1=(_tuple_same_length, aa([]))),
             # Sample with conditions and explicitly showing undecided
             "condsexp": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
                                    cond1=(aa([1, 1, 2]), aa([]), aa([]))),
@@ -468,6 +479,8 @@ class TestSample(TestCase):
         # Basic access
         assert len(self.samps['conds'].subset(cond1=2)) == 1
         assert len(self.samps['condsstr'].subset(cond1="z z z")) == 1
+        assert len(self.samps['condstuple'].subset(cond1=(3,1,2))) == 1
+        assert len(self.samps['condstuplesame'].subset(cond1=(3,1,2))) == 1
         # The elements being accessed
         assert list(self.samps['conds'].subset(cond1=1).corr) == [1, 2]
         # An empty subset with two conditions
@@ -521,6 +534,12 @@ class TestSolution(TestCase):
                     return .3
                 else:
                     return .1
+        class DriftSimpleTupleArg(ddm.Drift):
+            name = "Test drift"
+            required_conditions = ['cohs']
+            required_parameters = []
+            def get_drift(self, conditions, **kwargs):
+                return conditions['cohs'][0]
         # No undecided
         self.quick_ana = ddm.Model(T_dur=2, dt=.02).solve_analytical()
         # Includes undecided
@@ -535,7 +554,9 @@ class TestSolution(TestCase):
         self.params_imp = ddm.Model(drift=DriftSimple(), T_dur=.5).solve_numerical_implicit(conditions={"coher": .1})
         # Dependence with a string argument
         self.params_strarg = ddm.Model(drift=DriftSimpleStringArg(), T_dur=.5).solve_analytical(conditions={"type": "a"})
-        self.all_sols = [self.quick_ana, self.quick_cn, self.quick_imp, self.params_ana, self.params_cn, self.params_imp, self.params_strarg]
+        # Dependence with a tuple argument
+        self.params_tuplearg = ddm.Model(drift=DriftSimpleTupleArg(), T_dur=.5).solve_analytical(conditions={"cohs": (.2, 1, 2)})
+        self.all_sols = [self.quick_ana, self.quick_cn, self.quick_imp, self.params_ana, self.params_cn, self.params_imp, self.params_strarg, self.params_tuplearg]
     def test_pdfs(self):
         """Make sure we produce valid distributions from solutions"""
         # For each test model
