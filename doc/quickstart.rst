@@ -120,14 +120,21 @@ values may vary slightly::
       Fitted parameters:
       - nondectime: 0.119300
 
-While the values are close to the true values, the fit is not perfect
-due to the finite size of the resampled data. We can also draw a plot
+While the values are close to the true values, the fit is not perfect due to the
+finite size of the resampled data.  If we want to use these programmatically, we
+can use the :meth:`~.Model.parameters` function, like: 
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 41
+
+We can also draw a plot
 visualizing the fit.  Unlike our first example, we will now use one of
 PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 43-47
+   :lines: 44-48
 
 .. image:: images/simple-fit.png
 
@@ -139,7 +146,7 @@ using :meth:`~.Solution.pdf_err`.
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 49-50
+   :lines: 50-51
 
 See :class:`the Solution object documentation <.Solution>` for more
 such functions.
@@ -152,14 +159,14 @@ following:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 53-54
+   :lines: 54-55
 
 Then, you can load the saved model with the following.  You may need to add
 additional imports from PyDDM if you get an "import error".
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 57-59
+   :lines: 58-60
 
 If you would like to just access the parameters for a separate analysis, you can
 save them with :meth:`~.Model.get_model_parameters`.  The names of these
@@ -301,6 +308,12 @@ fitting algorithm is stochastic)::
           - nparams: 3
           - samplesize: 2611
           - mess: ''
+
+Or, to access them within Python instead of printing them,
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :lines: 92
 
 Note that if you see "Warning: renormalizing model solution from X to
 1." for some X, this is okay as long as X is close ($<10^{-5}$ or so)

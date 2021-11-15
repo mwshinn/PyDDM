@@ -159,7 +159,28 @@ class Model(object):
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
+    def parameters(self):
+        """Return all parameters in the model
+
+        This will return a dictionary of dictionaries.  The keys of this
+        dictionary will be "drift", "noise", "bound", "IC", and "overlay".  The
+        values will be dictionaries, each containing the parameters used by
+        these.  Note that this includes both fixed parameters and Fittable
+        parameters.  If a parameter is fittable, it will return either a
+        Fittable object or a Fitted object in place of the parameter, depending
+        on whether or not the model has been fit to data yet.
+        """
+        ret = {}
+        for depname in ["drift", "noise", "bound", "IC", "overlay"]:
+            ret[depname] = {}
+            dep = self.get_dependence(depname)
+            for param_name in dep.required_parameters:
+                param_value = getattr(dep, param_name)
+                ret[depname][param_name] = param_value
+        return ret
+
     def get_model_parameters(self):
+
         """Get an ordered list of all model parameters.
         
         Returns a list of each model parameter which can be varied

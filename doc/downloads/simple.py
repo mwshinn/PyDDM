@@ -38,6 +38,7 @@ fit_adjust_model(samp, model_fit,
                  lossfunction=LossRobustBIC, verbose=False)
 
 display_model(model_fit)
+model_fit.parameters()
 
 # Plot the model fit to the PDFs and save the file.
 import ddm.plot
