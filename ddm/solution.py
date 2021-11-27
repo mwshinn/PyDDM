@@ -80,12 +80,13 @@ class Solution(object):
             - `pdf_evolution` - a size M-by-N numpy ndarray describing the state of the simulation at each time step. None if unavailable.
         """
         self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
-        self.corr = pdf_corr 
+        self.corr = pdf_corr
         self.err = pdf_err
         self.undec = pdf_undec
         self.evolution = pdf_evolution
         # Correct floating point errors to always get prob <= 1
-        if fsum(self.corr.tolist() + self.err.tolist()) > 1:
+        if np.sum(self.corr + self.err) > 1:
+            print("Correcting")
             self.corr /= 1.00000000001
             self.err /= 1.00000000001
         self.conditions = conditions

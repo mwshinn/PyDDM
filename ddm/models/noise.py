@@ -160,7 +160,7 @@ class NoiseLinear(Noise):
         yield NoiseLinear(noise=1, x=-10, t=-.5)
     @accepts(Self, Or(Number, NDArray(d=1, t=Number)), Positive0)
     @returns(Or(Positive, NDArray(d=1, t=Positive)))
-    @requires('self.noise + self.x*x + self.t*t > 0') # Noise can't go below zero
+    @requires('np.all(self.noise + self.x*x + self.t*t > 0)') # Noise can't go below zero
     @ensures("np.isscalar(x) <--> np.isscalar(return)")
     def get_noise(self, x, t, **kwargs):
         return self.noise + self.x*x + self.t*t

@@ -6,6 +6,11 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 import numpy as np
+try:
+    from . import csolve
+    HAS_CSOLVE = True
+except ImportError:
+    HAS_CSOLVE = False
 
 def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     '''
@@ -54,7 +59,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     dist = dist*(dist>0) # make sure non-negative
     return dist
 
-def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0):
+def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=False):
     '''
     Calculate the reaction time distribution of a Drift Diffusion model
     Parameters
@@ -67,6 +72,8 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0):
               of total bound height 2*b, where 0.5 is the center.
     b_slope : (Optional) If provided, then the upper boundary is B(t) = b + b_slope*t,
               and the lower boundary is B(t) = -b - b_slope*t
+    force_python : Force PyDDM to use the pure Python solver instead of the C solver.  Usually, the C
+                     solver is about 30% faster.
 
     Return:
     dist_cor : Reaction time distribution at teval for correct trials
@@ -90,8 +97,13 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0):
     # Get valid time points (before two bounds collapsed)
     teval_valid = teval[b+b_slope*teval>0]
 
-    dist_cor = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
-    dist_err = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
+    if force_python or not HAS_CSOLVE:
+        dist_cor = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
+        dist_err = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
+    else:
+        dt = teval_valid[1]-teval_valid[0]
+        dist_cor = csolve.analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, len(teval_valid), dt)
+        dist_err = csolve.analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, len(teval_valid), dt)
 
     # For invalid time points, set the probability to be a very small number
     if len(teval_valid) < len(teval):

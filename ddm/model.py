@@ -27,6 +27,13 @@ from paranoid.types import Numeric, Number, Self, List, Generic, Positive, Strin
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 import dis
     
+
+try:
+    from . import csolve
+    HAS_CSOLVE = True
+except ImportError:
+    HAS_CSOLVE = False
+
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.
 # `name` is the type of dependence (e.g. "linear") for methods which
@@ -489,9 +496,9 @@ class Model(object):
             return False
         return True
     
-    @accepts(Self, conditions=Conditions, return_evolution=Boolean)
+    @accepts(Self, conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
     @returns(Solution)
-    def solve(self, conditions={}, return_evolution=False):
+    def solve(self, conditions={}, return_evolution=False, force_python=False):
         """Solve the model using an analytic solution if possible, and a numeric solution if not.
 
         First, it tries to use Crank-Nicolson as the solver, and then backward
@@ -513,9 +520,9 @@ class Model(object):
         else:
             return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution)
 
-    @accepts(Self, conditions=Conditions)
+    @accepts(Self, conditions=Conditions, force_python=Boolean)
     @returns(Solution)
-    def solve_analytical(self, conditions={}):
+    def solve_analytical(self, conditions={}, force_python=False):
         """Solve the model with an analytic solution, if possible.
 
         Analytic solutions are only possible in a select number of
@@ -544,12 +551,14 @@ class Model(object):
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions),
-                                                       self.t_domain(), shift, -self.get_dependence("bound").t) # TODO why must this be negative? -MS
+                                                       self.t_domain(), shift, -self.get_dependence("bound").t,
+                                                       force_python=force_python) # TODO why must this be negative? -MS
         else: # Constant bound DDM
             anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, conditions=conditions), 
-                                                       self.t_domain(), shift)
+                                                       self.t_domain(), shift,
+                                                       force_python=force_python)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
         anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
@@ -567,8 +576,49 @@ class Model(object):
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
-        return self.get_dependence('overlay').apply(Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions))
+        sol = Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions)
+        return self.get_dependence('overlay').apply(sol)
     
+    def solve_numerical_c(self, conditions={}):
+        mt = self.get_model_type()
+        driftfuncsig = inspect.signature(mt["Drift"].get_drift)
+        if "t" not in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
+            drifttype = 0
+            drift = np.asarray([self.get_dependence("drift").get_drift(conditions=conditions)])
+        elif "t" in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
+            drifttype = 1
+            drift = np.asarray([self.get_dependence("drift").get_drift(t=t, conditions=conditions) for t in self.t_domain()])
+        elif "t" not in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
+            drifttype = 2
+            drift = np.asarray([self.get_dependence("drift").get_drift(x=x, conditions=conditions) for x in self.x_domain()])
+        elif "t" in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
+            drifttype = 3
+            drift = np.asarray([self.get_dependence("drift").get_drift(t=t, x=x, conditions=conditions) for t in self.t_domain() for x in self.x_domain(t=t, conditions=conditions)])
+        noisefuncsig = inspect.signature(mt["Noise"].get_noise)
+        drifttype = 0
+        if "t" not in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
+            noisetype = 0
+            noise = np.asarray([self.get_dependence("Noise").get_noise(conditions=conditions)])
+        elif "t" in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
+            noisetype = 1
+            noise = np.asarray([self.get_dependence("Noise").get_noise(t=t, conditions=conditions) for t in self.t_domain()])
+        elif "t" not in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
+            noisetype = 2
+            noise = np.asarray([self.get_dependence("Noise").get_noise(x=x, conditions=conditions) for x in self.x_domain()])
+        elif "t" in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
+            noisetype = 3
+            noise = np.asarray([self.get_dependence("Noise").get_noise(t=t, x=x, conditions=conditions) for t in self.t_domain() for x in self.x_domain(conditions=conditions)])
+        boundfuncsig = inspect.signature(mt["Bound"].get_bound)
+        if "t" not in noisefuncsig.parameters:
+            boundtype = 0
+            bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions)])
+        elif "t" in noisefuncsig.parameters:
+            boundtype = 1
+            bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
+        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx)
+        # TODO: Handle the pdf going below zero, returning pdfcurr, and fix numerical errors
+        return self.get_dependence('overlay').apply(Solution(res[0], res[1], self, conditions=conditions))
+
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
@@ -617,7 +667,7 @@ class Model(object):
 
         # If evolution of pdf should be returned, preallocate np.array pdf_evolution for performance reasons
         if return_evolution:
-            pdf_evolution = np.zeros((len(x_list), len(self.t_domain()))) 
+            pdf_evolution = np.zeros((len(x_list), len(self.t_domain())))
             pdf_evolution[:,0] = pdf_curr
 
         # Find maximum bound for increasing bounds
@@ -715,7 +765,7 @@ class Model(object):
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
 
             # If evolution of pdf should be returned, append pdf_curr to pdf_evolution
-            if return_evolution:    
+            if return_evolution:
                 pdf_evolution[:,i_t+1] = pdf_curr
 
         # Detect and fix below zero errors
