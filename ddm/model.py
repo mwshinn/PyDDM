@@ -9,8 +9,6 @@ from scipy import sparse
 import scipy.sparse.linalg
 from .tridiag import TriDiagMatrix
 
-import inspect
-
 from . import parameters as param
 from .analytic import analytic_ddm
 from .models.drift import DriftConstant, Drift
@@ -452,22 +450,18 @@ class Model(object):
     @returns(Boolean)
     def has_analytical_solution(self):
         """Is it possible to find an analytic solution for this model?"""
-        mt = self.get_model_type()
         # First check to make sure drift doesn't vary with time or
         # particle location
-        driftfuncsig = inspect.signature(mt["Drift"].get_drift)
-        if "t" in driftfuncsig.parameters or "x" in driftfuncsig.parameters:
+        if self.get_dependence("drift")._uses_t() or self.get_dependence("drift")._uses_x():
             return False
         # Check noise to make sure it doesn't vary with time or particle location
-        noisefuncsig = inspect.signature(mt["Noise"].get_noise)
-        if "t" in noisefuncsig.parameters or "x" in noisefuncsig.parameters:
+        if self.get_dependence("noise")._uses_t() or self.get_dependence("noise")._uses_x():
             return False
         # Check to make sure bound is one that we can solve for
-        boundfuncsig = inspect.signature(mt["Bound"].get_bound)
-        if "t" in boundfuncsig.parameters and mt["Bound"]!=BoundCollapsingLinear:
+        if self.get_dependence("bound")._uses_t() and self.get_dependence("bound").__class__ != BoundCollapsingLinear:
             return False
         # Make sure initial condition is a single point
-        if not issubclass(mt['IC'],(ICPointSourceCenter,ICPoint)):
+        if not issubclass(self.get_dependence("IC").__class__,(ICPointSourceCenter,ICPoint)):
             return False
         # Assuming none of these is the case, return True.
         return True
@@ -491,8 +485,7 @@ class Model(object):
         # dis.get_instructions(get_bound)]" to see if it is used in the
         # function rather than looking to see if it is passed to the
         # function.
-        boundfuncsig = inspect.signature(self.get_dependence("bound").get_bound)
-        if "t" in boundfuncsig.parameters:
+        if self.get_dependence("bound")._uses_t():
             return False
         return True
     
@@ -515,10 +508,13 @@ class Model(object):
         self.check_conditions_satisfied(conditions)
         if self.has_analytical_solution() and return_evolution is False:
             return self.solve_analytical(conditions=conditions)
-        elif isinstance(self.get_dependence("bound"), BoundConstant) and return_evolution is False:
+        elif isinstance(self.get_dependence("bound"), BoundConstant) and return_evolution is False and (force_python or not HAS_CSOLVE):
             return self.solve_numerical_cn(conditions=conditions)
         else:
-            return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution)
+            if force_python or not HAS_CSOLVE or return_evolution:
+                return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution)
+            else:
+                return self.solve_numerical_c(conditions=conditions)
 
     @accepts(Self, conditions=Conditions, force_python=Boolean)
     @returns(Solution)
@@ -567,7 +563,9 @@ class Model(object):
         anal_pdf_err[0] = 0.
 
         # Fix numerical errors
-        pdfsum = (np.sum(anal_pdf_corr) + np.sum(anal_pdf_err))*self.dt
+        anal_pdf_corr *= self.dt
+        anal_pdf_err *= self.dt
+        pdfsum = np.sum(anal_pdf_corr) + np.sum(anal_pdf_err)
         if pdfsum > 1:
             if pdfsum > 1.01 and param.renorm_warnings:
                 print("Warning: renormalizing probability density from", pdfsum, "to 1.  " \
@@ -576,59 +574,73 @@ class Model(object):
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
-        sol = Solution(anal_pdf_corr*self.dt, anal_pdf_err*self.dt, self, conditions=conditions)
+        sol = Solution(anal_pdf_corr, anal_pdf_err, self, conditions=conditions)
         return self.get_dependence('overlay').apply(sol)
     
     def solve_numerical_c(self, conditions={}):
-        mt = self.get_model_type()
-        driftfuncsig = inspect.signature(mt["Drift"].get_drift)
+        """Solve the DDM model using the implicit method with C extensions.
+
+        This function should give near identical results to
+        solve_numerical_implicit.  However, it uses compiled C code instead of
+        Python code to do so, which should make it much (10-100x) faster.
+
+        This does not current work with non-Gaussian diffusion matrices (a
+        currently undocumented feature).
+        """
+
         get_drift = self.get_dependence("drift").get_drift
-        if "t" not in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
+        drift_uses_t = self.get_dependence("drift")._uses_t()
+        drift_uses_x = self.get_dependence("drift")._uses_x()
+        if not drift_uses_t and not drift_uses_x:
             drifttype = 0
             drift = np.asarray([get_drift(conditions=conditions)])
-        elif "t" in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
+        elif drift_uses_t and not drift_uses_x:
             drifttype = 1
             drift = np.asarray([get_drift(t=t, conditions=conditions) for t in self.t_domain()])
-        elif "t" not in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
+        elif not drift_uses_t and drift_uses_x:
             drifttype = 2
             drift = np.asarray(get_drift(x=self.x_domain(), conditions=conditions))
-        elif "t" in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
+        elif drift_uses_t and drift_uses_x:
             drifttype = 3
             drift = np.concatenate([get_drift(t=t, x=self.x_domain(t=t, conditions=conditions), conditions=conditions) for t in self.t_domain()])
-        noisefuncsig = inspect.signature(mt["Noise"].get_noise)
-        get_noise = self.get_dependence("Noise").get_noise
-        if "t" not in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
+        get_noise = self.get_dependence("noise").get_noise
+        noise_uses_t = self.get_dependence("noise")._uses_t()
+        noise_uses_x = self.get_dependence("noise")._uses_x()
+        if not noise_uses_t and not noise_uses_x:
             noisetype = 0
             noise = np.asarray([get_noise(conditions=conditions)])
-        elif "t" in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
+        elif noise_uses_t and not noise_uses_x:
             noisetype = 1
             noise = np.asarray([get_noise(t=t, conditions=conditions) for t in self.t_domain()])
-        elif "t" not in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
+        elif not noise_uses_t and noise_uses_x:
             noisetype = 2
             noise = np.asarray(get_noise(x=self.x_domain(), conditions=conditions))
-        elif "t" in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
+        elif noise_uses_t and noise_uses_x:
             noisetype = 3
             noise = np.concatenate([get_noise(t=t, x=self.x_domain(conditions=conditions, t=t), conditions=conditions) for t in self.t_domain()])
-        boundfuncsig = inspect.signature(mt["Bound"].get_bound)
-        if "t" not in boundfuncsig.parameters:
+        bound_uses_t = self.get_dependence("bound")._uses_t()
+        if not bound_uses_t:
             boundtype = 0
             bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions)])
-        elif "t" in boundfuncsig.parameters:
+        elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
-        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx)
+        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()))
         # TODO: Handle the pdf going below zero, returning pdfcurr, and fix numerical errors
         corr = (res[0]*self.dt)
         corr[corr<0] = 0
         err = (res[1]*self.dt)
         err[err<0] = 0
-        return self.get_dependence('overlay').apply(Solution(corr, err, self, conditions=conditions))
+        undec = res[2]
+        undec[undec<0] = 0
+        return self.get_dependence('overlay').apply(Solution(corr, err, self, conditions=conditions, pdf_undec=undec))
 
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
     @requires("method == 'cn' --> self.can_solve_cn()")
     def solve_numerical(self, method="cn", conditions={}, return_evolution=False):
+
         """Solve the DDM model numerically.
 
         Use `method` to solve the DDM.  `method` can either be

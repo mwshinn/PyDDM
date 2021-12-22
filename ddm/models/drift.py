@@ -23,6 +23,10 @@ class Drift(Dependence):
     and `required_parameters` (see documentation for Dependence.)
     """
     depname = "Drift"
+    def _uses_t(self):
+        return self._uses(self.get_drift, "t")
+    def _uses_x(self):
+        return self._uses(self.get_drift, "x")
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")

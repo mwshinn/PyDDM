@@ -53,4 +53,4 @@ please do the following before submitting a pull request on Github:
 - Ensure all existing tests pass (``runtests.sh`` returns without
   error)
 
-For all other questions or comments, contact `Max Shinn <mailto:maxwell.shinn@yale.edu>`_.
+For all other questions or comments, contact `Max Shinn <mailto:m.shinn@ucl.ac.uk>`_.

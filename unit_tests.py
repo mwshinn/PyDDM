@@ -42,9 +42,9 @@ class TestDependences(TestCase):
         class FakePointModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
                 corr = self.t_domain()*0
-                corr[1] = .8
+                corr[1] = 1/256
                 err = self.t_domain()*0
-                err[1] = .2
+                err[1] = 255/256
                 return ddm.Solution(corr, err, self, conditions)
         FakePointModel.solve_analytical = FakePointModel.solve
         FakePointModel.solve_numerical = FakePointModel.solve
@@ -177,7 +177,7 @@ class TestDependences(TestCase):
         # With mixture coef 1, integrate to 1
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=1).apply(s)
-        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
+        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1, atol=1e-4)
         # Should not change uniform distribution
         s = self.FakeUniformModel(dt=.001).solve()
         assert s == ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)

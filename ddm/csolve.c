@@ -25,7 +25,7 @@ void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
 }
 
 double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int nsteps, double tstep);
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode);
+int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode);
 
 static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   double a1, b1, a2, b2, tstep;
@@ -47,18 +47,16 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   PyObject *__drift, *__noise, *__bound, *__ic;
   int nsteps, len_x0;
   int drifttype, noisetype, boundtype;
-  if (!PyArg_ParseTuple(args, "OiOiOiOddd", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx))
+  if (!PyArg_ParseTuple(args, "OiOiOiOdddi", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps))
     return NULL;
-  nsteps = (int)(T_dur/dt)+1;
-  len_x0 = (int)(1/dx*2)+1;
 
   _drift = (PyArrayObject*)PyArray_FROMANY(__drift, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
   _noise = (PyArrayObject*)PyArray_FROMANY(__noise, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
   _bound = (PyArrayObject*)PyArray_FROMANY(__bound, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
   _ic = (PyArrayObject*)PyArray_FROMANY(__ic, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+
+  len_x0 = PyArray_SIZE(_ic);
   if (!_drift || !_noise || !_bound || !_ic)
-    return NULL;
-  if (PyArray_SIZE(_ic) != len_x0)
     return NULL;
   drift = (double*)PyArray_DATA(_drift);
   noise = (double*)PyArray_DATA(_noise);
@@ -68,13 +66,17 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
 
   double *pdfcorr = (double*)malloc(nsteps*sizeof(double));
   double *pdferr = (double*)malloc(nsteps*sizeof(double));
-  _implicit_time(nsteps, pdfcorr, pdferr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype);
+  double *pdfcurr = (double*)malloc(len_x0*sizeof(double));
+  _implicit_time(nsteps, pdfcorr, pdferr, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype);
   npy_intp dims[1] = { nsteps };
+  npy_intp dimscurr[1] = { len_x0 };
   PyObject *corrarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfcorr);
   PyObject *errarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdferr);
+  PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
   PyArray_UpdateFlags((PyArrayObject*)corrarray, NPY_ARRAY_OWNDATA);
   PyArray_UpdateFlags((PyArrayObject*)errarray, NPY_ARRAY_OWNDATA);
-  PyObject *ret = Py_BuildValue("(OO)", corrarray, errarray);
+  PyArray_UpdateFlags((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
+  PyObject *ret = Py_BuildValue("(OOO)", corrarray, errarray, currarray);
   return ret;
 }
 
@@ -156,6 +158,8 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int n
     //suminc[i] *= exp(-pow((a1+b1*i*tstep),2)/(i*tstep)/2)/sqrtpi/pow(i*tstep, 1.5);
     //itstep = i*tstep;
     suminc[i] *= oneoversqrtpi*exp(-.5*(a1+b1*i*tstep)*(a1+b1*i*tstep)/(i*tstep))*pow(i*tstep, -1.5);
+    if (suminc[i] < 0)
+      suminc[i] = 0;
   }
   suminc[0] = 0;
   free(tmp);
@@ -164,7 +168,7 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int n
 
 
 
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode) {
+int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode) {
   int dmultt=-1, dmultx=-1, nmultt=-1, nmultx=-1, bmultt=-1;
   int j;
   double dxinv = 1/dx;
@@ -177,7 +181,6 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, d
   double *DU_copy = (double*)malloc((Xsteps-1)*sizeof(double));
   double *D_copy = (double*)malloc(Xsteps*sizeof(double));
   double *DL_copy = (double*)malloc((Xsteps-1)*sizeof(double));
-  double *pdfcurr = (double*)malloc(Xsteps*sizeof(double));
   double *pdfcurr_copy = (double*)malloc(Xsteps*sizeof(double));
   memset(pdfcorr, 0, Tsteps*sizeof(double));
   memset(pdferr, 0, Tsteps*sizeof(double));
@@ -311,7 +314,6 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, d
     pdferr[i] *= dtinv;
   }
   // Free memory
-  free(pdfcurr);
   free(pdfcurr_copy);
   free(D);
   free(DU);

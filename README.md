@@ -53,6 +53,8 @@ If installing from source, [download the source code](https://github.com/mwshinn
 - Matplotlib
 - [Paranoid Scientist](<https://github.com/mwshinn/paranoidscientist>)
 - Pathos (optional, for multiprocessing support)
+- A C compiler (If you don't already have one, the easiest way to install one
+  may be by installing Cython.)
 
 
 ## Contact

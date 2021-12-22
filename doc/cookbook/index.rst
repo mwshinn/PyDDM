@@ -4,7 +4,7 @@ PyDDM Cookbook
 Here are a list of examples of common model features and how to
 implement them in PyDDM.  **If you created an example or model in
 PyDDM and would like it to be added to the cookbook, please** `send
-it to us <mailto:maxwell.shinn@yale.edu>`_ **so we can add it**.
+it to us <mailto:m.shinn@ucl.ac.uk>`_ **so we can add it**.
 Include the author(s) of the example or model and optionally a
 literature reference so that we can give you proper credit and direct
 users to your paper!
@@ -174,7 +174,7 @@ not offer robust parameter estimation for high-dimensional models.)
 Models from specific papers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*If you have a paper which used PyDDM, please* `send us your model <mailto:maxwell.shinn@yale.edu>`_ *so we can include them here!*
+*If you have a paper which used PyDDM, please* `send us your model <mailto:m.shinn@ucl.ac.uk>`_ *so we can include them here!*
 
 - :doc:`papers/shinn2020`
 

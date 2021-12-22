@@ -19,4 +19,4 @@ following before submitting a PR on Github:
 - Ensure all existing tests pass (``runtests.sh`` returns without
   error)
 
-For all other questions or comments, contact maxwell.shinn@yale.edu.
+For all other questions or comments, contact m.shinn@ucl.ac.uk.

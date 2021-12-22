@@ -23,6 +23,10 @@ class Noise(Dependence):
     and `required_parameters` (see documentation for Dependence.)
     """
     depname = "Noise"
+    def _uses_t(self):
+        return self._uses(self.get_noise, "t")
+    def _uses_x(self):
+        return self._uses(self.get_noise, "x")
     @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")

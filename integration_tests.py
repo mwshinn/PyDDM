@@ -22,6 +22,8 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
         n = m.solve_numerical_implicit(conditions=conditions)
     elif method == "explicit":
         n = m.solve_numerical_explicit(conditions=conditions)
+    elif method == "c":
+        n = m.solve_numerical_c(conditions=conditions)
     if SHOW_PLOTS:
         ddm.plot.plot_solution_pdf(a)
         ddm.plot.plot_solution_pdf(n)
@@ -105,10 +107,14 @@ class TestSimulation(TestCase):
                                            max_diff=.3, mean_diff=.2, prob_diff=.05)
         self.basic.dx = prev_dx
         self.basic.dt = prev_dt
+    def test_basic_c(self):
+        """Simple DDM"""
+        _modeltest_numerical_vs_analytical(self.basic, method="c")
     def test_collapsing_bounds(self):
         """Bounds collapse to zero"""
         m = ddm.Model(bound=ddm.BoundCollapsingLinear(B=1, t=2))
         _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+        _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
     def test_overlay_chain_distribution_integrates_to_1(self):
         """Overlays integrate to 1"""
         m = ddm.Model(name="Overlay_test", drift=ddm.DriftConstant(drift=2), T_dur=5,
@@ -122,6 +128,7 @@ class TestSimulation(TestCase):
         """With conditions"""
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .2})
         _modeltest_numerical_vs_analytical(self.withcond, method="cn", conditions={"cond": .6})
+        _modeltest_numerical_vs_analytical(self.withcond, method="c", conditions={"cond": .6})
     def test_bounds(self):
         self.bound.solve()
     def test_pdf_evolution(self):
@@ -143,6 +150,7 @@ class TestSimulation(TestCase):
               bound=ddm.BoundConstant(B=1),
               IC=ddm.ICPoint(x0=-.25))
         _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+        _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
     def test_ICPoint_collapsing_bounds(self):
         m = ddm.Model(name='ICPoint_BCollapsingLin_test',
               drift=ddm.DriftConstant(drift=2),
@@ -150,6 +158,7 @@ class TestSimulation(TestCase):
               bound=ddm.BoundCollapsingLinear(B=1,t=0.5),
               IC=ddm.ICPoint(x0=-.25))
         _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+        _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
 
 
 class TestFit(TestCase):
@@ -210,15 +219,17 @@ class TestFit(TestCase):
         # Generate data
         m = ddm.Model(name="DDM",
                   drift=ddm.DriftConstant(drift=1),
-                  noise=ddm.NoiseConstant(noise=1.7))
+                      noise=ddm.NoiseConstant(noise=1.7))
         s = m.solve_numerical() # Solving analytical and then fitting numerical may give a bias
         sample = s.resample(10000)
         mone = ddm.fit_model(sample, drift=ddm.DriftConstant(drift=1),
-                             noise=NoiseConstantButNot(noise=ddm.Fittable(minval=.5, maxval=3)))
+                             noise=NoiseConstantButNot(noise=ddm.Fittable(minval=.5, maxval=3)),
+                             lossfunction=ddm.LossRobustLikelihood)
         sigs = ddm.Fittable(minval=.5, maxval=3)
         msam = ddm.fit_model(sample, drift=ddm.DriftConstant(drift=1),
                              noise=NoiseDouble(noise1=sigs,
-                                               noise2=sigs))
+                                               noise2=sigs),
+                             lossfunction=ddm.LossRobustLikelihood)
         assert msam._noisedep.noise1 == msam._noisedep.noise2, "Fitting to be the same failed"
         assert abs(msam._noisedep.noise1 - mone._noisedep.noise) < 0.1 * mone._noisedep.noise
 

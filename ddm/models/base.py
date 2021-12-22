@@ -7,6 +7,8 @@
 __all__ = ["Dependence"]
 
 import paranoid
+import dis
+import inspect
 
 class Dependence(object): # TODO Base this on ABC
     """An abstract class describing how one variable depends on other variables.
@@ -122,5 +124,26 @@ class Dependence(object): # TODO Base this on ABC
         return self.__repr__()
     def __hash__(self):
         return hash(repr(self))
+    def _uses(self, f, name):
+        """Check if function `f` uses a variable named `name`."""
+        # First get rid of wrappers, eh hem, paranoid
+        while "__wrapped__" in f.__dict__:
+            f = f.__wrapped__
+        # Get the names of all variables used in the function.  If it uses t,
+        # then return True.
+        vars_in_func = [inst.argrepr for inst in dis.get_instructions(f)]
+        if name in vars_in_func:
+            return True
+        # Check for the use of varargs or kwargs to be 100% safe.  Users
+        # shouldn't use these anyway, so if they do, then too bad, their
+        # function will run a bit slower.  Sucks to be them.
+        args = inspect.getargs(f.__code__).varargs
+        kwargs = inspect.getargs(f.__code__).varkw
+        if args and args in vars_in_func:
+            return True
+        if kwargs and kwargs in vars_in_func:
+            return True
+        return False
+
 
 

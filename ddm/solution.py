@@ -6,7 +6,6 @@
 
 import copy
 import numpy as np
-from math import fsum
 from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
@@ -40,8 +39,8 @@ class Solution(object):
             assert len(v.undec) == len(v.model.x_domain(conditions=v.conditions))
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
         assert len(v.corr) == len(v.err) == len(v.model.t_domain()), "Histogram lengths must match"
-        assert 0 <= fsum(v.corr.tolist() + v.err.tolist()) <= 1, "Histogram does not integrate " \
-            " to 1, not to " + str(fsum(v.corr.tolist() + v.err.tolist()))
+        assert 0 <= np.sum(v.corr) + np.sum(v.err) <= 1, "Histogram should integrate " \
+            " to 1, not to " + str(np.sum(v.corr)+np.sum(v.err))
         assert v.conditions in Conditions()
     @staticmethod
     def _generate():
@@ -86,7 +85,6 @@ class Solution(object):
         self.evolution = pdf_evolution
         # Correct floating point errors to always get prob <= 1
         if np.sum(self.corr + self.err) > 1:
-            print("Correcting")
             self.corr /= 1.00000000001
             self.err /= 1.00000000001
         self.conditions = conditions
@@ -220,19 +218,19 @@ class Solution(object):
     @returns(Range(0, 1))
     def prob_correct(self):
         """Probability of correct response within the time limit."""
-        return fsum(self.corr)
+        return np.sum(self.corr)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_error(self):
         """Probability of incorrect (error) response within the time limit."""
-        return fsum(self.err)
+        return np.sum(self.err)
 
     @accepts(Self)
     @returns(Range(0, 1))
     def prob_undecided(self):
         """The probability of not responding during the time limit."""
-        udprob = 1 - fsum(self.corr.tolist() + self.err.tolist())
+        udprob = 1 - np.sum(self.corr) - np.sum(self.err)
         if udprob < 0:
             print("Warning, setting undecided probability from %f to 0" % udprob)
             udprob = 0
@@ -285,7 +283,7 @@ class Solution(object):
     @returns(Positive0)
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
-        return fsum((self.corr)*self.model.t_domain()) / self.prob_correct()
+        return np.sum(self.corr*self.model.t_domain()) / self.prob_correct()
 
     @accepts(Self, Natural1, seed=Natural0)
     @returns(Sample)
@@ -318,8 +316,8 @@ class Solution(object):
         shift = np.max(shorter_t_domain)+1
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
-        if fsum(combined_probs) != 1:
-            print("Warning, distribution sums to %f rather than 1" % fsum(combined_probs))
+        if np.sum(combined_probs) != 1:
+            print("Warning, distribution sums to %f rather than 1" % np.sum(combined_probs))
         samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials

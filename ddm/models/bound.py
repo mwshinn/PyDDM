@@ -23,6 +23,8 @@ class Bound(Dependence):
     Dependence.)
     """
     depname = "Bound"
+    def _uses_t(self):
+        return self._uses(self.get_bound, "t")
     def get_bound(self, t, conditions, **kwargs):
         """Calculate the bounds which particles cross to determine response time.
 

@@ -13,7 +13,7 @@ __all__ = ["Dependence",
                "OverlaySimplePause", "OverlayBlurredPause",
                "OverlayUniformMixture", "OverlayPoissonMixture",
                "OverlayNonDecision", "OverlayNonDecisionUniform", "OverlayNonDecisionGamma",
-           "LossFunction", "LossSquaredError", "LossLikelihood", "LossBIC"]
+           "LossFunction", "LossSquaredError", "LossLikelihood", "LossBIC", "LossRobustLikelihood", "LossRobustBIC"]
 
 from .base import *
 from .drift import *
