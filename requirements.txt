@@ -1,0 +1,3 @@
+numpy >= 1.9.2
+scipy >= 0.16.2
+paranoid-scientist >= 0.2.2
