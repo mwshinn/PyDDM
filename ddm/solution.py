@@ -316,7 +316,7 @@ class Solution(object):
         shift = np.max(shorter_t_domain)+1
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
-        if np.sum(combined_probs) != 1:
+        if np.abs(np.sum(combined_probs)-1) >= .0001:
             print("Warning, distribution sums to %f rather than 1" % np.sum(combined_probs))
         samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
