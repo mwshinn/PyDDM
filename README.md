@@ -77,7 +77,7 @@ following before submitting a Pull Request on Github:
   feature (runtests.sh)
 - Ensure all existing tests pass
 
-For all other questions or comments, contact maxwell.shinn@yale.edu.
+For all other questions or comments, contact m.shinn@ucl.ac.uk.
 
 
 ## License

@@ -1,18 +1,28 @@
 #include <Python.h>
 #include <math.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-//#include <numpy/ndarrayobject.h>
 #include <numpy/arrayobject.h>
 
-// This is really hacky, but... I only use two definitions from the lapacke.h
-// file, and it is a pain in Python to make people install headers to compile,
-// so I copied them here.  Without the need for headers, I can directly link
-// against whatever version of lapack scipy is using.  Hopefully this should
-// do...
-#define LAPACK_COL_MAJOR 102
-int LAPACKE_dgtsv(int matrix_layout, int n, int nrhs,
-                  double* dl, double* d, double* du, double* b,
-                  int ldb);
+// We want to avoid depending on lapack so this is an implementation of the
+// Thomas algorithm, which performs the same function as dgtsv in lapack.  It
+// modifies the coefficients to garbage values, but the return value is saved in
+// b.
+void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
+  if (n==1) {
+    d[0] = b[0]/d[0];
+    return;
+  }
+  double tmp;
+  for (int i=1; i<n; i++) {
+    tmp = dl[i-1]/d[i-1];
+    d[i] -= tmp*du[i-1];
+    b[i] -= tmp*b[i-1];
+  }
+  b[n-1] = b[n-1]/d[n-1];
+  for (int i=n-2; i>=0; i--) {
+    b[i] = (b[i] - du[i]*b[i+1])/d[i];
+  }
+}
 
 double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int nsteps, double tstep);
 int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode);
@@ -31,13 +41,13 @@ static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
 
 
 static PyObject* implicit_time(PyObject* self, PyObject* args) {
-  double dt, dx;
+  double dt, dx, T_dur;
   double *drift, *noise, *bound, *ic;
   PyArrayObject *_drift, *_noise, *_bound, *_ic;
   PyObject *__drift, *__noise, *__bound, *__ic;
-  int T_dur, nsteps, len_x0;
+  int nsteps, len_x0;
   int drifttype, noisetype, boundtype;
-  if (!PyArg_ParseTuple(args, "OiOiOiOidd", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx))
+  if (!PyArg_ParseTuple(args, "OiOiOiOddd", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx))
     return NULL;
   nsteps = (int)(T_dur/dt)+1;
   len_x0 = (int)(1/dx*2)+1;
@@ -264,19 +274,18 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double* drift, d
       DL_copy[j] = DL[j];
     }
     if (shift_outer == shift_inner) { // Bound falls on a grid here
-      // See, e.g.: https://github.com/openmeeg/clapack/blob/master/SRC/dgtsv.c
       j = Xsteps-shift_outer-1; // For convenience
-      LAPACKE_dgtsv(LAPACK_COL_MAJOR, Xsteps-2*shift_outer, 1, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer, Xsteps-2*shift_outer);
+      easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j];
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer];
       //printf("%f %f    ", pdfcurr[Xsteps-shift_outer-1], pdfcurr[shift_outer]);
     } else {
       j = Xsteps-shift_outer-1; // For convenience
-      LAPACKE_dgtsv(LAPACK_COL_MAJOR, Xsteps-2*shift_outer, 1, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer, Xsteps-2*shift_outer);
+      easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j]*weight_outer;
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
       j = Xsteps-shift_inner-1; // For convenience
-      LAPACKE_dgtsv(LAPACK_COL_MAJOR, Xsteps-2*shift_inner, 1, DL_copy+shift_inner, D_copy+shift_inner, DU_copy+shift_inner, pdfcurr_copy+shift_inner, Xsteps-2*shift_inner);
+      easy_dgtsv(Xsteps-2*shift_inner, DL_copy+shift_inner, D_copy+shift_inner, DU_copy+shift_inner, pdfcurr_copy+shift_inner);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr_copy[j]*weight_inner;
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
       for (int j=shift_outer; j<Xsteps-shift_outer; j++)

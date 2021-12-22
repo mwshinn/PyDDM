@@ -23,7 +23,7 @@ from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
 
-from paranoid.types import Numeric, Number, Self, List, Generic, Positive, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Maybe, Nothing
+from paranoid.types import Numeric, Number, Self, List, Generic, Positive, Positive0, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Maybe, Nothing
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 import dis
     
@@ -296,7 +296,7 @@ class Model(object):
         """Return a dictionary which fully specifies the class of the five key model components."""
         tt = lambda x : (x.depname, type(x))
         return dict(map(tt, self.dependencies))
-    @accepts(Self, Conditions, Maybe(Positive))
+    @accepts(Self, Conditions, Maybe(Positive0))
     def x_domain(self, conditions, t=None):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         # Find the maximum size of the bound across the t-domain in
@@ -582,42 +582,47 @@ class Model(object):
     def solve_numerical_c(self, conditions={}):
         mt = self.get_model_type()
         driftfuncsig = inspect.signature(mt["Drift"].get_drift)
+        get_drift = self.get_dependence("drift").get_drift
         if "t" not in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
             drifttype = 0
-            drift = np.asarray([self.get_dependence("drift").get_drift(conditions=conditions)])
+            drift = np.asarray([get_drift(conditions=conditions)])
         elif "t" in driftfuncsig.parameters and "x" not in driftfuncsig.parameters:
             drifttype = 1
-            drift = np.asarray([self.get_dependence("drift").get_drift(t=t, conditions=conditions) for t in self.t_domain()])
+            drift = np.asarray([get_drift(t=t, conditions=conditions) for t in self.t_domain()])
         elif "t" not in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
             drifttype = 2
-            drift = np.asarray([self.get_dependence("drift").get_drift(x=x, conditions=conditions) for x in self.x_domain()])
+            drift = np.asarray(get_drift(x=self.x_domain(), conditions=conditions))
         elif "t" in driftfuncsig.parameters and "x" in driftfuncsig.parameters:
             drifttype = 3
-            drift = np.asarray([self.get_dependence("drift").get_drift(t=t, x=x, conditions=conditions) for t in self.t_domain() for x in self.x_domain(t=t, conditions=conditions)])
+            drift = np.concatenate([get_drift(t=t, x=self.x_domain(t=t, conditions=conditions), conditions=conditions) for t in self.t_domain()])
         noisefuncsig = inspect.signature(mt["Noise"].get_noise)
-        drifttype = 0
+        get_noise = self.get_dependence("Noise").get_noise
         if "t" not in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
             noisetype = 0
-            noise = np.asarray([self.get_dependence("Noise").get_noise(conditions=conditions)])
+            noise = np.asarray([get_noise(conditions=conditions)])
         elif "t" in noisefuncsig.parameters and "x" not in noisefuncsig.parameters:
             noisetype = 1
-            noise = np.asarray([self.get_dependence("Noise").get_noise(t=t, conditions=conditions) for t in self.t_domain()])
+            noise = np.asarray([get_noise(t=t, conditions=conditions) for t in self.t_domain()])
         elif "t" not in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
             noisetype = 2
-            noise = np.asarray([self.get_dependence("Noise").get_noise(x=x, conditions=conditions) for x in self.x_domain()])
+            noise = np.asarray(get_noise(x=self.x_domain(), conditions=conditions))
         elif "t" in noisefuncsig.parameters and "x" in noisefuncsig.parameters:
             noisetype = 3
-            noise = np.asarray([self.get_dependence("Noise").get_noise(t=t, x=x, conditions=conditions) for t in self.t_domain() for x in self.x_domain(conditions=conditions)])
+            noise = np.concatenate([get_noise(t=t, x=self.x_domain(conditions=conditions, t=t), conditions=conditions) for t in self.t_domain()])
         boundfuncsig = inspect.signature(mt["Bound"].get_bound)
-        if "t" not in noisefuncsig.parameters:
+        if "t" not in boundfuncsig.parameters:
             boundtype = 0
             bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions)])
-        elif "t" in noisefuncsig.parameters:
+        elif "t" in boundfuncsig.parameters:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
         res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx)
         # TODO: Handle the pdf going below zero, returning pdfcurr, and fix numerical errors
-        return self.get_dependence('overlay').apply(Solution(res[0], res[1], self, conditions=conditions))
+        corr = (res[0]*self.dt)
+        corr[corr<0] = 0
+        err = (res[1]*self.dt)
+        err[err<0] = 0
+        return self.get_dependence('overlay').apply(Solution(corr, err, self, conditions=conditions))
 
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
     @returns(Solution)
