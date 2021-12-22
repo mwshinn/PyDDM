@@ -5,6 +5,7 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 from setuptools import setup, Extension
+import numpy as np
 
 with open("ddm/_version.py", "r") as f:
     exec(f.read())
@@ -28,7 +29,8 @@ setup(
     url='https://github.com/mwshinn/PyDDM',
     packages = ['ddm', 'ddm.models'],
     ext_modules = [Extension('ddm.csolve',
-                            sources=['ddm/csolve.c'],
+                             sources=['ddm/csolve.c'],
+                             include_dirs=[np.get_include()],
                            )],
     install_requires = ['numpy >= 1.9.2', 'scipy >= 0.16', 'matplotlib', 'paranoid-scientist >= 0.2.1'],
     classifiers = [
