@@ -110,7 +110,7 @@ can be used to fit models.  The default is differential evolution,
 which we have observed to be robust for models with large numbers of
 parameters.
 
-Other methods can be used by passing the "method" argument to
+Other methods can be used by passing the "fitting_method" argument to
 :func:`.fit_adjust_model` or :func:`.fit_model`.  This can take one of
 several values:
 
@@ -124,7 +124,7 @@ several values:
 For example, to fit the model in the quickstart using the Nelder-Mead
 simplex method, you can do::
 
-  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, method="simplex")
+  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, fitting_method="simplex")
 
 
 .. _howto-evolution:
