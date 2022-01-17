@@ -305,6 +305,7 @@ class Solution(object):
         # Exclude the last point in the t domain because we will add
         # uniform noise to the sample and this would put us over the
         # model's T_dur.
+        rng = np.random.RandomState(seed)
         shorter_t_domain = self.model.t_domain()[:-1]
         shorter_pdf_corr = self.pdf_corr()[:-1]
         shorter_pdf_corr[-1] += self.pdf_corr()[-1]
@@ -318,12 +319,12 @@ class Solution(object):
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
         if np.abs(np.sum(combined_probs)-1) >= .0001:
             print("Warning, distribution sums to %f rather than 1" % np.sum(combined_probs))
-        samp = np.random.choice(combined_domain, p=combined_probs, replace=True, size=k)
+        samp = rng.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials
         # Each point x on the pdf represents the space from x to x+dt.
         # So sample and then add uniform noise to each element.
-        samp += np.random.uniform(0, self.model.dt, len(samp))
+        samp += rng.uniform(0, self.model.dt, len(samp))
         # Find correct and error trials
         corr_sample = samp[samp<shift]
         err_sample = samp[samp>=shift]-shift
