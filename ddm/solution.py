@@ -6,7 +6,7 @@
 
 import copy
 import numpy as np
-from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0
+from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
 from .sample import Sample
@@ -285,10 +285,10 @@ class Solution(object):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         return np.sum(self.corr*self.model.t_domain()) / self.prob_correct()
 
-    @accepts(Self, Natural1, seed=Natural0)
+    @accepts(Self, Natural1, seed=Maybe(Natural0))
     @returns(Sample)
     @ensures("len(return) == k")
-    def resample(self, k=1, seed=0):
+    def resample(self, k=1, seed=None):
         """Generate a list of reaction times sampled from the PDF.
 
         `k` is the number of TRIALS, not the number of samples.  Since
@@ -300,12 +300,19 @@ class Solution(object):
         This relies on the assumption that reaction time cannot be
         less than 0.
 
+        `seed` specifies the random seed to use in sampling.  If unspecified,
+        it does not set a random seed.
+
         Returns a Sample object representing the distribution.
+
         """
+        if seed is None:
+            rng = np.random
+        else:
+            rng = np.random.RandomState(seed)
         # Exclude the last point in the t domain because we will add
         # uniform noise to the sample and this would put us over the
         # model's T_dur.
-        rng = np.random.RandomState(seed)
         shorter_t_domain = self.model.t_domain()[:-1]
         shorter_pdf_corr = self.pdf_corr()[:-1]
         shorter_pdf_corr[-1] += self.pdf_corr()[-1]
