@@ -599,10 +599,21 @@ class Model(object):
             drift = np.asarray([get_drift(t=t, conditions=conditions) for t in self.t_domain()])
         elif not drift_uses_t and drift_uses_x:
             drifttype = 2
-            drift = np.asarray(get_drift(x=self.x_domain(), conditions=conditions))
+            drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), conditions=conditions))
         elif drift_uses_t and drift_uses_x:
             drifttype = 3
-            drift = np.concatenate([get_drift(t=t, x=self.x_domain(t=t, conditions=conditions), conditions=conditions) for t in self.t_domain()])
+            # TODO: Right now this calculates and passes the maximum x domain,
+            # even if it is not necessary to do so.  Performance could be
+            # improved by only calculating the parts of x domain that are
+            # needed and then finding a way to index that within C.
+            # Alternatively, it could only calculate the ones it needs, and
+            # then fill the extra space with nonsense values just to form a
+            # rectangular matrix, since they will never be read within the C
+            # code.  maxt is a workaround so we don't have to find the maximum
+            # in the t domain on each iteration.
+            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
+            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            drift = np.concatenate([get_drift(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         get_noise = self.get_dependence("noise").get_noise
         noise_uses_t = self.get_dependence("noise")._uses_t()
         noise_uses_x = self.get_dependence("noise")._uses_x()
@@ -614,10 +625,13 @@ class Model(object):
             noise = np.asarray([get_noise(t=t, conditions=conditions) for t in self.t_domain()])
         elif not noise_uses_t and noise_uses_x:
             noisetype = 2
-            noise = np.asarray(get_noise(x=self.x_domain(), conditions=conditions))
+            noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions))
         elif noise_uses_t and noise_uses_x:
             noisetype = 3
-            noise = np.concatenate([get_noise(t=t, x=self.x_domain(conditions=conditions, t=t), conditions=conditions) for t in self.t_domain()])
+            # See comment in drifttype = 3
+            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
+            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            noise = np.concatenate([get_noise(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         bound_uses_t = self.get_dependence("bound")._uses_t()
         if not bound_uses_t:
             boundtype = 0
