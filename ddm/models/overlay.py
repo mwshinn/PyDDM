@@ -302,7 +302,7 @@ class OverlayNonDecision(Overlay):
     @returns(Solution)
     @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
     @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
-    @ensures("solution.prob_undecided() <= return.prob_undecided()")
+    @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     def apply(self, solution):
         corr = solution.corr
         err = solution.err
@@ -360,8 +360,8 @@ class OverlayNonDecisionUniform(Overlay):
         yield OverlayNonDecisionUniform(nondectime=0, halfwidth=.1)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("np.sum(return.corr) <= np.sum(solution.corr)")
-    @ensures("np.sum(return.err) <= np.sum(solution.err)")
+    @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
+    @ensures("np.sum(return.err) <= np.sum(solution.err) + 1e-10")
     def apply(self, solution):
         # Make sure params are within range
         assert self.halfwidth >= 0, "Invalid st parameter"
@@ -438,8 +438,8 @@ class OverlayNonDecisionGamma(Overlay):
         yield OverlayNonDecisionGamma(nondectime=0, shape=1.1, scale=.1)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("np.sum(return.corr) <= np.sum(solution.corr)")
-    @ensures("np.sum(return.err) <= np.sum(solution.err)")
+    @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
+    @ensures("np.sum(return.err) <= np.sum(solution.err) + 1e-10")
     @ensures("np.all(return.corr[0:int(self.nondectime//return.model.dt)] == 0)")
     def apply(self, solution):
         # Make sure params are within range
@@ -490,7 +490,7 @@ class OverlaySimplePause(Overlay):
     @returns(Solution)
     @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
     @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
-    @ensures("solution.prob_undecided() <= return.prob_undecided()")
+    @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     @ensures('self.pausestart == self.pausestop --> solution == return')
     def apply(self, solution):
         corr = solution.corr
@@ -528,7 +528,7 @@ class OverlayBlurredPause(Overlay):
         yield OverlayBlurredPause(pausestart=.1, pausestop=.2, pauseblurwidth=.01)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("solution.prob_undecided() <= return.prob_undecided()")
+    @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     @ensures('self.pausestart == self.pausestop --> solution == return')
     def apply(self, solution):
         corr = solution.corr
