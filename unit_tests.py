@@ -12,6 +12,8 @@ from numpy import asarray as aa
 
 import ddm
 
+import paranoid
+paranoid.settings.Settings.set(enabled=True)
 
 def fails(f, exception=BaseException):
     failed = False

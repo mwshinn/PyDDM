@@ -25,3 +25,5 @@ import paranoid
 import math
 import numpy as np
 paranoid.settings.Settings.get("namespace").update({"math": math, "np": np})
+# Disable paranoid for users
+paranoid.settings.Settings.set(enabled=False)

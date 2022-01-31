@@ -5,6 +5,8 @@ from math import fsum
 import pandas
 
 import ddm
+import paranoid
+paranoid.settings.Settings.set(enabled=True)
 
 SHOW_PLOTS = False
 
