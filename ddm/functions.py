@@ -430,7 +430,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 
 #@accepts(Model, Sample, Conditions, Unchecked, Set(["analytical", "numerical", "cn", "implicit", "explicit"]))
 #@returns(Unchecked)
-def solve_all_conditions(model, sample, conditions={}, method=None):
+def solve_all_conditions(model, sample, method=None):
     """Solve the model for all conditions relevant to the sample.
 
     This takes the following parameters:
@@ -438,7 +438,6 @@ def solve_all_conditions(model, sample, conditions={}, method=None):
     - `model` - A Model() object
     - `sample` - A Sample() object which has conditions for each of
       the required conditions in `model`
-    - `conditions` - Restrict to specific conditions
     - `method` - A string describing the solver method.  Can be
       "analytical", "numerical", "cn", "implicit", or "explicit".
 
@@ -569,7 +568,7 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
     # (incorrect) undecided probability
     if not isinstance(model.get_dependence("overlay"), OverlayNone):
         model_undec = None
-    all_conds = solve_all_conditions(model, samp, conditions=conditions, method=method)
+    all_conds = solve_all_conditions(model, samp, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]

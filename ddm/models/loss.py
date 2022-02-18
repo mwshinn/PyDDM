@@ -77,23 +77,19 @@ class LossFunction(object):
     def cache_by_conditions(self, model):
         """Solve the model for all relevant conditions.
 
-        If `required_conditions` isn't None, solve `model` for each
-        combination of conditions found within the dataset.  For
-        example, if `required_conditions` is ["hand", "color"], and
-        hand can be left or right and color can be blue or green,
-        solves the model for: hand=left and color=blue; hand=right and
-        color=blue; hand=left and color=green, hand=right and
-        color=green.
-
-        If `required_conditions` is None, use all of the conditions
-        found within the sample.
+        Solve `model` for each combination of conditions found within the
+        dataset.  For example, if `required_conditions` is ["hand", "color"],
+        and hand can be left or right and color can be blue or green, solves
+        the model for: hand=left and color=blue; hand=right and color=blue;
+        hand=left and color=green, hand=right and color=green.
 
         This is a convenience function for defining new loss
         functions.  There is generally no need to redefine this
         function in subclasses.
+
         """
         from ..functions import solve_all_conditions
-        return solve_all_conditions(model, self.sample, conditions=self.required_conditions, method=self.method)
+        return solve_all_conditions(model, self.sample, method=self.method)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
