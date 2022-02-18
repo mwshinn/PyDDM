@@ -35,7 +35,7 @@ static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   double *res = _analytic_ddm_linbound(a1, b1, a2, b2, nsteps, tstep);
   npy_intp dims[1] = { nsteps };
   PyObject *retarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, res);
-  PyArray_UpdateFlags((PyArrayObject*)retarray, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)retarray, NPY_ARRAY_OWNDATA);
   return retarray;
 }
 
@@ -50,6 +50,7 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   if (!PyArg_ParseTuple(args, "OiOiOiOdddi", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps))
     return NULL;
 
+  // TODO here is the memory leak: if you don't call the FROMANY function, there is no leak
   _drift = (PyArrayObject*)PyArray_FROMANY(__drift, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
   _noise = (PyArrayObject*)PyArray_FROMANY(__noise, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
   _bound = (PyArrayObject*)PyArray_FROMANY(__bound, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
@@ -73,10 +74,21 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   PyObject *corrarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfcorr);
   PyObject *errarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdferr);
   PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
-  PyArray_UpdateFlags((PyArrayObject*)corrarray, NPY_ARRAY_OWNDATA);
-  PyArray_UpdateFlags((PyArrayObject*)errarray, NPY_ARRAY_OWNDATA);
-  PyArray_UpdateFlags((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
-  PyObject *ret = Py_BuildValue("(OOO)", corrarray, errarray, currarray);
+  // Need ENABLEFLAGS here, not UpdateFlags, because UpdateFlags checks to make
+  // sure you aren't using flags it doesn't like and silently drops those flags.
+  // (OWNDATA is one such flag.)  ENABLEFLAGS doesn't perform this validation.
+  PyArray_ENABLEFLAGS((PyArrayObject*)corrarray, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)errarray, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
+
+  // Get rid of the reference to the PyArray arguments, without this there is a memory leak
+  Py_DECREF(_drift);
+  Py_DECREF(_noise);
+  Py_DECREF(_bound);
+  Py_DECREF(_ic);
+
+  // Use NNN instead of OOO because OOO increments the reference count.
+  PyObject *ret = Py_BuildValue("(NNN)", corrarray, errarray, currarray);
   return ret;
 }
 
