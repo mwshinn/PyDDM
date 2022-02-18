@@ -600,7 +600,7 @@ class TestTriDiagMatrix(TestCase):
     def test_multiply(self):
         for m in self.matrices:
             for s in self.scalars:
-                assert not np.any(((m * s).to_scipy_sparse() != m.to_scipy_sparse().dot(s)).todense())
+                #assert not np.any(((m * s).to_scipy_sparse() != m.to_scipy_sparse().dot(s)).todense())
                 assert not np.any(((m * s).to_scipy_sparse() != (m.to_scipy_sparse()*s)).todense())
             for m2 in self.matrices:
                 if m.shape == m2.shape:
