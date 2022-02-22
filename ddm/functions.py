@@ -364,7 +364,34 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
         param.renorm_warnings = renorm_warnings_state
     return m
 
-def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100):
+def mutate_seeded(x, seed=None, i=None, mutate_var=.002, mutate_prob=.5):
+    """Seeded mutation used during fitting_method=`hillclimb`.
+    
+    Mutation function: with a probability of `mutate_prob`, add a
+    uniform gaussian random variable multiplied by the current value
+    of the parameter, with variance `mutate_var`.
+    """
+
+    if seed is not None:
+        assert isinstance(seed, int), f'Expected seed <int>, got type <{type(seed)}>.'
+        assert isinstance(i, int), f'Expected i <int>, got type <{type(i)}>.'
+        
+    if seed == 0:
+        seed = 1
+
+    population = []
+    for k, e in enumerate(x):
+        if seed:
+            np.random.seed(k*i*seed)
+        if np.random.random()<mutate_prob:
+            if seed:
+                np.random.seed(k*i*seed) # Seeded np.random.normal() will not match np.random.random()
+            population.append(e+np.random.normal(0, mutate_var))
+        else:
+            population.append(e)
+    return population
+
+def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100, seed=42):
     """Optimize using the Evolution Strategy (ES) heuristic method.
 
     Evolution Strategy is an optimization method specified in the form
@@ -388,6 +415,12 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     `lmbda` is the lambda parameter (note the spelling difference) and
     `mu` is the mu parameter for the ES.  If `copyparents` is True,
     use (`lmbda` + `mu`), and if it is False, use (`lmbda`, `mu`).
+    
+    `seed` allows optional seed values to be used during random number 
+    generation during evolution-driven optimization. If set to None, 
+    random number generation is subject to unseeded behavior. If
+    convergence is difficult, setting seed=None may result in different 
+    solutions between runs.
 
     The purpose of this is if you already have a good model, but you
     want to test the local space to see if you can make it better.
@@ -397,31 +430,27 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     x_0 = list(x_0) # Ensure we have a list, not an ndarray
     it = evals//lmbda
     
-    # Mutation function: with a probability of `mutate_prob`, add a
-    # uniform gaussian random variable multiplied by the current value
-    # of the parameter, with variance `mutate_var`.
-    mutate = lambda x : [e+np.random.normal(0, mutate_var) if np.random.random()<mutate_prob else e for e in x]
     # Set up the initial population.  We make the initial population
     # by mutating X_0.  This is not good for explorative search but is
     # good for exploitative search.
     P = [(x_0, fitness(x_0))]
     best = P[0]
-    for _ in range(0, lmbda-1):
-        new = mutate(x_0)
+    for i in range(0, lmbda-1):
+        new = mutate_seeded(x_0, seed=seed, i=i, mutate_var=mutate_var, mutate_prob=mutate_prob)
         fit = fitness(new)
         if fit < best[1]:
             best = (new, fit)
         P.append((new, fit))
-    for _ in range(0, it):
+    for i in range(0, it):
         # Find the `mu` best individuals
         P.sort(key=lambda e : e[1])
         Q = P[0:mu]
         # Copy the parents if we're supposed to
         P = Q.copy() if copyparents else []
         # Create the next generation population
-        for q in Q:
-            for _ in range(0, lmbda//mu):
-                new = mutate(q[0])
+        for ii, q in enumerate(Q):
+            for iii in range(0, lmbda//mu):
+                new = mutate_seeded(x_0, seed=seed, i=(i+1)*(ii+1)*(iii+1), mutate_var=mutate_var, mutate_prob=mutate_prob)
                 fit = fitness(new)
                 if fit < best[1]:
                     best = (new, fit)
