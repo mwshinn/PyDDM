@@ -409,7 +409,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     if seed is None:
         mutate = lambda x : [e+np.random.normal(0, mutate_var) if np.random.random()<mutate_prob else e for e in x]
     else:
-        assert isinstance(seed, (int, np.int32, np.int64)), f'Expected seed to be <int>, got <{}>'.format(type(seed))
+        assert isinstance(seed, (int, np.int32, np.int64)), "Expected seed to be <int>, got <{}>".format(type(seed))
         rng = np.random.RandomState(seed)
         mutate = lambda x : [e+rng.normal(0, mutate_var) if rng.random()<mutate_prob else e for e in x]
     
