@@ -673,7 +673,7 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
-    def test_mutate_seeded()
+    def test_mutate_seeded(self):
         """Assert deterministic solution if ddm.functions.mutate_seeded() is given seed"""
         assert [1, 2.0009934283060224, 2.9997367755960487, 3.9986753891871323] \
             == ddm.functions.mutate_seeded(np.arange(1,5), seed=42, i=1, mutate_var=.002, mutate_prob=.5)
