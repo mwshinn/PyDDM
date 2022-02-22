@@ -433,7 +433,7 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
         # Create the next generation population
         for q in Q:
             for _ in range(0, lmbda//mu):
-                new = mutate(x_0)
+                new = mutate(q[0])
                 fit = fitness(new)
                 if fit < best[1]:
                     best = (new, fit)
