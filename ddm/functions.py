@@ -364,34 +364,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
         param.renorm_warnings = renorm_warnings_state
     return m
 
-def mutate_seeded(x, seed=None, i=None, mutate_var=.002, mutate_prob=.5):
-    """Seeded mutation used during fitting_method=`hillclimb`.
-    
-    Mutation function: with a probability of `mutate_prob`, add a
-    uniform gaussian random variable multiplied by the current value
-    of the parameter, with variance `mutate_var`.
-    """
-
-    if seed is not None:
-        assert isinstance(seed, int), f'Expected seed <int>, got type <{type(seed)}>.'
-        assert isinstance(i, int), f'Expected i <int>, got type <{type(i)}>.'
-        
-    if seed == 0:
-        seed = 1
-
-    population = []
-    for k, e in enumerate(x):
-        if seed:
-            np.random.seed(k*i*seed)
-        if np.random.random()<mutate_prob:
-            if seed:
-                np.random.seed(k*i*seed) # Seeded np.random.normal() will not match np.random.random()
-            population.append(e+np.random.normal(0, mutate_var))
-        else:
-            population.append(e)
-    return population
-
-def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100, seed=42):
+def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100, seed=None):
     """Optimize using the Evolution Strategy (ES) heuristic method.
 
     Evolution Strategy is an optimization method specified in the form
@@ -430,27 +403,37 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     x_0 = list(x_0) # Ensure we have a list, not an ndarray
     it = evals//lmbda
     
+    # Mutation function: with a probability of `mutate_prob`, add a
+    # uniform gaussian random variable multiplied by the current value
+    # of the parameter, with variance `mutate_var`.
+    if seed is None:
+        mutate = lambda x : [e+np.random.normal(0, mutate_var) if np.random.random()<mutate_prob else e for e in x]
+    else:
+        assert isinstance(seed, (int, np.int32, np.int64)), f'Expected seed to be <int>, got <{type(seed)}>'
+        rng = np.random.RandomState(seed)
+        mutate = lambda x : [e+rng.normal(0, mutate_var) if rng.random()<mutate_prob else e for e in x]
+    
     # Set up the initial population.  We make the initial population
     # by mutating X_0.  This is not good for explorative search but is
     # good for exploitative search.
     P = [(x_0, fitness(x_0))]
     best = P[0]
-    for i in range(0, lmbda-1):
-        new = mutate_seeded(x_0, seed=seed, i=i, mutate_var=mutate_var, mutate_prob=mutate_prob)
+    for _ in range(0, lmbda-1):
+        new = mutate(x_0)
         fit = fitness(new)
         if fit < best[1]:
             best = (new, fit)
         P.append((new, fit))
-    for i in range(0, it):
+    for _ in range(0, it):
         # Find the `mu` best individuals
         P.sort(key=lambda e : e[1])
         Q = P[0:mu]
         # Copy the parents if we're supposed to
         P = Q.copy() if copyparents else []
         # Create the next generation population
-        for ii, q in enumerate(Q):
-            for iii in range(0, lmbda//mu):
-                new = mutate_seeded(x_0, seed=seed, i=(i+1)*(ii+1)*(iii+1), mutate_var=mutate_var, mutate_prob=mutate_prob)
+        for q in Q:
+            for _ in range(0, lmbda//mu):
+                new = mutate(x_0)
                 fit = fitness(new)
                 if fit < best[1]:
                     best = (new, fit)
