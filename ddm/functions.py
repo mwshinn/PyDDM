@@ -364,7 +364,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
         param.renorm_warnings = renorm_warnings_state
     return m
 
-def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100):
+def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var=.002, mutate_prob=.5, evals=100, seed=None):
     """Optimize using the Evolution Strategy (ES) heuristic method.
 
     Evolution Strategy is an optimization method specified in the form
@@ -388,6 +388,12 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     `lmbda` is the lambda parameter (note the spelling difference) and
     `mu` is the mu parameter for the ES.  If `copyparents` is True,
     use (`lmbda` + `mu`), and if it is False, use (`lmbda`, `mu`).
+    
+    `seed` allows optional seed values to be used during random number 
+    generation during evolution-driven optimization. If set to None, 
+    random number generation is subject to unseeded behavior. If
+    convergence is difficult, setting seed=None may result in different 
+    solutions between runs.
 
     The purpose of this is if you already have a good model, but you
     want to test the local space to see if you can make it better.
@@ -400,7 +406,13 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
     # Mutation function: with a probability of `mutate_prob`, add a
     # uniform gaussian random variable multiplied by the current value
     # of the parameter, with variance `mutate_var`.
-    mutate = lambda x : [e+np.random.normal(0, mutate_var) if np.random.random()<mutate_prob else e for e in x]
+    if seed is None:
+        mutate = lambda x : [e+np.random.normal(0, mutate_var) if np.random.random()<mutate_prob else e for e in x]
+    else:
+        assert isinstance(seed, (int, np.int32, np.int64)), "Expected seed to be <int>, got <{}>".format(type(seed))
+        rng = np.random.RandomState(seed)
+        mutate = lambda x : [e+rng.normal(0, mutate_var) if rng.random()<mutate_prob else e for e in x]
+    
     # Set up the initial population.  We make the initial population
     # by mutating X_0.  This is not good for explorative search but is
     # good for exploitative search.

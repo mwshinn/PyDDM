@@ -111,6 +111,26 @@ def test_fit_simple_ddm():
         plt.show()
 
     _verify_param_match("drift", "drift", m, mfit)
+    
+def test_fit_hillclimb_seed():
+    # Verify seed functionality works as expected for `hillclimb` method
+    m = Model(name="DDM", dt=.01,
+              drift=DriftConstant(drift=2),
+              noise=NoiseConstant(noise=1),
+              bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model(sample, drift=DriftConstant(drift=Fittable(minval=0, maxval=10)),
+                    fitting_method='hillclimb', fitparams={'seed':1})
+                            
+    m = Model(name="DDM", dt=.01,
+              drift=DriftConstant(drift=2),
+              noise=NoiseConstant(noise=1),
+              bound=BoundConstant(B=1))
+    s = m.solve()
+    sample = s.resample(10000)
+    mfit = fit_model(sample, drift=DriftConstant(drift=Fittable(minval=0, maxval=10)),
+                    fitting_method='hillclimb', fitparams={'seed':None})
 
 # def test_fit_constant_drift_constant_noise():
 #     m = Model(name="DDM",

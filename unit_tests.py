@@ -673,6 +673,8 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
+            
+            
         
 
         
