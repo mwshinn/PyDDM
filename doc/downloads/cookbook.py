@@ -7,39 +7,39 @@ import scipy.stats
 import ddm
 
 
-# Start ICPointRew
+# Start ICPointSideBias
 import numpy as np
 from ddm import InitialCondition
-class ICPointRew(InitialCondition):
-    name = "A reward-biased starting point."
+class ICPointSideBias(InitialCondition):
+    name = "A starting point with a left or right bias."
     required_parameters = ["x0"]
-    required_conditions = ["highreward"]
+    required_conditions = ["left_is_correct"]
     def get_IC(self, x, dx, conditions):
         start = np.round(self.x0/dx)
-        # Positive bias for high reward conditions, negative for low reward
-        if not conditions['highreward']:
+        # Positive bias for left choices, negative for right choices
+        if not conditions['left_is_correct']:
             start = -start
         shift_i = int(start + (len(x)-1)/2)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=self.x0.
         return pdf
-# End ICPointRew
+# End ICPointSideBias
 
-# Start ICPointRewInterp
+# Start ICPointSideBiasInterp
 import numpy as np
 import scipy.stats
 from ddm import InitialCondition
-class ICPointRewInterp(InitialCondition):
-    name = "A dirac delta function at a position dictated by reward."
+class ICPointSideBiasInterp(InitialCondition):
+    name = "A dirac delta function at a position dictated by the left or right side."
     required_parameters = ["x0"]
-    required_conditions = ["highreward"]
+    required_conditions = ["left_is_correct"]
     def get_IC(self, x, dx, conditions):
         start_in = np.floor(self.x0/dx)
         start_out = np.sign(start_in)*(np.abs(start_in)+1)
         w_in = np.abs(start_out - self.x0/dx)
         w_out = np.abs(self.x0/dx - start_in)
-        if not conditions['highreward']:
+        if not conditions['left_is_correct']:
             start_in = -start_in
             start_out = -start_out
         shift_in_i = int(start_in + (len(x)-1)/2)
@@ -52,42 +52,42 @@ class ICPointRewInterp(InitialCondition):
         pdf[shift_in_i] = w_in # Initial condition at the inner grid next to x=self.x0.
         pdf[shift_out_i] = w_out # Initial condition at the outer grid next to x=self.x0.
         return pdf
-# End ICPointRewInterp
+# End ICPointSideBiasInterp
 
-# Start ICPointRewRatio
+# Start ICPointSideBiasRatio
 import numpy as np
 from ddm import InitialCondition
-class ICPointRewRatio(InitialCondition):
-    name = "A reward-biased starting point expressed as a proportion of the distance between the bounds."
+class ICPointSideBiasRatio(InitialCondition):
+    name = "A side-biased starting point expressed as a proportion of the distance between the bounds."
     required_parameters = ["x0"]
-    required_conditions = ["highreward"]
+    required_conditions = ["left_is_correct"]
     def get_IC(self, x, dx, conditions):
         x0 = self.x0/2 + .5 #rescale to between 0 and 1
-        # Bias > .5 for high reward, bias < .5 for low reward. 
-        # On original scale, positive bias for high reward conditions, negative for low reward
-        if not conditions['highreward']:
+        # Bias > .5 for left side correct, bias < .5 for right side correct.
+        # On original scale, positive bias for left, negative for right
+        if not conditions['left_is_correct']:
             x0 = 1-x0
         shift_i = int((len(x)-1)*x0)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=x0*2*B.
-        return pdf    
-# End ICPointRewRatio
+        return pdf
+# End ICPointSideBiasRatio
 
 # Start ICPointRange
 import numpy as np
 import scipy.stats
 from ddm import InitialCondition
 class ICPointRange(InitialCondition):
-    name = "A shifted reward-biased uniform distribution"
+    name = "A shifted side-biased uniform distribution"
     required_parameters = ["x0", "sz"]
-    required_conditions = ["highreward"]
+    required_conditions = ["left_is_correct"]
     def get_IC(self, x, dx, conditions, *args, **kwargs):
         # Check for valid initial conditions
         assert abs(self.x0) + abs(self.sz) < np.max(x), \
             "Invalid x0 and sz: distribution goes past simulation boundaries"
-        # Positive bias for high reward conditions, negative for low reward
-        x0 = self.x0 if conditions["highreward"] else -self.x0
+        # Positive bias for left correct, negative for right
+        x0 = self.x0 if conditions["left_is_correct"] else -self.x0
         # Use "+dx/2" because numpy ranges are not inclusive on the upper end
         pdf = scipy.stats.uniform(x0 - self.sz, 2*self.sz+dx/10).pdf(x)
         return pdf/np.sum(pdf)

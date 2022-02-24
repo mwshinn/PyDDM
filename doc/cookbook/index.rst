@@ -83,9 +83,9 @@ default).  Instead, I want my initial conditions to be:
 
   - :class:`A single point at an arbitrary location <.ICPoint>`
 
-  - :ref:`A single point at an arbitrary location with a sign which depends on task conditions <ic-biased>`
+  - :ref:`A side bias <ic-biased>`
 
-  - :ref:`A single point determined as a ratio of bound height (useful for fitting bound height) <ic-ratio>`
+  - :ref:`A relative side bias (as a ratio of bound height) <ic-ratio>`
 
 - A uniform distribution
 

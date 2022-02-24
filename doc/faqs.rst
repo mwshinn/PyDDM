@@ -206,6 +206,10 @@ Your model may be slow for a number of different reasons.
   start.  If dx and dt are larger than 0.01, your estimated response
   time distribution will be inaccurate, and if dx and dt are smaller
   than 0.0001, solving the model will be extremely slow.
+- **The C solver is not working properly** -- You can confirm that the C solver
+  is operating by ensuring the variable ``ddm.model.HAS_CSOLVE`` is True.  If
+  there was an error installing the C solver when installing PyDDM, PyDDM will
+  still run, but it will be 10-100x slower.
 
 How many trials do I need to fit a GDDM to data?
 ------------------------------------------------
@@ -233,3 +237,37 @@ these trials for different sample sizes, you fit the same model (but with
 Fittable parameters) to the generated data. Then, you can find how close the
 parameter estimates are to the actual parameters when you have different sample
 sizes.
+
+Does PyDDM support HDDM's "stimulus coding"?
+--------------------------------------------
+
+There are many potential ways that data about the subject's choice may be passed
+to a DDM model.  In PyDDM, the subject's choice is specified by whether they
+were correct or incorrect on a given trial.  In this coding scheme, the drift
+rate should usually be positive, indicating evidence accumulation towards the
+correct choice.  However, if there is a starting bias, indicated by an
+InitialCondition, this may have to be flipped depending on the type of trial.
+For example, if the subject has a leftward bias, the bias should be towards the
+correct boundary of left was the correct choice, or towards the incorrect
+boundary if right was the correct choice.
+
+The HDDM software package supports an additional scheme.  In addition to PyDDM's
+scheme (which they call "accuracy coding"), they have a scheme they call
+"stimulus coding" where the choice is specified directly.  For example, data
+would indicate whether the subject chose left or right, with no information
+about whether the subject responded correctly.  This means that drift rate
+(usually) must flip depending on the correct answer, but an initial bias could
+be fixed for all trials.
+
+All models which can be implemented by HDDM's "stimulus coding" scheme can be
+implemented in PyDDM.  To do so, include a condition in your data which
+specifies the stimulus of the correct answer, e.g., whether the correct answer
+was to the left or right.  See :ref:`the relevant section of the cookbook
+<ic-biased>` for how to do this with a biased starting position.
+
+Also, note that PyDDM solutions are symmetric with respect to the "correct" and
+"error" designations, so these labels can be reinterpreted by the user.  In
+other words, PyDDM just uses the terms "correct" and "error" as names, so you
+can make them mean something different if you want.  (The only exception to this
+is the "mean_rt" function, which only uses correct trials to compute the mean
+RT.)

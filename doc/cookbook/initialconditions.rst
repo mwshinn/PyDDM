@@ -17,29 +17,37 @@ at 0, do::
 Biased Initial Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When rewards or stimulus probabilities are asymmetric, a common
-paradigm is to start the trial with a bias towards one side.  Suppose
-we have a sample which has the ``highreward`` condition set to either
-0 or 1, describing whether the correct answer is the high or low
-reward side.  We must define the :meth:`~.InitialCondition.get_IC`
-method in an :class:`.InitialCondition` object which generates a
-discredited probability distribution on the model's position grid
-domain.  We can model this with:
+Often we want to model a side bias, either those which arise naturally or those
+introduced experimentally through asymmetric reward or stimulus probabilities.
+The most popular way of modeling a side bias is to use a starting position which
+is closer to the boundary representing that side.
+
+To do this, we must first include a condition in our dataset describing whether
+the correct answer was the left side or the right side.  Suppose we have a
+sample which has the ``left_is_correct`` condition, which is 1 if the correct
+answer is on the left side, and 0 if the correct answer is on the right side.
+Now, we can define an :class:`.InitialCondition` object which uses this
+information.  We do this by defining a :meth:`~.InitialCondition.get_IC` method.
+This method should generate a discretized probability distribution for the
+starting position.  Here, we want this distribution to be a single point ``x0``,
+the sign of which (positive or negative) depends on whether the correct answer
+is on the left or right side.  The function receives the support of the
+distribution in the ``x`` argument.  We can model this with:
 
 .. literalinclude:: ../downloads/cookbook.py
    :language: python
-   :start-after: # Start ICPointRew
-   :end-before: # End ICPointRew
+   :start-after: # Start ICPointSideBias
+   :end-before: # End ICPointSideBias
 
-Then we can compare the high reward distribution to the low reward
-distribution::
+Then we can compare the distribution of left-correct trials to those of
+right-correct trials::
 
   from ddm import Model
   from ddm.plot import plot_compare_solutions
   import matplotlib.pyplot as plt
-  model = Model(IC=ICPointRew(x0=.3))
-  s1 = model.solve(conditions={"highreward": 1})
-  s2 = model.solve(conditions={"highreward": 0})
+  model = Model(IC=ICPointSideBias(x0=.3))
+  s1 = model.solve(conditions={"left_is_correct": 1})
+  s2 = model.solve(conditions={"left_is_correct": 0})
   plot_compare_solutions(s1, s2)
   plt.show()
 
@@ -47,9 +55,9 @@ We can also see these directly in the model GUI::
 
   from ddm import Model, Fittable
   from ddm.plot import model_gui
-  model = Model(IC=ICPointRew(x0=Fittable(minval=0, maxval=1)),
+  model = Model(IC=ICPointSideBias(x0=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
-  model_gui(model, conditions={"highreward": [0, 1]})
+  model_gui(model, conditions={"left_is_correct": [0, 1]})
 
 To more accurately represent the initial condition, we can 
 linearly approximate the probability density function at the two 
@@ -57,16 +65,16 @@ neighboring grids of the initial position:
 
 .. literalinclude:: ../downloads/cookbook.py
    :language: python
-   :start-after: # Start ICPointRewInterp
-   :end-before: # End ICPointRewInterp
+   :start-after: # Start ICPointSideBiasInterp
+   :end-before: # End ICPointSideBiasInterp
 
 Try it out with::
 
   from ddm import Model, Fittable
   from ddm.plot import model_gui
-  model = Model(IC=ICPointRewInterp(x0=Fittable(minval=0, maxval=1)),
+  model = Model(IC=ICPointSideBiasInterp(x0=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
-  model_gui(model, conditions={"highreward": [0, 1]})
+  model_gui(model, conditions={"left_is_correct": [0, 1]})
 
 In practice, these are very similar, but the latter gives a smoother
 derivative, which may be useful for gradient-based fitting methods
@@ -85,18 +93,18 @@ stay within the bounds, preventing errors in fitting.
 
 .. literalinclude:: ../downloads/cookbook.py
    :language: python
-   :start-after: # Start ICPointRewRatio
-   :end-before: # End ICPointRewRatio
+   :start-after: # Start ICPointSideBiasRatio
+   :end-before: # End ICPointSideBiasRatio
 
 Try it out with:: 
 
   from ddm import Model, Fittable
   from ddm.models import BoundConstant
   from ddm.plot import model_gui
-  model = Model(IC=ICPointRewRatio(x0=Fittable(minval=-1, maxval=1)),
+  model = Model(IC=ICPointSideBiasRatio(x0=Fittable(minval=-1, maxval=1)),
                 bound=BoundConstant(B=Fittable(minval=.1, maxval=2)),
                 dx=.01, dt=.01)
-  model_gui(model, conditions={"highreward": [0, 1]})
+  model_gui(model, conditions={"left_is_correct": [0, 1]})
 
 .. _ic-biased-range:
 
@@ -116,7 +124,7 @@ Try it out with constant drift using::
                 IC=ICPointRange(x0=Fittable(minval=0, maxval=.5),
                                 sz=Fittable(minval=0, maxval=.49)),
                 dx=.01, dt=.01)
-  model_gui(model, conditions={"highreward": [0, 1]})
+  model_gui(model, conditions={"left_is_correct": [0, 1]})
 
 .. _ic-cauchy:
 
