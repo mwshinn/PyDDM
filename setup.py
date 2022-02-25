@@ -7,7 +7,7 @@
 from setuptools import setup, Extension
 import numpy as np
 
-with open("ddm/_version.py", "r") as f:
+with open("pyddm/_version.py", "r") as f:
     exec(f.read())
 
 with open("README.md", "r") as f:
@@ -27,9 +27,9 @@ setup(
     license = 'MIT',
     python_requires='>=3.5',
     url='https://github.com/mwshinn/PyDDM',
-    packages = ['ddm', 'ddm.models'],
-    ext_modules = [Extension('ddm.csolve',
-                             sources=['ddm/csolve.c'],
+    packages = ['pyddm', 'pyddm.models', 'ddm'],
+    ext_modules = [Extension('pyddm.csolve',
+                             sources=['pyddm/csolve.c'],
                              include_dirs=[np.get_include()],
                            )],
     install_requires = ['numpy >= 1.9.2', 'scipy >= 0.16', 'matplotlib', 'paranoid-scientist >= 0.2.1'],
