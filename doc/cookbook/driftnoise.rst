@@ -233,3 +233,47 @@ This can be used like any other Drift class.  For example::
                 dx=.01, dt=.01)
   model_gui(model, conditions={"driftnum": list(range(0, 11))})
 
+
+.. _momenttomoment:
+
+Moment-to-moment observations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Suppose we have measured a parameter at each moment in each trial and would like
+to compute a drift rate based upon it.  Let's suppose we measured the subject's
+skin conductance response (SCR) while performing the task, and we hypothesize
+that evidence integration is stronger when there is a higher SCR.  We can bin
+SCR into bins (say, 100 ms bins) and use this to determine drift rate.  This
+means that there will only be one trial per condition, and that each value of
+the condition will be a tuple of SCR values.  Note that it must be a tuple, and
+cannot be a list.
+
+Let's save the SCR into the "signal" condition in the code below.  We can write:
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start DriftMomentToMoment
+   :end-before: # End DriftMomentToMoment
+
+This can be used in a model for any sample which has the "signal" condition,
+where "signal" is a tuple of values, giving the magnitude of the SCR at each
+timepoint (spaced BINSIZE apart).
+
+Alternatively, we could extend this beyond just drift rate. Suppose we
+hypothesized that, instead of drift rate, the urgency signal was related to
+pupil diameter.  We can write:
+
+.. literalinclude:: ../downloads/cookbook.py
+   :language: python
+   :start-after: # Start UrgencyMomentToMoment
+   :end-before: # End UrgencyMomentToMoment
+
+Then, we could create a model using the following::
+
+  from ddm import Model, Fittable
+  from ddm.plot import model_gui
+  m = Model(drift=DriftUrgencyMomentToMoment(snr=Fittable(minval=0, maxval=2)),
+            noise=NoiseUrgencyMomentToMoment(),
+            dt=.01, dx=.01)
+  model_gui(m, conditions={"signal": [(.1, .1, .1, .1, .1, .1, 0), (0.0, 1, 2, 3), (0, 0.0, 0,0, 1)]})
+

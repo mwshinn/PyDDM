@@ -11,6 +11,9 @@ users to your paper!
 
 :download:`Download cookbook.py (all models in the cookbook) <../downloads/cookbook.py>`
 
+
+.. _task-paradigms:
+
 Task paradigms
 ~~~~~~~~~~~~~~
 
@@ -31,6 +34,8 @@ Drift and noise
 
 I want:
 
+- :ref:`A drift rate which changes over time (see "task paradigms" section above) <task-paradigms>`
+
 - :ref:`Leaky or unstable integration <drift-leak>`
 
 - :class:`A general Ornstein-Uhlenbeck process <.DriftLinear>`
@@ -44,6 +49,8 @@ I want:
 - :ref:`An urgency gain function <drift-gain-function>`
 
 - :ref:`Drift rate variability (uniform distribution) <drift-uniform>`
+
+- :ref:`Drift rate or noise which depends on a moment-to-moment signal, unique to each trial <momenttomoment>`
 
 - Something else :doc:`(Write your own, using these as a guide.) <driftnoise>`
 

@@ -271,3 +271,28 @@ other words, PyDDM just uses the terms "correct" and "error" as names, so you
 can make them mean something different if you want.  (The only exception to this
 is the "mean_rt" function, which only uses correct trials to compute the mean
 RT.)
+
+
+Does PyDDM support allow non-discrete conditions?
+-------------------------------------------------
+
+PyDDM runs fastest when there are a smaller number of conditions.  However,
+PyDDM is frequently used for models where there is a separate condition for each
+trial.  For instance, it is possible to have drift rate depend on other
+observations, such as eye movements or electrophysiological signals.  See
+:ref:`momenttomoment` for an example.
+
+While PyDDM is able to do this faster than most other software packages, PyDDM
+is fastest when there are fewer conditions.  (The execution time increases
+linearly with the number of conditions.)  PyDDM can also parallelize this with
+no extra effort required by the user to make it even faster.
+
+Unfortunately, there are limits to this speed.  According to the two standard
+solver methodologies (both supported by PyDDM), it is either possible to
+simulate individual diffusion trajectories, or to solve the Fokker-Planck
+equation separately for each trial.  If PyDDM isn't fast enough, the only (as
+of 2022) way to make simulations with many conditions run faster is to simulate
+many instances and then train a deep neural network on the RT distribution.
+There is a way to do this in HDDM, described in `Fengler et al (2022)
+<https://elifesciences.org/articles/65074>`_.  No such feature is currently
+planned in PyDDM.

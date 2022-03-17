@@ -396,3 +396,45 @@ class DriftUniform(ddm.Drift):
         return mindrift + stepsize*conditions['driftnum']
 # End DriftUniform
 
+# Start DriftMomentToMoment
+class DriftMomentToMoment(ddm.Drift):
+    """Drift rate which depends on trial-wise observations over time"""
+    name = "Moment-to-moment drift"
+    BINSIZE = .1 # 100 ms per bin
+    required_parameters = ['drift_multiplier'] # How much to scale moment-to-moment drift
+    required_conditions = ['signal'] # should be a list of values which determine the moment-to-moment drift
+    def get_drift(self, t, conditions, **kwargs):
+        bin_number = int(t//self.BINSIZE) # Which bin are we currently in?
+        n_bins = len(conditions['signal']) # Total number of bins for this condition
+        # If we are currently in a bin which exceeds the total bins, fix to the last bin
+        if bin_number >= n_bins:
+            bin_number = n_bins-1
+        # Compute the moment-to-moment drift
+        return conditions['signal'][bin_number] * self.drift_multiplier
+# End DriftMomentToMoment
+
+# Start UrgencyMomentToMoment
+def signal_to_urgency(t, signal, binsize=.1):
+    bin_number = int(t//binsize) # Which bin are we currently in?
+    n_bins = len(signal) # Total number of bins for this condition
+    # If we are currently in a bin which exceeds the total bins, fix to the last bin
+    if bin_number >= n_bins:
+        bin_number = n_bins-1
+    return 1 + signal[bin_number]
+
+class DriftUrgencyMomentToMoment(ddm.Drift):
+    """Drift rate which varies over time, differently for each trial"""
+    name = "Moment-to-moment urgency drift"
+    required_parameters = ['snr'] # How much to scale moment-to-moment drift
+    required_conditions = ['signal'] # should be a list of values which determine the moment-to-moment drift
+    def get_drift(self, t, conditions, **kwargs):
+        return signal_to_urgency(t, conditions['signal']) * self.snr
+
+class NoiseUrgencyMomentToMoment(ddm.Noise):
+    """Noise rate which varies over time, differently for each trial"""
+    name = "Moment-to-moment urgency noise"
+    required_parameters = [] # How much to scale moment-to-moment drift
+    required_conditions = ['signal'] # should be a list of values which determine the moment-to-moment drift
+    def get_noise(self, t, conditions, **kwargs):
+        return signal_to_urgency(t, conditions['signal'])
+# End UrgencyMomentToMoment
