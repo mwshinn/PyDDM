@@ -273,8 +273,8 @@ is the "mean_rt" function, which only uses correct trials to compute the mean
 RT.)
 
 
-Does PyDDM support allow non-discrete conditions?
--------------------------------------------------
+Does PyDDM allow non-discrete conditions?
+-----------------------------------------
 
 PyDDM runs fastest when there are a smaller number of conditions.  However,
 PyDDM is frequently used for models where there is a separate condition for each
