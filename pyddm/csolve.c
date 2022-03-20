@@ -24,8 +24,8 @@ void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
   }
 }
 
-double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int nsteps, double tstep);
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode);
+double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsigned int nsteps, double tstep);
+int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
 
 static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   double a1, b1, a2, b2, tstep;
@@ -124,7 +124,7 @@ PyInit_csolve(void)
 
 // Methods
 
-double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int nsteps, double tstep) {
+double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsigned int nsteps, double tstep) {
   const int nMax = 100; // Maximum numbe of loops
   const double errbnd = 1e-10; // Error bound for looping
   double* suminc;
@@ -164,7 +164,7 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int n
         break;
   }
   //const double sqrtpi = sqrt(2*M_PI);
-  const double oneoversqrtpi = 1/sqrt(2*M_PI);
+  const double oneoversqrtpi = 1/sqrt(2*3.14159265358979);
   //float itstep;
   for (unsigned int i=1; i<nsteps; i++) {
     //suminc[i] *= exp(-pow((a1+b1*i*tstep),2)/(i*tstep)/2)/sqrtpi/pow(i*tstep, 1.5);
@@ -180,7 +180,7 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, int n
 
 
 
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, uint drift_mode, uint noise_mode, uint bound_mode) {
+int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode) {
   int dmultt=-1, dmultx=-1, nmultt=-1, nmultx=-1, bmultt=-1;
   int j;
   double dxinv = 1/dx;
