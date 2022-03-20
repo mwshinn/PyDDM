@@ -122,14 +122,24 @@ def fit_model(sample,
     the model.
 
     `method` specifies how the model should be fit.
-    "differential_evolution" is the default, which seems to be able to
-    accurately locate the global maximum without using a
-    derivative. "simple" uses a derivative-based method to minimize,
-    and just uses randomly initialized parameters and gradient
-    descent.  "basin" uses "scipy.optimize.basinhopping" to find an
-    optimal solution, which is much slower but also gives better
-    results than "simple".  It does not appear to give better results
-    than "differential_evolution".
+    "differential_evolution" is the default, which accurately locates
+    the global maximum without using a derivative.  "simple" uses a
+    derivative-based method to minimize, and just uses randomly
+    initialized parameters and gradient descent.  "simplex" is the
+    Nelder-Mead method, and is a gradient-free local search.  "basin"
+    uses "scipy.optimize.basinhopping" to find an optimal solution,
+    which is much slower but also gives better results than "simple".
+    It does not appear to give better or faster results than
+    "differential_evolution" in most cases.  Alternatively, a custom
+    objective function may be used by setting `method` to be a
+    function which accepts the "x_0" parameter (for starting position)
+    and "constraints" (for min and max values).  In general, it is
+    recommended you almost always use differential evolution, unless
+    you have a model which is highly-constrained (e.g. only one or two
+    parameters to estimate with low covariance) or you already know
+    the approximate parameter values.  In practice, besides these two
+    special cases, changing the method is unlikely to give faster or
+    more reliable estimation.
 
     `fitparams` is a dictionary of kwargs to be passed directly to the
     minimization routine for fine-grained low-level control over the
@@ -159,6 +169,7 @@ def fit_model(sample,
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
+
     """
     
     # Use the reaction time data (a list of reaction times) to
@@ -185,17 +196,24 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     "Fitted()" instance, as these will be the parameters to fit.
     
     `fitting_method` specifies how the model should be fit.
-    "differential_evolution" is the default, which seems to be able to
-    accurately locate the global maximum without using a
-    derivative. "simple" uses a derivative-based method to minimize,
-    and just uses randomly initialized parameters and gradient
-    descent.  "basin" uses "scipy.optimize.basinhopping" to find an
-    optimal solution, which is much slower but also gives better
-    results than "simple".  It does not appear to give better results
-    than "differential_evolution".  Alternatively, a custom objective
-    function may be used by setting `fitting_method` to be a function
-    which accepts the "x_0" parameter (for starting position) and
-    "constraints" (for min and max values).
+    "differential_evolution" is the default, which accurately locates
+    the global maximum without using a derivative.  "simple" uses a
+    derivative-based method to minimize, and just uses randomly
+    initialized parameters and gradient descent.  "simplex" is the
+    Nelder-Mead method, and is a gradient-free local search.  "basin"
+    uses "scipy.optimize.basinhopping" to find an optimal solution,
+    which is much slower but also gives better results than "simple".
+    It does not appear to give better or faster results than
+    "differential_evolution" in most cases.  Alternatively, a custom
+    objective function may be used by setting `fitting_method` to be a
+    function which accepts the "x_0" parameter (for starting position)
+    and "constraints" (for min and max values).  In general, it is
+    recommended you almost always use differential evolution, unless
+    you have a model which is highly-constrained (e.g. only one or two
+    parameters to estimate with low covariance) or you already know
+    the approximate parameter values.  In practice, besides these two
+    special cases, changing the method is unlikely to give faster or
+    more reliable estimation.
 
     `fitparams` is a dictionary of kwargs to be passed directly to the
     minimization routine for fine-grained low-level control over the
@@ -230,6 +248,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
 
     This function will automatically parallelize if set_N_cpus() has
     been called.
+
     """
     # Disable paranoid if `verify` is False.
     paranoid_state = paranoid_settings.get('enabled')
