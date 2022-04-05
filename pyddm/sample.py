@@ -4,6 +4,7 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
+import logging
 import numpy as np
 import itertools
 
@@ -207,9 +208,9 @@ class Sample(object):
         not yet work with undecided trials.
         """
         if len(df) == 0:
-            print("Warning: Empty DataFrame")
+            logging.warning("Empty DataFrame")
         if np.mean(df[rt_column_name]) > 50:
-            print("Warning: RTs should be specified in seconds, not milliseconds")
+            logging.warning("RTs should be specified in seconds, not milliseconds")
         for _,col in df.items():
             if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
                 raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")

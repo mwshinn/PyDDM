@@ -6,6 +6,7 @@
 
 __all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC', 'LossRobustLikelihood', 'LossRobustBIC']
 
+import logging
 import numpy as np
 
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
@@ -181,9 +182,9 @@ class LossLikelihood(LossFunction):
                 except FloatingPointError:
                     minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
                     if minlike == 0:
-                        print("Warning: infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
+                        logging.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
                     elif minlike < 0:
-                        print("Warning: infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                        logging.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
                     return np.inf
             # This is not a valid way to incorporate undecided trials into a likelihood
             #if sols[k].prob_undecided() > 0:

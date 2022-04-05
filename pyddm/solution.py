@@ -5,6 +5,7 @@
 # Please see LICENSE.txt in the root directory for more information.
 
 import copy
+import logging
 import numpy as np
 from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
@@ -151,9 +152,9 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            print("WARNING: Undecided probability accessed for model with overlays.  "
-                  "Undecided probability applies *before* overlays.  Please see the "
-                  "pdf_undec docs for more information and to prevent misunderstanding.")
+            logging.warning("Undecided probability accessed for model with overlays.  "
+                "Undecided probability applies *before* overlays.  Please see the "
+                "pdf_undec docs for more information and to prevent misunderstanding.")
         if self.undec is not None:
             return self.undec/self.model.dx
         else:
@@ -193,9 +194,9 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            print("WARNING: Probability evolution accessed for model with overlays.  "
-                  "Probability evolution applies *before* overlays.  Please see the "
-                  "evolution docs for more information and to prevent misunderstanding.")
+            logging.warning("Probability evolution accessed for model with overlays.  "
+                            "Probability evolution applies *before* overlays.  Please see the "
+                            "evolution docs for more information and to prevent misunderstanding.")
         if self.evolution is not None:
             return self.evolution/self.model.dx
         else:
@@ -232,7 +233,7 @@ class Solution(object):
         """The probability of not responding during the time limit."""
         udprob = 1 - np.sum(self.corr) - np.sum(self.err)
         if udprob < 0:
-            print("Warning, setting undecided probability from %f to 0" % udprob)
+            logging.warning("Setting undecided probability from %f to 0" % udprob)
             udprob = 0
         return udprob
 
@@ -325,7 +326,7 @@ class Solution(object):
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
         if np.abs(np.sum(combined_probs)-1) >= .0001:
-            print("Warning, distribution sums to %f rather than 1" % np.sum(combined_probs))
+            logging.warning("Distribution sums to %f rather than 1" % np.sum(combined_probs))
         samp = rng.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials

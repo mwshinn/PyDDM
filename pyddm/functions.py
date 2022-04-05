@@ -10,7 +10,7 @@ __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'get_model_loss', 'set_N_cpus']
 
 import copy
-
+import logging
 import numpy as np
 from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
 
@@ -337,17 +337,17 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
             # they will give 1.000000000001.  This fixes that problem
             # to make sure the model is within its domain.
             if x > p.maxval:
-                if verbose:
-                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
+                if verbose:  # TODO: do we still want this parameter given logging support?
+                    logging.warning("Optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
                 x = p.maxval
             if x < p.minval:
                 if verbose:
-                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
+                    logging.warning("Optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
                 x = p.minval
             s(m, x)
         lossf = lf.loss(m)
         if verbose:
-            print(repr(m), "loss="+ str(lossf))
+            logging.info(repr(m) + " loss="+ str(lossf))
         return lossf
     # Cast to a dictionary if necessary
     if fitparams is None:
@@ -375,7 +375,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
                     nparams=len(params), samplesize=len(sample),
                     mess=(x_fit.message if "message" in x_fit.__dict__ else ""))
     m.fitresult = res
-    print("Params", x_fit.x, "gave", x_fit.fun)
+    logging.info("Params " + str(x_fit.x) + " gave " + str(x_fit.fun))
     for x,s in zip(x_fit.x, setters):
         s(m, x)
     if not verify:
@@ -635,10 +635,10 @@ def hit_boundary(model):
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fitted):
                 if (pv - pv.minval)/(pv.maxval-pv.minval) < .01: # No abs because pv always > pv.minval
-                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))
+                    logging.info("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))  # TODO possibly make warning
                     hit = True
                 if (pv.maxval-pv)/(pv.maxval-pv.minval) < .01: # No abs because pv.maxval always > pv
-                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
+                    logging.info("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))  # TODO possibly make warning
                     hit = True
     return hit
 
@@ -719,4 +719,4 @@ def display_model(model, print_output=True):
     if not print_output:
         return OUT
     else:
-        print(OUT)
+        logging.info(OUT)  # TODO should this be print() or info?
