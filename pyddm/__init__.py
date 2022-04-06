@@ -19,6 +19,7 @@ from .functions import *
 
 from ._version import __version__
 
+functions._init_logger()
 
 # Some default functions for paranoid scientist
 import paranoid

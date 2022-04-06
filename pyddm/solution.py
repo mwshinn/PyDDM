@@ -12,6 +12,8 @@ from paranoid.decorators import accepts, returns, requires, ensures, paranoidcla
 from .models.paranoid_types import Conditions
 from .sample import Sample
 
+_logger = logging.getLogger(__package__)
+
 @paranoidclass
 class Solution(object):
     """Describes the result of an analytic or numerical DDM run.
@@ -152,7 +154,7 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            logging.warning("Undecided probability accessed for model with overlays.  "
+            _logger.warning("Undecided probability accessed for model with overlays.  "
                 "Undecided probability applies *before* overlays.  Please see the "
                 "pdf_undec docs for more information and to prevent misunderstanding.")
         if self.undec is not None:
@@ -194,7 +196,7 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            logging.warning("Probability evolution accessed for model with overlays.  "
+            _logger.warning("Probability evolution accessed for model with overlays.  "
                             "Probability evolution applies *before* overlays.  Please see the "
                             "evolution docs for more information and to prevent misunderstanding.")
         if self.evolution is not None:
@@ -233,7 +235,7 @@ class Solution(object):
         """The probability of not responding during the time limit."""
         udprob = 1 - np.sum(self.corr) - np.sum(self.err)
         if udprob < 0:
-            logging.warning("Setting undecided probability from %f to 0" % udprob)
+            _logger.warning("Setting undecided probability from %f to 0" % udprob)
             udprob = 0
         return udprob
 
@@ -326,7 +328,7 @@ class Solution(object):
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
         if np.abs(np.sum(combined_probs)-1) >= .0001:
-            logging.warning("Distribution sums to %f rather than 1" % np.sum(combined_probs))
+            _logger.warning("Distribution sums to %f rather than 1" % np.sum(combined_probs))
         samp = rng.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials

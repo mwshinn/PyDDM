@@ -14,6 +14,8 @@ from paranoid.types import Self, Number, Positive0, Natural1
 from ..sample import Sample
 from ..model import Model
 
+_logger = logging.getLogger(__package__)
+
 class LossFunction(object):
     """An abstract class for a function to assess goodness of fit.
 
@@ -182,9 +184,11 @@ class LossLikelihood(LossFunction):
                 except FloatingPointError:
                     minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
                     if minlike == 0:
-                        logging.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
+                        _logger.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
+                        _logger.debug(model.parameters())
                     elif minlike < 0:
-                        logging.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                        _logger.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                        _logger.debug(model.parameters())
                     return np.inf
             # This is not a valid way to incorporate undecided trials into a likelihood
             #if sols[k].prob_undecided() > 0:

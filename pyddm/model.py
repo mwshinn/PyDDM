@@ -25,13 +25,14 @@ from .fitresult import FitResult, FitResultEmpty
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, Positive0, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Maybe, Nothing
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
 import dis
-    
 
 try:
     from . import csolve
     HAS_CSOLVE = True
 except ImportError:
     HAS_CSOLVE = False
+
+_logger = logging.getLogger(__package__)
 
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.
@@ -136,9 +137,9 @@ class Model(object):
         self.dx = dx
         self.dt = dt
         if self.dx > .01:
-            logging.warning("dx is large.  Estimated pdfs may be imprecise.  Decrease dx to 0.01 or less.")
+            _logger.warning("dx is large.  Estimated pdfs may be imprecise.  Decrease dx to 0.01 or less.")
         if self.dt > .01:
-            logging.warning("dt is large.  Estimated pdfs may be imprecise.  Decrease dt to 0.01 or less.")
+            _logger.warning("dt is large.  Estimated pdfs may be imprecise.  Decrease dt to 0.01 or less.")
         self.T_dur = T_dur
         self.fitresult = FitResultEmpty() if fitresult is None else fitresult # If the model was fit, store the status here
     # Get a string representation of the model
@@ -426,7 +427,7 @@ class Model(object):
 
         for s in range(0, size):
             if s % 200 == 0:
-                logging.info("Simulating trial %i" % s)
+                _logger.info("Simulating trial %i" % s)
             timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32), cutoff=True, rk4=rk4)
             T_finish = T[len(timecourse) - 1]
             B = self.get_dependence("bound").get_bound(t=T_finish, conditions=conditions)
@@ -569,9 +570,10 @@ class Model(object):
         pdfsum = np.sum(anal_pdf_corr) + np.sum(anal_pdf_err)
         if pdfsum > 1:
             if pdfsum > 1.01 and param.renorm_warnings:
-                logging.warning("Renormalizing probability density from " + str(pdfsum) + " to 1. "
+                _logger.warning("Renormalizing probability density from " + str(pdfsum) + " to 1. "
                     " Try decreasing dt.  If that doesn't eliminate this warning, it may be due to"
-                    " extreme parameter values and/or bugs in your model speficiation.")
+                    " extreme parameter values and/or bugs in your model spefication.")
+                _logger.debug(self.parameters())
             anal_pdf_corr /= pdfsum
             anal_pdf_err /= pdfsum
 
@@ -685,7 +687,7 @@ class Model(object):
             if return_evolution == False:
                 return self.solve_numerical_cn(conditions=conditions)
             else:
-                logging.warning("return_evolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
+                _logger.warning("return_evolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
                 method = "implicit"
 
         # Initial condition of decision variable
@@ -807,11 +809,11 @@ class Model(object):
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
             if sum_negative_strength < -.01 and param.renorm_warnings:
-                logging.warning("Probability density included values less than zero " \
+                _logger.warning("Probability density included values less than zero " \
                     "(minimum=%f, total=%f).  Please decrease dt and/or avoid extreme parameter " \
                     "values." % (minval, sum_negative_strength))
             if sum_negative_strength_undec < -.01 and param.renorm_warnings:
-                logging.warning("Remaining FP distribution included values less than zero " \
+                _logger.warning("Remaining FP distribution included values less than zero " \
                     "(minimum=%f, total=%f).  Please decrease dt and/or avoid extreme parameter " \
                     "values." % (minval, sum_negative_strength_undec))
             pdf_corr[pdf_corr < 0] = 0
@@ -821,10 +823,11 @@ class Model(object):
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
         if pdfsum > 1:
             if pdfsum > 1.01 and param.renorm_warnings:
-                logging.warning("Renormalizing probability density from " + str(pdfsum) + "to 1." \
+                _logger.warning("Renormalizing probability density from " + str(pdfsum) + "to 1." \
                     "  Try decreasing dt or using the implicit (backward Euler) method instead. " \
                     " If that doesn't eliminate this warning, it may be due to extreme" \
-                    "parameter values and/or bugs in your model speficiation.")
+                    "parameter values and/or bugs in your model spefication.")
+                _logger.debug(self.parameters())
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
             pdf_undec /= pdfsum
@@ -1037,7 +1040,7 @@ class Model(object):
             sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
             # For small errors, don't bother alerting the user
             if sum_negative_strength < -.01 and param.renorm_warnings:
-                logging.warning("Probability density included values less than zero " \
+                _logger.warning("Probability density included values less than zero " \
                     "(minimum=%f, total=%f).  Please decrease dt and/or avoid extreme parameter " \
                     "values." % (minval, sum_negative_strength))
             pdf_corr[pdf_corr < 0] = 0
@@ -1047,9 +1050,10 @@ class Model(object):
         if pdfsum > 1:
             # If it is only a small renormalization, don't bother alerting the user.
             if pdfsum > 1.01 and param.renorm_warnings:
-                logging.warning("Renormalizing probability density from", pdfsum, "to 1.  Try " \
-                    "decreasing dt.  If that doesn't eliminate this warning, it may be due to " \
-                    "extreme parameter values and/or bugs in your model speficiation.")
+                _logger.warning("Renormalizing probability density from " + str(pdfsum) + " to 1. "
+                    " Try decreasing dt.  If that doesn't eliminate this warning, it may be due to"
+                    " extreme parameter values and/or bugs in your model spefication.")
+                _logger.debug(self.parameters())
             pdf_corr /= pdfsum
             pdf_err /= pdfsum
 
@@ -1099,7 +1103,7 @@ class Fittable(float):
         yield Fitted(4, minval=0, maxval=10)
     def __new__(cls, val=np.nan, **kwargs):
         if not np.isnan(val):
-            logging.error(val)
+            _logger.error(val)
             raise ValueError("No positional arguments for Fittables")
         return float.__new__(cls, np.nan)
     def __init__(self, **kwargs):

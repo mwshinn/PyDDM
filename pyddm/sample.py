@@ -12,6 +12,8 @@ from paranoid.types import NDArray, Number, List, String, Self, Positive, Positi
 from paranoid.decorators import *
 from .models.paranoid_types import Conditions
 
+_logger = logging.getLogger(__package__)
+
 @paranoidclass
 class Sample(object):
     """Describes a sample from some (empirical or simulated) distribution.
@@ -208,9 +210,9 @@ class Sample(object):
         not yet work with undecided trials.
         """
         if len(df) == 0:
-            logging.warning("Empty DataFrame")
+            _logger.warning("Empty DataFrame")
         if np.mean(df[rt_column_name]) > 50:
-            logging.warning("RTs should be specified in seconds, not milliseconds")
+            _logger.warning("RTs should be specified in seconds, not milliseconds")
         for _,col in df.items():
             if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
                 raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")
