@@ -564,7 +564,7 @@ def model_gui_jupyter(model,
         # with a "_c_".  Here we detect what is what, and strip away
         # the prefix.
         if not util_widgets[0].value and not util_widgets[2].value:
-            _logger.info("Update to see new plot")
+            _logger.info("Update to see new plot")  # TODO info or warning?
             return
         for k,v in kwargs.items():
             if k.startswith("_c_"):

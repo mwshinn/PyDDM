@@ -154,9 +154,9 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            _logger.warning("Undecided probability accessed for model with overlays.  "
-                "Undecided probability applies *before* overlays.  Please see the "
-                "pdf_undec docs for more information and to prevent misunderstanding.")
+            _logger.warning(("Undecided probability accessed for model with overlays.  Undecided "
+                + "probability applies *before* overlays.  Please see the pdf_undec docs for more "
+                + "information and to prevent misunderstanding."))
         if self.undec is not None:
             return self.undec/self.model.dx
         else:
@@ -196,9 +196,9 @@ class Solution(object):
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
         if not isinstance(self.model.get_dependence("overlay"), OverlayNone):
-            _logger.warning("Probability evolution accessed for model with overlays.  "
-                            "Probability evolution applies *before* overlays.  Please see the "
-                            "evolution docs for more information and to prevent misunderstanding.")
+            _logger.warning(("Probability evolution accessed for model with overlays.  Probability"
+                + "evolution applies *before* overlays.  Please see the evolution docs for more "
+                + "information and to prevent misunderstanding."))
         if self.evolution is not None:
             return self.evolution/self.model.dx
         else:

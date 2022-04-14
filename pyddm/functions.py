@@ -738,4 +738,4 @@ def display_model(model, print_output=True):
     if not print_output:
         return OUT
     else:
-        _logger.info(OUT)  # TODO should this be print() or info?
+        print(OUT)  # TODO I suspect this should remain print(), not be moved to logging?

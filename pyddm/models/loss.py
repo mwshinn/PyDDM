@@ -185,10 +185,9 @@ class LossLikelihood(LossFunction):
                     minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
                     if minlike == 0:
                         _logger.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
-                        _logger.debug(model.parameters())
                     elif minlike < 0:
                         _logger.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
-                        _logger.debug(model.parameters())
+                    _logger.debug(model.parameters())
                     return np.inf
             # This is not a valid way to incorporate undecided trials into a likelihood
             #if sols[k].prob_undecided() > 0:
