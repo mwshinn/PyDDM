@@ -52,9 +52,17 @@ def set_N_cpus(N):
 
 _logger = logging.getLogger(__package__)
 def _init_logger():
+    # Rewrite the textual representation of logging levels to make them a bit less scary
+    logging.addLevelName(logging.DEBUG, 'Debug')
+    logging.addLevelName(logging.INFO, 'Info')
+    logging.addLevelName(logging.WARNING, 'Warning')
+    logging.addLevelName(logging.ERROR, 'Error')
+    logging.addLevelName(logging.CRITICAL, 'Critical')
+    # Define custom formatting
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter('%(filename)s:%(lineno)d %(levelname)s: %(message)s'))
     _logger.addHandler(console_handler)
+    # By default, only show statements for "Debug" and up.
     set_debug_flag(False)
 
 @accepts(Boolean)
