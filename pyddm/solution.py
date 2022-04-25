@@ -235,6 +235,7 @@ class Solution(object):
         udprob = 1 - np.sum(self.corr) - np.sum(self.err)
         if udprob < 0:
             _logger.warning("Setting undecided probability from %f to 0" % udprob)
+            _logger.debug(self.model.parameters())
             udprob = 0
         return udprob
 
