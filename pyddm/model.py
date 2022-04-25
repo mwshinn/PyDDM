@@ -249,7 +249,8 @@ class Model(object):
         """
         old_params = self.get_model_parameters()
         param_object_ids = list(map(id, old_params))
-        assert len(params) == len(param_object_ids), "Invalid params"
+        assert len(params) == len(param_object_ids), "Invalid number of parameters specified: " \
+            "got %i, expected %i" % (len(params), len(param_object_ids))
         new_params = [p if isinstance(p, Fittable) else op.make_fitted(p) \
                       for p,op in zip(params, old_params)]
         for dep in self.dependencies:
