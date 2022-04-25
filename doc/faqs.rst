@@ -296,3 +296,21 @@ many instances and then train a deep neural network on the RT distribution.
 There is a way to do this in HDDM, described in `Fengler et al (2022)
 <https://elifesciences.org/articles/65074>`_.  No such feature is currently
 planned in PyDDM.
+
+
+When should I use RobustLikelihood or RobustBIC?
+------------------------------------------------
+
+RobustLikelihood and RobustBIC are almost identical to Likelihood and BIC, but
+they have a uniform distribution mixture model built in.  (More specifically, it
+sets a "minimum value" for the log likelihood by adding a small constant term to
+it.)  This is to avoid infinite likelihoods where the distribution is zero.  If
+you are already using a mixture model (e.g. OverlayUniformMixture or
+OverlayExponentialMixture), then you should not use RobustLikelihood or
+RobustBIC.
+
+If you compare the likelihood or BIC of two models using the robust versions,
+keep in mind that you are actually comparing the mixture model.  This is
+necessary for likelihood estimation and therefore occurs in other packages as
+well, which refer to it as the probability of "contaminant RTs" (fast-dm) or
+"outliers" (HDDM).
