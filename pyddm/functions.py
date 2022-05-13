@@ -618,7 +618,9 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
             model_undec += len(subset)/len(samp)*sol.pdf_undec()
         else:
             model_undec = None
-    return Solution(model_corr*model.dt, model_err*model.dt, model, conditions, pdf_undec=model_undec)
+    sol = Solution(model_corr*model.dt, model_err*model.dt, model, conditions={}, pdf_undec=model_undec)
+    sol.partial_conditions = conditions
+    return sol
 
 @accepts(Model)
 @returns(Boolean)
