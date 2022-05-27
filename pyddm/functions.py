@@ -7,7 +7,7 @@
 __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',
            'hit_boundary', 'dependence_hit_boundary', 'display_model',
-           'get_model_loss', 'set_N_cpus', 'set_debug_flag']
+           'get_model_loss', 'set_N_cpus']
 
 import copy
 import logging
@@ -23,6 +23,7 @@ from .models.ic import ICPointSourceCenter
 from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
+from .logger import logger as _logger
 
 from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1, Maybe
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidconfig
@@ -49,26 +50,6 @@ def set_N_cpus(N):
         _parallel_pool.n_cpus = N
     else:
         _parallel_pool = None
-
-_logger = logging.getLogger(__package__)
-def _init_logger():
-    # Rewrite the textual representation of logging levels to make them a bit less scary
-    logging.addLevelName(logging.DEBUG, 'Debug')
-    logging.addLevelName(logging.INFO, 'Info')
-    logging.addLevelName(logging.WARNING, 'Warning')
-    logging.addLevelName(logging.ERROR, 'Error')
-    logging.addLevelName(logging.CRITICAL, 'Critical')
-    # Define custom formatting
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(filename)s:%(lineno)d %(levelname)s: %(message)s'))
-    _logger.addHandler(console_handler)
-    # By default, only show statements for "Debug" and up.
-    set_debug_flag(False)
-
-@accepts(Boolean)
-def set_debug_flag(debug):
-    level = logging.DEBUG if debug else logging.INFO
-    _logger.setLevel(level)
 
 @accepts(Model, Model, tol=Number)
 @requires("m1.get_model_type() == m2.get_model_type()")
@@ -356,7 +337,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
             # they will give 1.000000000001.  This fixes that problem
             # to make sure the model is within its domain.
             if x > p.maxval:
-                if verbose:  # TODO: do we still want this parameter given logging support?
+                if verbose:
                     _logger.warning("Optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
                 x = p.maxval
             if x < p.minval:
@@ -654,10 +635,10 @@ def hit_boundary(model):
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fitted):
                 if (pv - pv.minval)/(pv.maxval-pv.minval) < .01: # No abs because pv always > pv.minval
-                    _logger.info("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))  # TODO possibly make warning
+                    _logger.warning("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))
                     hit = True
                 if (pv.maxval-pv)/(pv.maxval-pv.minval) < .01: # No abs because pv.maxval always > pv
-                    _logger.info("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))  # TODO possibly make warning
+                    _logger.warning("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
                     hit = True
     return hit
 

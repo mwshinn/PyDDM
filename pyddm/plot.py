@@ -10,8 +10,7 @@ import sys
 import traceback
 import time
 from paranoid.settings import Settings as paranoid_settings
-
-_logger = logging.getLogger(__package__)
+from .logger import logger as _logger
 
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
 if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
@@ -122,7 +121,6 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     # resolution) so this should be improved someday...
     s = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
     hists = s.pdf_evolution()
-    _logger.info(np.max(hists))
     top = s.pdf_corr()
     bot = s.pdf_err()
     # Plot the output
@@ -564,7 +562,7 @@ def model_gui_jupyter(model,
         # with a "_c_".  Here we detect what is what, and strip away
         # the prefix.
         if not util_widgets[0].value and not util_widgets[2].value:
-            _logger.info("Update to see new plot")  # TODO info or warning?
+            print("Update to see new plot")
             return
         for k,v in kwargs.items():
             if k.startswith("_c_"):

@@ -21,6 +21,7 @@ from .models.paranoid_types import Conditions
 from .sample import Sample
 from .solution import Solution
 from .fitresult import FitResult, FitResultEmpty
+from .logger import logger as _logger
 
 from paranoid.types import Numeric, Number, Self, List, Generic, Positive, Positive0, String, Boolean, Natural1, Natural0, Dict, Set, Integer, NDArray, Maybe, Nothing
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass, paranoidconfig
@@ -31,8 +32,6 @@ try:
     HAS_CSOLVE = True
 except ImportError:
     HAS_CSOLVE = False
-
-_logger = logging.getLogger(__package__)
 
 # "Model" describes how a variable is dependent on other variables.
 # Principally, we want to know how drift and noise depend on x and t.
@@ -1106,8 +1105,7 @@ class Fittable(float):
         yield Fitted(4, minval=0, maxval=10)
     def __new__(cls, val=np.nan, **kwargs):
         if not np.isnan(val):
-            _logger.error("Received positional argument " + str(val))
-            raise ValueError("No positional arguments for Fittables")
+            raise ValueError("No positional arguments for Fittables. Received argument: %s." % str(val))
         return float.__new__(cls, np.nan)
     def __init__(self, **kwargs):
         minval = kwargs['minval'] if "minval" in kwargs else -np.inf

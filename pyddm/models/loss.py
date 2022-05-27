@@ -13,8 +13,7 @@ from paranoid.decorators import accepts, returns, requires, ensures, paranoidcla
 from paranoid.types import Self, Number, Positive0, Natural1
 from ..sample import Sample
 from ..model import Model
-
-_logger = logging.getLogger(__package__)
+from ..logger import logger as _logger
 
 class LossFunction(object):
     """An abstract class for a function to assess goodness of fit.

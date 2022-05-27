@@ -19,7 +19,8 @@ from .functions import *
 
 from ._version import __version__
 
-functions._init_logger()
+from .logger import _init_logger, set_log_level
+_init_logger()
 
 # Some default functions for paranoid scientist
 import paranoid

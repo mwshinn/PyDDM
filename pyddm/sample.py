@@ -11,8 +11,7 @@ import itertools
 from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Maybe, Nothing, Boolean
 from paranoid.decorators import *
 from .models.paranoid_types import Conditions
-
-_logger = logging.getLogger(__package__)
+from .logger import logger as _logger
 
 @paranoidclass
 class Sample(object):

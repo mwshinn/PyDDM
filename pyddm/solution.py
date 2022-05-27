@@ -11,8 +11,7 @@ from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Nat
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
 from .sample import Sample
-
-_logger = logging.getLogger(__package__)
+from .logger import logger as _logger
 
 @paranoidclass
 class Solution(object):
