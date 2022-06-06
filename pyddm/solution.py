@@ -329,6 +329,7 @@ class Solution(object):
         combined_probs = list(shorter_pdf_corr*self.model.dt) + list(shorter_pdf_err*self.model.dt) + [self.prob_undecided()]
         if np.abs(np.sum(combined_probs)-1) >= .0001:
             _logger.warning("Distribution sums to %f rather than 1" % np.sum(combined_probs))
+            _logger.debug(self.model.parameters())
         samp = rng.choice(combined_domain, p=combined_probs, replace=True, size=k)
         undecided = np.sum(samp==-1)
         samp = samp[samp != -1] # Remove undecided trials
