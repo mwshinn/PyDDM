@@ -4,12 +4,14 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
+import logging
 import numpy as np
 import itertools
 
 from paranoid.types import NDArray, Number, List, String, Self, Positive, Positive0, Range, Natural0, Unchecked, Dict, Maybe, Nothing, Boolean
 from paranoid.decorators import *
 from .models.paranoid_types import Conditions
+from .logger import logger as _logger
 
 @paranoidclass
 class Sample(object):
@@ -207,9 +209,9 @@ class Sample(object):
         not yet work with undecided trials.
         """
         if len(df) == 0:
-            print("Warning: Empty DataFrame")
+            _logger.warning("Empty DataFrame")
         if np.mean(df[rt_column_name]) > 50:
-            print("Warning: RTs should be specified in seconds, not milliseconds")
+            _logger.warning("RTs should be specified in seconds, not milliseconds")
         for _,col in df.items():
             if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
                 raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")

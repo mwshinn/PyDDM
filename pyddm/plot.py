@@ -4,17 +4,19 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
+import logging
 import numpy as np
 import sys
 import traceback
 import time
 from paranoid.settings import Settings as paranoid_settings
+from .logger import logger as _logger
 
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
 if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
     _gui_compatible = False
-    print("Warning: model_gui funciton unavailable.  To use model_gui, please" \
-          " import ddm.plot before matplotlib.pyplot.")
+    _logger.warning("model_gui function unavailable.  To use model_gui, please import ddm.plot " \
+        "before matplotlib.pyplot.")
 else:
     _gui_compatible = True
     if sys.platform == 'darwin':
@@ -119,7 +121,6 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     # resolution) so this should be improved someday...
     s = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
     hists = s.pdf_evolution()
-    print(np.max(hists))
     top = s.pdf_corr()
     bot = s.pdf_err()
     # Plot the output
@@ -303,7 +304,7 @@ def model_gui(model,
         required_conditions = sample.condition_names()
         sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
     else:
-        print("Must define model, sample, or both")
+        _logger.error("Must define model, sample, or both")
         return
     
     params = [] # A list of all of the Fittables that were passed.
@@ -546,7 +547,7 @@ def model_gui_jupyter(model,
         required_conditions = sample.condition_names()
         sample_condition_values = {cond: sample.condition_values(cond) for cond in required_conditions}
     else:
-        print("Must define model, sample, or both")
+        _logger.error("Must define model, sample, or both")
         return
     # Set up params
     params = model.get_model_parameters()

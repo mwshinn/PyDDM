@@ -6,12 +6,14 @@
 
 __all__ = ['LossFunction', 'LossSquaredError', 'LossLikelihood', 'LossBIC', 'LossRobustLikelihood', 'LossRobustBIC']
 
+import logging
 import numpy as np
 
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from paranoid.types import Self, Number, Positive0, Natural1
 from ..sample import Sample
 from ..model import Model
+from ..logger import logger as _logger
 
 class LossFunction(object):
     """An abstract class for a function to assess goodness of fit.
@@ -150,7 +152,7 @@ class LossLikelihood(LossFunction):
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
             maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
-            assert maxt <= self.T_dur, "Simulation time T_dur=%f not long enough for these data" % self.T_dur
+            assert maxt <= self.T_dur, "Simulation time T_dur=%f not long enough for these data. (max sample RT=%f)" % (self.T_dur, maxt)
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Also don't group them into the first bin
             # because this creates bias.
@@ -181,9 +183,10 @@ class LossLikelihood(LossFunction):
                 except FloatingPointError:
                     minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
                     if minlike == 0:
-                        print("Warning: infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
+                        _logger.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
                     elif minlike < 0:
-                        print("Warning: infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                        _logger.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
+                    _logger.debug(model.parameters())
                     return np.inf
             # This is not a valid way to incorporate undecided trials into a likelihood
             #if sols[k].prob_undecided() > 0:

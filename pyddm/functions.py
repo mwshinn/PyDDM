@@ -10,7 +10,7 @@ __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'get_model_loss', 'set_N_cpus']
 
 import copy
-
+import logging
 import numpy as np
 from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
 
@@ -23,6 +23,7 @@ from .models.ic import ICPointSourceCenter
 from .models.bound import BoundConstant
 from .models.overlay import OverlayNone, OverlayChain
 from .models.loss import LossLikelihood
+from .logger import logger as _logger
 
 from paranoid.types import Boolean, Number, String, Set, Unchecked, Natural1, Maybe
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidconfig
@@ -49,7 +50,6 @@ def set_N_cpus(N):
         _parallel_pool.n_cpus = N
     else:
         _parallel_pool = None
-
 
 @accepts(Model, Model, tol=Number)
 @requires("m1.get_model_type() == m2.get_model_type()")
@@ -338,16 +338,16 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
             # to make sure the model is within its domain.
             if x > p.maxval:
                 if verbose:
-                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
+                    _logger.warning("Optimizer went out of bounds.  Setting %f to %f" % (x, p.maxval))
                 x = p.maxval
             if x < p.minval:
                 if verbose:
-                    print("Warning: optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
+                    _logger.warning("Optimizer went out of bounds.  Setting %f to %f" % (x, p.minval))
                 x = p.minval
             s(m, x)
         lossf = lf.loss(m)
         if verbose:
-            print(repr(m), "loss="+ str(lossf))
+            _logger.info(repr(m) + " loss="+ str(lossf))
         return lossf
     # Cast to a dictionary if necessary
     if fitparams is None:
@@ -375,7 +375,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
                     nparams=len(params), samplesize=len(sample),
                     mess=(x_fit.message if "message" in x_fit.__dict__ else ""))
     m.fitresult = res
-    print("Params", x_fit.x, "gave", x_fit.fun)
+    _logger.info("Params " + str(x_fit.x) + " gave " + str(x_fit.fun))
     for x,s in zip(x_fit.x, setters):
         s(m, x)
     if not verify:
@@ -637,10 +637,10 @@ def hit_boundary(model):
             pv = getattr(component, param_name) # Parameter value in the object
             if isinstance(pv, Fitted):
                 if (pv - pv.minval)/(pv.maxval-pv.minval) < .01: # No abs because pv always > pv.minval
-                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))
+                    _logger.warning("%s hit the lower boundary of %f with value %f" % (param_name, pv.minval, pv))
                     hit = True
                 if (pv.maxval-pv)/(pv.maxval-pv.minval) < .01: # No abs because pv.maxval always > pv
-                    print("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
+                    _logger.warning("%s hit the lower boundary of %f with value %f" % (param_name, pv.maxval, pv))
                     hit = True
     return hit
 
