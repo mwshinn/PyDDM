@@ -719,4 +719,4 @@ def display_model(model, print_output=True):
     if not print_output:
         return OUT
     else:
-        print(OUT)  # TODO I suspect this should remain print(), not be moved to logging?
+        print(OUT)

@@ -16,11 +16,9 @@ from .model import Model, Fittable, Fitted, FitResult
 from .sample import Sample
 from .solution import Solution
 from .functions import *
+from .logger import set_log_level
 
 from ._version import __version__
-
-from .logger import _init_logger, set_log_level
-_init_logger()
 
 # Some default functions for paranoid scientist
 import paranoid
