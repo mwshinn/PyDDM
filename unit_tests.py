@@ -10,7 +10,7 @@ import scipy.stats
 
 from numpy import asarray as aa
 
-import ddm
+import pyddm as ddm
 
 import paranoid
 paranoid.settings.Settings.set(enabled=True)
@@ -188,6 +188,7 @@ class TestDependences(TestCase):
         smix = ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
         assert np.isclose(np.sum(s.corr) + np.sum(s.err),
                           np.sum(smix.corr) + np.sum(smix.err))
+
     def test_OverlayPoissonMixture(self):
         """Poisson mixture model overlay: an exponential distribution plus the model's solved distribution"""
         # Do nothing with mixture coef 0
@@ -211,54 +212,88 @@ class TestDependences(TestCase):
     def test_OverlayNonDecision(self):
         """Non-decision time shifts the histogram"""
         # Should do nothing with no shift
-        s = ddm.Model().solve()
+        s = ddm.Model().solve(conditions={"amount": 2})
         assert s == ddm.models.OverlayNonDecision(nondectime=0).apply(s)
         # Shifts a single point distribution
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=.01).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
         # Shift the other way
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=-.01).apply(s)
         assert s.corr[1] == sshift.corr[0]
         assert s.err[1] == sshift.err[0]
         # Truncate when time bin doesn't align
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=.019).apply(s)
         assert s.corr[1] == sshift.corr[2]
         assert s.err[1] == sshift.err[2]
+        # Test subclassing
+        class OverlayNonDecisionCondition(ddm.models.OverlayNonDecision):
+            name = "condition_nondecision"
+            required_parameters = ["nondectime"]
+            required_conditions = ["amount"]
+            def get_nondecision_time(self, conditions):
+                return conditions['amount'] * self.nondectime
+        sshift = ddm.models.OverlayNonDecision(nondectime=.02).apply(s)
+        sshift2 = OverlayNonDecisionCondition(nondectime=.01).apply(s)
+        assert np.all(sshift.corr == sshift2.corr)
+        assert np.all(sshift.err == sshift2.err)
+        
     def test_OverlayNonDecisionUniform(self):
         """Uniform-distributed non-decision time shifts the histogram"""
         # Should give the same results as OverlayNonDecision when halfwidth=0
-        s = ddm.Model().solve()
+        s = ddm.Model().solve(conditions={"amount": 2})
         for nondectime in [0, -.1, .01, .0099, .011111, 1]:
             ndunif = ddm.models.OverlayNonDecisionUniform(nondectime=nondectime, halfwidth=0).apply(s)
             ndpoint = ddm.models.OverlayNonDecision(nondectime=nondectime).apply(s)
             assert np.all(np.isclose(ndunif.corr, ndpoint.corr)), (nondectime, list(ndunif.corr), list(ndpoint.corr))
             assert np.all(np.isclose(ndunif.err, ndpoint.err))
         # Simple shift example
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.02, halfwidth=.01).apply(s)
         assert sshift.corr[2] == sshift.corr[3] == sshift.corr[4]
         assert sshift.err[2] == sshift.err[3] == sshift.err[4]
         assert sshift.corr[0] == sshift.corr[1] == sshift.corr[5] == 0
         assert sshift.err[0] == sshift.err[1] == sshift.err[5] == 0
         # Off-boundary and behind 0 example
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.021111, halfwidth=.033333).apply(s)
         assert sshift.corr[0] == sshift.corr[1]
         assert sshift.err[0] == sshift.err[1]
         assert len(set(sshift.corr)) == 2
         assert len(set(sshift.err)) == 2
+        # Test subclassing
+        class OverlayNonDecisionUniformCondition(ddm.models.OverlayNonDecisionUniform):
+            name = "condition_uniform_nondecision"
+            required_parameters = ["nondectime", "halfwidth"]
+            required_conditions = ["amount"]
+            def get_nondecision_time(self, conditions):
+                return conditions['amount'] * self.nondectime
+        sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.02, halfwidth=.01).apply(s)
+        sshift2 = OverlayNonDecisionUniformCondition(nondectime=.01, halfwidth=.01).apply(s)
+        assert np.all(sshift.corr == sshift2.corr)
+        assert np.all(sshift.err == sshift2.err)
     def test_OverlayNonDecisionGamma(self):
         """Gamma-distributed non-decision time shifts the histogram"""
         # Should get back a gamma distribution from a delta spike
-        s = self.FakePointModel(dt=.01).solve()
+        s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.01, shape=1.3, scale=.002).apply(s)
         gamfn = scipy.stats.gamma(a=1.3, scale=.002).pdf(s.model.t_domain()[0:-2])
         assert np.all(np.isclose(sshift.corr[2:], gamfn/np.sum(gamfn)*s.corr[1]))
         assert np.all(np.isclose(sshift.err[2:], gamfn/np.sum(gamfn)*s.err[1]))
+        # Test subclassing
+        class OverlayNonDecisionGammaCondition(ddm.models.OverlayNonDecisionGamma):
+            name = "condition_gamma_nondecision"
+            required_parameters = ["nondectime", "shape", "scale"]
+            required_conditions = ["amount"]
+            def get_nondecision_time(self, conditions):
+                return conditions['amount'] * self.nondectime
+        sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.02, shape=1.3, scale=.002).apply(s)
+        sshift2 = OverlayNonDecisionGammaCondition(nondectime=.01, shape=1.3, scale=.002).apply(s)
+        assert np.all(sshift.corr == sshift2.corr)
+        assert np.all(sshift.err == sshift2.err)
     def test_OverlaySimplePause(self):
         """Pause at some point in the trial and then continue, leaving 0 probability in the gap"""
         # Should do nothing with no shift

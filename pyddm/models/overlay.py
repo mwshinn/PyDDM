@@ -287,6 +287,11 @@ class OverlayNonDecision(Overlay):
     Example usage:
 
       | overlay = OverlayNonDecision(nondectime=.2)
+
+    This can also be subclassed to allow easily shifting the non-decision time.
+    When subclassing, override the `get_nondecision_time(self, conditions)`
+    method to be any function you wish, using both conditions and parameters.
+
     """
     name = "Add a non-decision by shifting the histogram"
     required_parameters = ["nondectime"]
@@ -298,6 +303,8 @@ class OverlayNonDecision(Overlay):
         yield OverlayNonDecision(nondectime=0)
         yield OverlayNonDecision(nondectime=.5)
         yield OverlayNonDecision(nondectime=-.5)
+    def get_nondecision_time(self, conditions):
+        return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
     @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
@@ -310,7 +317,7 @@ class OverlayNonDecision(Overlay):
         cond = solution.conditions
         undec = solution.undec
         evolution = solution.evolution
-        shifts = int(self.nondectime/m.dt) # truncate
+        shifts = int(self.get_nondecision_time(conditions=cond)/m.dt) # truncate
         newcorr = np.zeros(corr.shape, dtype=corr.dtype)
         newerr = np.zeros(err.shape, dtype=err.dtype)
         if shifts > 0:
@@ -323,10 +330,10 @@ class OverlayNonDecision(Overlay):
             newcorr = corr
             newerr = err
         return Solution(newcorr, newerr, m, cond, undec, evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
-    def apply_trajectory(self, trajectory, model, **kwargs):
-        shift = int(self.nondectime/model.dt)
+    def apply_trajectory(self, trajectory, model, conditions, **kwargs):
+        shift = int(self.get_nondecision_time(conditions=conditions)/model.dt)
         if shift > 0:
             trajectory = np.append([trajectory[0]]*shift, trajectory)
         elif shift < 0:
@@ -347,6 +354,10 @@ class OverlayNonDecisionUniform(Overlay):
 
       | overlay = OverlayNonDecisionUniform(nondectime=.2, halfwidth=.02)
 
+    This can also be subclassed to allow easily shifting the non-decision time.
+    When subclassing, override the `get_nondecision_time(self, conditions)`
+    method to be any function you wish, using both conditions and parameters.
+
     """
     name = "Uniformly-distributed non-decision time"
     required_parameters = ["nondectime", "halfwidth"]
@@ -358,6 +369,8 @@ class OverlayNonDecisionUniform(Overlay):
     def _generate():
         yield OverlayNonDecisionUniform(nondectime=.3, halfwidth=.01)
         yield OverlayNonDecisionUniform(nondectime=0, halfwidth=.1)
+    def get_nondecision_time(self, conditions):
+        return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
     @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
@@ -374,7 +387,7 @@ class OverlayNonDecisionUniform(Overlay):
         evolution = solution.evolution
         # Describe the width and shift of the uniform distribution in
         # terms of list indices
-        shift = int(self.nondectime/m.dt) # Discretized non-decision time
+        shift = int(self.get_nondecision_time(conditions=cond)/m.dt) # Discretized non-decision time
         width = int(self.halfwidth/m.dt) # Discretized uniform distribution half-width
         offsets = list(range(shift-width, shift+width+1))
         # Create new correct and error distributions and iteratively
@@ -394,10 +407,10 @@ class OverlayNonDecisionUniform(Overlay):
                 newcorr += corr/len(offsets)
                 newerr += err/len(offsets)
         return Solution(newcorr, newerr, m, cond, undec, evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
-    def apply_trajectory(self, trajectory, model, **kwargs):
-        ndtime = np.random.rand()*2*self.halfwidth + (self.nondectime-self.halfwidth)
+    def apply_trajectory(self, trajectory, model, conditions, **kwargs):
+        ndtime = np.random.rand()*2*self.halfwidth + (self.get_nondecision_time(conditions=conditions)-self.halfwidth)
         shift = int(ndtime/model.dt)
         if shift > 0:
             np.append([trajectory[0]]*shift, trajectory)
@@ -423,6 +436,10 @@ class OverlayNonDecisionGamma(Overlay):
 
       | overlay = OverlayNonDecisionGamma(nondectime=.2, shape=1.5, scale=.05)
 
+    This can also be subclassed to allow easily shifting the non-decision time.
+    When subclassing, override the `get_nondecision_time(self, conditions)`
+    method to be any function you wish, using both conditions and parameters.
+
     """
     name = "Add a gamma-distributed non-decision time"
     required_parameters = ["nondectime", "shape", "scale"]
@@ -436,11 +453,13 @@ class OverlayNonDecisionGamma(Overlay):
     def _generate():
         yield OverlayNonDecisionGamma(nondectime=.3, shape=2, scale=.01)
         yield OverlayNonDecisionGamma(nondectime=0, shape=1.1, scale=.1)
+    def get_nondecision_time(self, conditions):
+        return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
     @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
     @ensures("np.sum(return.err) <= np.sum(solution.err) + 1e-10")
-    @ensures("np.all(return.corr[0:int(self.nondectime//return.model.dt)] == 0)")
+    @ensures("np.all(return.corr[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.model.dt)] == 0)")
     def apply(self, solution):
         # Make sure params are within range
         assert self.shape >= 1, "Invalid shape parameter"
@@ -451,7 +470,7 @@ class OverlayNonDecisionGamma(Overlay):
         dt = solution.model.dt
         # Create the weights for different timepoints
         times = np.asarray(list(range(-len(corr), len(corr))))*dt
-        weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.nondectime).pdf(times)
+        weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=solution.conditions)).pdf(times)
         if np.sum(weights) > 0:
             weights /= np.sum(weights) # Ensure it integrates to 1
         # Divide by 1+1e-14 to avoid numerical errors after the convolution, which are on the order of 10^-16
@@ -459,10 +478,10 @@ class OverlayNonDecisionGamma(Overlay):
         newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]/(1+1e-14)
         return Solution(newcorr, newerr, solution.model,
                         solution.conditions, solution.undec, solution.evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Unchecked)
+    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
-    def apply_trajectory(self, trajectory, model, **kwargs):
-        ndtime = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.nondectime).rvs()
+    def apply_trajectory(self, trajectory, model, conditions, **kwargs):
+        ndtime = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=conditions)).rvs()
         shift = int(ndtime/model.dt)
         if shift > 0:
             np.append([trajectory[0]]*shift, trajectory)
