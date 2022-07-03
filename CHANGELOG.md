@@ -1,3 +1,49 @@
+# Version 0.6.0
+
+Released July 3, 2022
+
+## New features
+
+- Performance improvement (~10x faster)
+
+    The backward Euler method has been rewritten in C.  This gives a substantial
+    (~10x) performance increase compared to the numpy-based implementation.  The
+    analytical solver has also been rewritten in C, resulting in a more modest
+    (~2x) performance improvement.  PyDDM will fall back to the numpy method if
+    the C module is not availabe.
+
+- Easily create new non-decision time overlays
+
+    It is now possible to inherit from the OverlayNonDecision class - in
+    practice, this makes it easier to define non-decision times which depend on
+    a task condition and/or parameters.
+
+- Better logging (thanks Cove!)
+
+    PyDDM now uses the logging module, making it easier to disable warnings
+    based on their urgency level.
+
+
+## Other
+
+- The hill-climbing optimizer now accepts seeded values (thanks Daniel!)
+- Error handling now operates slightly differently, which should reduce the
+  number of errors and warnings seen by users
+- Model parameters can now be easily accessed using the Model.parameters()
+  method
+
+## Bug fixes
+
+- The seed in Solution.resample() was ignored
+- When conditions were specified as a list, solve_partial_conditions would
+  generate an invalid Solution object
+
+## Breaking changes
+
+- PyDDM should now be imported using "import pyddm" instead of "import ddm".
+  This is to bring it into compliance with standard Python naming conventions,
+  and fix bugs with namespace conflicts on some computers.
+
 # Version 0.5.2
 
 Released October 10, 2021
