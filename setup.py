@@ -17,7 +17,7 @@ with open("README.md", "r") as f:
 setup(
     name = 'pyddm',
     version = __version__,
-    description = 'Extensible drift diffusion modeling for Python',
+    description = 'Generalized drift diffusion modeling for Python',
     long_description = long_desc,
     long_description_content_type='text/markdown',
     author = 'Max Shinn, Norman Lam',

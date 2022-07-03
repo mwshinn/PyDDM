@@ -1,4 +1,4 @@
-# PyDDM - A generalized drift-diffusion model simulator
+# PyDDM - Generalized drift-diffusion models for Python
 
 # Overview
 
