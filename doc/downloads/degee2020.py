@@ -5,13 +5,13 @@ import os
 import numpy as np
 import pandas as pd
 
-import ddm
-from ddm import Sample
-from ddm import plot
-from ddm import models
-from ddm import Model, Fittable, Fitted, Bound, Overlay, Solution
-from ddm.functions import fit_adjust_model, display_model
-from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture, OverlayUniformMixture, InitialCondition, ICPoint, ICPointSourceCenter, LossBIC
+import pyddm as ddm
+from pyddm import Sample
+from pyddm import plot
+from pyddm import models
+from pyddm import Model, Fittable, Fitted, Bound, Overlay, Solution
+from pyddm.functions import fit_adjust_model, display_model
+from pyddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture, OverlayUniformMixture, InitialCondition, ICPoint, ICPointSourceCenter, LossBIC
 
 
 # Start get_param_names

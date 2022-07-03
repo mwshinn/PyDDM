@@ -10,8 +10,8 @@
 # line for the interactive demo.
 
 # BEGIN imports
-import ddm
-import ddm.plot
+import pyddm as ddm
+import pyddm.plot
 import numpy as np
 import scipy.stats
 # END imports
@@ -208,4 +208,4 @@ if __name__ == "__main__":
                                             ]),
                   dx=0.002, dt=0.002, T_dur=3.0)
     # END demo
-    ddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70], "presample": [0, 400, 800], "highreward": [0, 1]})
+    pyddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70], "presample": [0, 400, 800], "highreward": [0, 1]})

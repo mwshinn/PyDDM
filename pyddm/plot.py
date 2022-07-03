@@ -15,7 +15,7 @@ from .logger import logger as _logger
 # A workaround for a bug on Mac related to FigureCanvasTKAgg
 if 'matplotlib.pyplot' in sys.modules and sys.platform == 'darwin':
     _gui_compatible = False
-    _logger.warning("model_gui function unavailable.  To use model_gui, please import ddm.plot " \
+    _logger.warning("model_gui function unavailable.  To use model_gui, please import pyddm.plot " \
         "before matplotlib.pyplot.")
 else:
     _gui_compatible = True
@@ -269,7 +269,7 @@ def model_gui(model,
     # model_gui_jupyter for an example of how this could look.
     assert _gui_compatible == True, "Due to a OSX bug in matplotlib," \
         " matplotlib's backend must be explicitly set to TkAgg. To avoid" \
-        " this, please import ddm.plot BEFORE matplotlib.pyplot."
+        " this, please import pyddm.plot BEFORE matplotlib.pyplot."
     # Make sure either a sample or conditions are specified.
     assert not model.required_conditions or (sample or conditions), \
         "If a sample is not passed, conditions must be passed through the 'conditions' argument."

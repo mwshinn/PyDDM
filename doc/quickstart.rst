@@ -376,7 +376,7 @@ Thus, the full model definition is
 
 Before fitting this model, let's look at it in the model GUI::
 
-  from ddm.plot import model_gui
+  from pyddm.plot import model_gui
   model_gui(model_leak, sample=roitman_sample)
            
 We can fit this and save it as an image using the following.  Note

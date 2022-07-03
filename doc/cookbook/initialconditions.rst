@@ -8,8 +8,8 @@ Initial conditions can be included in the model by passing it directly
 to the Model object.  For example, for a uniform distribution centered
 at 0, do::
 
-  from ddm import Model
-  from ddm.models import ICRange
+  from pyddm import Model
+  from pyddm.models import ICRange
   model = Model(IC=ICRange(sz=.2))
 
 .. _ic-biased:
@@ -42,8 +42,8 @@ distribution in the ``x`` argument.  We can model this with:
 Then we can compare the distribution of left-correct trials to those of
 right-correct trials::
 
-  from ddm import Model
-  from ddm.plot import plot_compare_solutions
+  from pyddm import Model
+  from pyddm.plot import plot_compare_solutions
   import matplotlib.pyplot as plt
   model = Model(IC=ICPointSideBias(x0=.3))
   s1 = model.solve(conditions={"left_is_correct": 1})
@@ -53,8 +53,8 @@ right-correct trials::
 
 We can also see these directly in the model GUI::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(IC=ICPointSideBias(x0=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"left_is_correct": [0, 1]})
@@ -70,8 +70,8 @@ neighboring grids of the initial position:
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(IC=ICPointSideBiasInterp(x0=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"left_is_correct": [0, 1]})
@@ -98,9 +98,9 @@ stay within the bounds, preventing errors in fitting.
 
 Try it out with:: 
 
-  from ddm import Model, Fittable
-  from ddm.models import BoundConstant
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.models import BoundConstant
+  from pyddm.plot import model_gui
   model = Model(IC=ICPointSideBiasRatio(x0=Fittable(minval=-1, maxval=1)),
                 bound=BoundConstant(B=Fittable(minval=.1, maxval=2)),
                 dx=.01, dt=.01)
@@ -118,8 +118,8 @@ Biased Initial Condition Range
 
 Try it out with constant drift using::
 
-  from ddm import Model, Fittable, DriftConstant
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, DriftConstant
+  from pyddm.plot import model_gui
   model = Model(drift=DriftConstant(drift=1),
                 IC=ICPointRange(x0=Fittable(minval=0, maxval=.5),
                                 sz=Fittable(minval=0, maxval=.49)),
@@ -138,8 +138,8 @@ Cauchy-distributed Initial Conditions
 
 Try it out with::
 
-  from ddm import Model, Fittable, BoundCollapsingLinear
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, BoundCollapsingLinear
+  from pyddm.plot import model_gui
   model = Model(IC=ICCauchy(scale=Fittable(minval=.001, maxval=.3)),
                 bound=BoundCollapsingLinear(t=0, B=1),
                 dx=.01, dt=.01)

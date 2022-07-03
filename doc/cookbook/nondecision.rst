@@ -7,8 +7,8 @@ General use of non-decision time
 The simplest way to incorporate a non-decision time is to use the
 built-in :class:`.OverlayNonDecision`, for example::
 
-  from ddm import Model, Fittable, OverlayNonDecision
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, OverlayNonDecision
+  from pyddm.plot import model_gui
   model = Model(overlay=OverlayNonDecision(nondectime=Fittable(minval=0, maxval=.8)),
                 dx=.01, dt=.01)
   model_gui(model)
@@ -26,8 +26,8 @@ Gaussian-distributed non-decision time
 
 Try it out with::
 
-  from ddm import Model, Fittable, OverlayNonDecision
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, OverlayNonDecision
+  from pyddm.plot import model_gui
   model = Model(overlay=OverlayNonDecisionGaussian(
                     nondectime=Fittable(minval=0, maxval=.8),
                     ndsigma=Fittable(minval=0, maxval=.8)),
@@ -39,6 +39,11 @@ Try it out with::
 Different non-decision time for left and right trials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Here we show an example of a non-decision time which depends on both the trial
+conditions and mulitiple parameters.  In this case, we use a different
+non-decision time based on whether a stimulus was presented on the left or right
+side of the subject.
+
 .. literalinclude:: ../downloads/cookbook.py
    :language: python
    :start-after: # Start OverlayNonDecisionLR
@@ -46,8 +51,8 @@ Different non-decision time for left and right trials
 
 Try it out with::
 
-  from ddm import Model, Fittable, OverlayNonDecision
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, OverlayNonDecision
+  from pyddm.plot import model_gui
   model = Model(overlay=OverlayNonDecisionLR(
                     nondectimeL=Fittable(minval=0, maxval=.8),
                     nondectimeR=Fittable(minval=0, maxval=.8)),

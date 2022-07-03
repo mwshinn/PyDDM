@@ -89,13 +89,13 @@ Optionally, we can run the model in parallel with 4 CPUs using:
 
 Finally, plot the model in a GUI interface::
 
-  ddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70],
+  pyddm.plot.model_gui(model=m, conditions={"coherence": [50, 53, 60, 70],
                                           "presample": [0, 400, 800],
                                           "highreward": [0, 1]})
 
 Or, if running a Jupyter notebook::
 
-  ddm.plot.model_gui_jupyter(model=m, conditions={"coherence": [50, 53, 60, 70],
+  pyddm.plot.model_gui_jupyter(model=m, conditions={"coherence": [50, 53, 60, 70],
                                                   "presample": [0, 400, 800],
                                                   "highreward": [0, 1]})
 

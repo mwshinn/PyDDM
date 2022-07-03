@@ -1,4 +1,4 @@
-import ddm
+import pyddm as ddm
 
 class DriftCond(ddm.Drift):
     name = "Drift with a condition"

@@ -4,14 +4,14 @@ import numpy as np
 from math import fsum
 import pandas
 
-import ddm
+import pyddm as ddm
 import paranoid
 paranoid.settings.Settings.set(enabled=True)
 
 SHOW_PLOTS = False
 
 if SHOW_PLOTS:
-    import ddm.plot
+    import pyddm.plot
     import matplotlib.pyplot as plt
 
 def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.1, mean_diff=.05, prob_diff=.01):
@@ -27,8 +27,8 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
     elif method == "c":
         n = m.solve_numerical_c(conditions=conditions)
     if SHOW_PLOTS:
-        ddm.plot.plot_solution_pdf(a)
-        ddm.plot.plot_solution_pdf(n)
+        pyddm.plot.plot_solution_pdf(a)
+        pyddm.plot.plot_solution_pdf(n)
         plt.show()
     max_difference = np.max(np.abs(a.pdf_corr() - n.pdf_corr()))
     mean_difference = np.sum(np.abs(a.pdf_corr() - n.pdf_corr()))/len(m.t_domain())

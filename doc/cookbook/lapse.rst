@@ -10,8 +10,8 @@ to a Poisson process, the recommended method) and the :class:`Uniform
 lapse rate <.OverlayUniformMixture>` (which is more common in the
 literature).  These can be introduced with::
 
-  from ddm import Model
-  from ddm.models import OverlayPoissonMixture, OverlayUniformMixture
+  from pyddm import Model
+  from pyddm.models import OverlayPoissonMixture, OverlayUniformMixture
   model1 = Model(overlay=OverlayPoissonMixture(pmixturecoef=.05, rate=1))
   model2 = Model(overlay=OverlayUniformMixture(umixturecoef=.05))
 
@@ -19,8 +19,8 @@ If another overlay is to be used, such as
 :class:`.OverlayNonDecision`, then an :class:`.OverlayChain` object
 must be used::
 
-  from ddm import Model
-  from ddm.models import OverlayPoissonMixture, OverlayNonDecision, OverlayChain
+  from pyddm import Model
+  from pyddm.models import OverlayPoissonMixture, OverlayNonDecision, OverlayChain
   model = Model(overlay=OverlayChain(overlays=[OverlayNonDecision(nondectime=.2),
                                                OverlayPoissonMixture(pmixturecoef=.05, rate=1)]))
 

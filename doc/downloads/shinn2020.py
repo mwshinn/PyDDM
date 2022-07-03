@@ -11,7 +11,7 @@
 
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from paranoid.types import RangeOpenClosed, RangeOpen, Range, Positive0, NDArray, ParametersDict, Natural0, Set, Self, Number, Positive
-import ddm
+import pyddm as ddm
 import numpy as np
 import scipy
 
@@ -330,8 +330,8 @@ class OverlayExponentialRewardMixture(ddm.Overlay):
 
 #################### Example usage ####################
 
-import ddm.plot
-from ddm import Fittable, OverlayNonDecision, OverlayChain, Model, BoundConstant
+import pyddm.plot
+from pyddm import Fittable, OverlayNonDecision, OverlayChain, Model, BoundConstant
 
 
 # Try both the delayed gain function version and the delayed
@@ -397,7 +397,7 @@ if __name__ == "__main__":
                       bound=model_bounds, IC=model_ic,
                       overlay=model_overlay)
         
-        ddm.plot.model_gui(model, conditions={"coherence": [50, 53, 60, 70],
+        pyddm.plot.model_gui(model, conditions={"coherence": [50, 53, 60, 70],
                                               "presample": [0, 400, 800],
                                               "highreward": [0, 1]})
         # END demo

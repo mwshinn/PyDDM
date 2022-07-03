@@ -12,7 +12,7 @@ concrete example, suppose we want both the drift rate and the standard
 deviation to increase by some factor ``boost`` at time ``tboost``.  We
 could make :class:`.Drift` and :class:`.Noise` objects as follows::
 
-  from ddm.models import Drift, Noise
+  from pyddm.models import Drift, Noise
   class DriftBoost(Drift):
       name = "Drift with a time-delayed boost"
       required_parameters = ["driftbase", "driftboost", "tboost"]
@@ -35,7 +35,7 @@ could make :class:`.Drift` and :class:`.Noise` objects as follows::
 
 Now, we can define a model to fit with::
 
-  from ddm import Model, Fittable
+  from pyddm import Model, Fittable
   t_boost = Fittable(minval=0, maxval=1)
   boost = Fittable(minval=1, maxval=3)
   m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
@@ -74,7 +74,7 @@ PyDDM has built-in support for parallelization if `pathos
 
 To use parallelization, first set up the parallel pool::
 
-  from ddm import set_N_cpus
+  from pyddm import set_N_cpus
   set_N_cpus(4)
 
 Then, PyDDM will automatically parallelize the fitting routines.  For

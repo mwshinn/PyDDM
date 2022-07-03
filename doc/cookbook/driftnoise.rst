@@ -11,14 +11,14 @@ For a leaky integrator, set the parameter ``x`` to be less than 0.
 For an unstable integrator, set the parameter ``x`` to be greater
 than 0.  For example::
 
-  from ddm import Model
-  from ddm.models import DriftLinear
+  from pyddm import Model
+  from pyddm.models import DriftLinear
   model = Model(drift=DriftLinear(drift=0, t=.2, x=.1))
 
 Try it out with::
 
-  from ddm import Model, Fittable, DriftLinear
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable, DriftLinear
+  from pyddm.plot import model_gui
   model = Model(drift=DriftLinear(drift=Fittable(minval=0, maxval=2),
                                   t=Fittable(minval=0, maxval=2),
                                   x=Fittable(minval=-1, maxval=1)),
@@ -52,7 +52,7 @@ defined as a condition.  By contrast, ``scale`` is a parameter to fit,
 and is thus defined as a parameter.  We then use the DriftSine class
 to define model::
 
-  from ddm import Model
+  from pyddm import Model
   model = Model(name='Sine-wave evidences',
 	            drift=DriftSine(scale=0.5))
   sol = model.solve(conditions={"frequency": 5})
@@ -69,8 +69,8 @@ fitting to data is required.
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftSine(scale=Fittable(minval=0, maxval=2)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"frequency": [0, 4, 8]})
@@ -88,8 +88,8 @@ Coherence-dependent drift rate
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftCoherence(driftcoh=Fittable(minval=0, maxval=1)),
                 dx=.01, dt=.01)
   model_gui(model, conditions={"coh": [0, .25, .5]})
@@ -118,8 +118,8 @@ parameters: the amount by which coherence impacts the drift rate
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftCoherenceRewBias(
                           driftcoh=Fittable(minval=0, maxval=1),
                           rewbias=Fittable(minval=0, maxval=1)),
@@ -139,8 +139,8 @@ Coherence-dependent drift rate with leak
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftCoherenceLeak(driftcoh=Fittable(minval=0, maxval=1),
                                          leak=Fittable(minval=-1, maxval=1)),
                 dx=.01, dt=.01)
@@ -179,8 +179,8 @@ allows us to keep the signal-to-noise ratio (SNR) fixed.
 Finally, here is an example of how we would use this.  Note that it
 utilizes :ref:`shared parameters <howto-shared-params>`::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   gain_start = Fittable(minval=0, maxval=1)
   gain_slope = Fittable(minval=0, maxval=2)
   m = Model(drift=DriftUrgencyGain(snr=Fittable(minval=0, maxval=2),
@@ -226,8 +226,8 @@ rate.
 
 This can be used like any other Drift class.  For example::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftUniform(drift=Fittable(minval=0, maxval=2),
                                    width=Fittable(minval=0, maxval=2)),
                 dx=.01, dt=.01)
@@ -270,8 +270,8 @@ pupil diameter.  We can write:
 
 Then, we could create a model using the following::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   m = Model(drift=DriftUrgencyMomentToMoment(snr=Fittable(minval=0, maxval=2)),
             noise=NoiseUrgencyMomentToMoment(),
             dt=.01, dx=.01)

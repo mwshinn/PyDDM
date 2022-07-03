@@ -1,15 +1,15 @@
-from ddm.models import InitialCondition
+from pyddm.models import InitialCondition
 import numpy as np
 import math
 from paranoid import *
-from ddm.models.paranoid_types import Conditions
+from pyddm.models.paranoid_types import Conditions
 import scipy.stats
-import ddm
+import pyddm as ddm
 
 
 # Start ICPointSideBias
 import numpy as np
-from ddm import InitialCondition
+from pyddm import InitialCondition
 class ICPointSideBias(InitialCondition):
     name = "A starting point with a left or right bias."
     required_parameters = ["x0"]
@@ -29,7 +29,7 @@ class ICPointSideBias(InitialCondition):
 # Start ICPointSideBiasInterp
 import numpy as np
 import scipy.stats
-from ddm import InitialCondition
+from pyddm import InitialCondition
 class ICPointSideBiasInterp(InitialCondition):
     name = "A dirac delta function at a position dictated by the left or right side."
     required_parameters = ["x0"]
@@ -56,7 +56,7 @@ class ICPointSideBiasInterp(InitialCondition):
 
 # Start ICPointSideBiasRatio
 import numpy as np
-from ddm import InitialCondition
+from pyddm import InitialCondition
 class ICPointSideBiasRatio(InitialCondition):
     name = "A side-biased starting point expressed as a proportion of the distance between the bounds."
     required_parameters = ["x0"]
@@ -77,7 +77,7 @@ class ICPointSideBiasRatio(InitialCondition):
 # Start ICPointRange
 import numpy as np
 import scipy.stats
-from ddm import InitialCondition
+from pyddm import InitialCondition
 class ICPointRange(InitialCondition):
     name = "A shifted side-biased uniform distribution"
     required_parameters = ["x0", "sz"]
@@ -96,7 +96,7 @@ class ICPointRange(InitialCondition):
 # Start ICCauchy
 import numpy as np
 import scipy.stats
-from ddm import InitialCondition
+from pyddm import InitialCondition
 class ICCauchy(InitialCondition):
     name = "Cauchy distribution"
     required_parameters = ["scale"]
@@ -109,7 +109,7 @@ class ICCauchy(InitialCondition):
 # Start OverlayNonDecisionGaussian
 import numpy as np
 import scipy
-from ddm import Overlay, Solution
+from pyddm import Overlay, Solution
 class OverlayNonDecisionGaussian(Overlay):
     name = "Add a Gaussian-distributed non-decision time"
     required_parameters = ["nondectime", "ndsigma"]
@@ -133,40 +133,18 @@ class OverlayNonDecisionGaussian(Overlay):
 
 # Start OverlayNonDecisionLR
 import numpy as np
-from ddm import Overlay, Solution
-class OverlayNonDecisionLR(Overlay):
+from pyddm import OverlayNonDecision, Solution
+class OverlayNonDecisionLR(OverlayNonDecision):
     name = "Separate non-decision time for left and right sides"
     required_parameters = ["nondectimeL", "nondectimeR"]
     required_conditions = ["side"] # Side coded as 0=L or 1=R
-    def apply(self, solution):
-        # Check parameters and conditions
-        assert solution.conditions['side'] in [0, 1], "Invalid side"
-        # Unpack solution object
-        corr = solution.corr
-        err = solution.err
-        m = solution.model
-        cond = solution.conditions
-        undec = solution.undec
-        # Compute non-decision time
-        ndtime = self.nondectimeL if cond['side'] == 0 else self.nondectimeR
-        shifts = int(ndtime/m.dt) # truncate
-        # Shift the distribution
-        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
-        newerr = np.zeros(err.shape, dtype=err.dtype)
-        if shifts > 0:
-            newcorr[shifts:] = corr[:-shifts]
-            newerr[shifts:] = err[:-shifts]
-        elif shifts < 0:
-            newcorr[:shifts] = corr[-shifts:]
-            newerr[:shifts] = err[-shifts:]
-        else:
-            newcorr = corr
-            newerr = err
-        return Solution(newcorr, newerr, m, cond, undec)
+    def get_nondecision_time(self, conditions):
+        assert conditions['side'] in [0, 1], "Invalid side"
+        return self.nondectimeL if conditions['side'] == 0 else self.nondectimeR
 # End OverlayNonDecisionLR
 
 # Start DriftCoherence
-from ddm import Drift
+from pyddm import Drift
 class DriftCoherence(Drift):
     name = "Drift depends linearly on coherence"
     required_parameters = ["driftcoh"] # <-- Parameters we want to include in the model
@@ -178,7 +156,7 @@ class DriftCoherence(Drift):
 # End DriftCoherence
 
 # Start DriftCoherenceRewBias
-from ddm import Drift
+from pyddm import Drift
 class DriftCoherenceRewBias(Drift):
     name = "Drift depends linearly on coherence, with a reward bias"
     required_parameters = ["driftcoh", "rewbias"] # <-- Parameters we want to include in the model
@@ -191,7 +169,7 @@ class DriftCoherenceRewBias(Drift):
 # End DriftCoherenceRewBias
 
 # Start DriftCoherenceLeak
-from ddm import Drift
+from pyddm import Drift
 class DriftCoherenceLeak(Drift):
     name = "Leaky drift depends linearly on coherence"
     required_parameters = ["driftcoh", "leak"] # <-- Parameters we want to include in the model
@@ -204,7 +182,7 @@ class DriftCoherenceLeak(Drift):
 
 # Start DriftSine
 import numpy as np
-from ddm.models import Drift
+from pyddm.models import Drift
 class DriftSine(Drift):
     name = "Sine-wave drifts"
     required_conditions = ["frequency"]
@@ -214,7 +192,7 @@ class DriftSine(Drift):
 # End DriftSine
 
 # Start DriftPulse
-from ddm.models import Drift
+from pyddm.models import Drift
 class DriftPulse(Drift):
     name = "Drift for a pulse paradigm"
     required_parameters = ["start", "duration", "drift"]
@@ -226,7 +204,7 @@ class DriftPulse(Drift):
 # End DriftPulse
 
 # Start DriftPulseCoh
-from ddm.models import Drift
+from pyddm.models import Drift
 class DriftPulseCoh(Drift):
     name = "Drift for a coherence-dependent pulse paradigm"
     required_parameters = ["start", "duration", "drift"]
@@ -238,7 +216,7 @@ class DriftPulseCoh(Drift):
 # End DriftPulseCoh
 
 # Start DriftPulse2
-from ddm.models import Drift
+from pyddm.models import Drift
 class DriftPulse2(Drift):
     name = "Drift for a pulse paradigm, with baseline drift"
     required_parameters = ["start", "duration", "drift", "drift0"]
@@ -251,7 +229,7 @@ class DriftPulse2(Drift):
 
 
 # Start BoundCollapsingStep
-from ddm.models import Bound
+from pyddm.models import Bound
 class BoundCollapsingStep(Bound):
     name = "Step collapsing bounds"
     required_conditions = []
@@ -262,11 +240,11 @@ class BoundCollapsingStep(Bound):
         return max(step, 0)
 # End BoundCollapsingStep
 
-from ddm.models import Bound
+from pyddm.models import Bound
 import numpy as np
 # Start BoundCollapsingWeibull
 import numpy as np
-from ddm import Bound
+from pyddm import Bound
 class BoundCollapsingWeibull(Bound):
     name = "Weibull CDF collapsing bounds"
     required_parameters = ["a", "aprime", "lam", "k"]
@@ -300,7 +278,7 @@ class BoundCollapsingExponentialDelay(Bound):
 
 # Start LossByMeans
 import numpy as np
-from ddm import LossFunction
+from pyddm import LossFunction
 class LossByMeans(LossFunction):
     name = "Mean RT and accuracy"
     def setup(self, dt, T_dur, **kwargs):
@@ -319,7 +297,7 @@ class LossByMeans(LossFunction):
 # End LossByMeans
 
 # Start BoundSpeedAcc
-from ddm import Bound
+from pyddm import Bound
 class BoundSpeedAcc(Bound):
     name = "constant"
     required_parameters = ["Bacc", "Bspeed"]
@@ -339,7 +317,7 @@ def urgency_gain(t, gain_start, gain_slope):
 # End urgency_gain
 
 # Start DriftUrgencyGain
-from ddm import Drift
+from pyddm import Drift
 class DriftUrgencyGain(Drift):
     name = "drift rate with an urgency function"
     required_parameters = ["snr", "gain_start", "gain_slope"]
@@ -348,7 +326,7 @@ class DriftUrgencyGain(Drift):
 # End DriftUrgencyGain
 
 # Start NoiseUrgencyGain
-from ddm import Noise
+from pyddm import Noise
 class NoiseUrgencyGain(Noise):
     name = "noise level with an urgency function"
     required_parameters = ["gain_start", "gain_slope"]
@@ -357,7 +335,7 @@ class NoiseUrgencyGain(Noise):
 # End NoiseUrgencyGain
 
 # Start prepare_sample_for_variable_drift
-import ddm
+import pyddm as ddm
 import numpy as np
 RESOLUTION = 11
 def prepare_sample_for_variable_drift(sample, resolution=RESOLUTION):

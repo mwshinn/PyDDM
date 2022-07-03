@@ -1,9 +1,9 @@
 # Simple demonstration of PyDDM.
 
 # Create a simple model with constant drift, noise, and bounds.
-from ddm import Model
-from ddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision, ICPointSourceCenter
-from ddm.functions import fit_adjust_model, display_model
+from pyddm import Model
+from pyddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision, ICPointSourceCenter
+from pyddm.functions import fit_adjust_model, display_model
 
 model = Model(name='Simple model',
               drift=DriftConstant(drift=2.2),
@@ -23,9 +23,9 @@ samp = sol.resample(1000)
 
 # Fit a model identical to the one described above on the newly
 # generated data so show that parameters can be recovered.
-from ddm import Fittable, Fitted
-from ddm.models import LossRobustBIC
-from ddm.functions import fit_adjust_model
+from pyddm import Fittable, Fitted
+from pyddm.models import LossRobustBIC
+from pyddm.functions import fit_adjust_model
 model_fit = Model(name='Simple model (fitted)',
                   drift=DriftConstant(drift=Fittable(minval=0, maxval=4)),
                   noise=NoiseConstant(noise=Fittable(minval=.5, maxval=4)),
@@ -41,9 +41,9 @@ display_model(model_fit)
 model_fit.parameters()
 
 # Plot the model fit to the PDFs and save the file.
-import ddm.plot
+import pyddm.plot
 import matplotlib.pyplot as plt
-ddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
+pyddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
 plt.savefig("simple-fit.png")
 plt.show()
 
@@ -55,6 +55,6 @@ with open("model.txt", "w") as f:
     f.write(repr(model_fit))
 
 # Load the model
-from ddm import FitResult
+from pyddm import FitResult
 with open("model.txt", "r") as f:
     model_loaded = eval(f.read())

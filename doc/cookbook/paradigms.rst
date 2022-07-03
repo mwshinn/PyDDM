@@ -21,8 +21,8 @@ duration of the pulse.
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftPulse(start=Fittable(minval=0, maxval=1.5),
                                  duration=Fittable(minval=0, maxval=.5),
                                  drift=Fittable(minval=0, maxval=2)),
@@ -39,8 +39,8 @@ This can easily be modified to make it coherence dependent, where
 		  
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftPulseCoh(start=Fittable(minval=0, maxval=1.5),
                                     duration=Fittable(minval=0, maxval=.5),
                                     drift=Fittable(minval=0, maxval=2)),
@@ -59,8 +59,8 @@ evidence:
 
 Try it out with::
 
-  from ddm import Model, Fittable
-  from ddm.plot import model_gui
+  from pyddm import Model, Fittable
+  from pyddm.plot import model_gui
   model = Model(drift=DriftPulse2(drift0=Fittable(minval=0, maxval=.5),
                                   start=Fittable(minval=0, maxval=1.5),
                                   duration=Fittable(minval=0, maxval=.5),
@@ -91,7 +91,7 @@ by randomly sampling from a pool of coherences ``coh_list_PK`` for
 If the conversion from coherence to "drift" is known (e.g. by fitting 
 other tasks), one can model the DDM with this sequence of evidence::
 
-  from ddm.models import Drift
+  from pyddm.models import Drift
   class DriftPK(Drift):
       name = "PK drifts"
       required_conditions = ["coh_t_list", "dt_PK"]
@@ -105,9 +105,9 @@ to obtain the impact of stimuli at each time-step on the final choice.
 ensure each stimulus strength at each time-step is considered)::
 
   import numpy as np
-  from ddm import Model
-  from ddm.models import NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture
-  from ddm.functions import display_model
+  from pyddm import Model
+  from pyddm.models import NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture
+  from pyddm.functions import display_model
   n_rep=1000
   coh_list = np.array([-25.6, -12.8, -6.4, 6.4, 12.8, 25.6])
   Tdur = 2
