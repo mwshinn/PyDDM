@@ -7,7 +7,7 @@
 import copy
 import logging
 import numpy as np
-from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe
+from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe, Boolean
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions
 from .sample import Sample
@@ -338,3 +338,22 @@ class Solution(object):
         aa = np.asarray
         conditions = {k : (aa([v]*len(corr_sample)), aa([v]*len(err_sample)), aa([v]*int(undecided))) for k,v in self.conditions.items()}
         return Sample(corr_sample, err_sample, undecided, **conditions)
+
+    @accepts(Self, Positive0, Boolean)
+    @returns(Positive0)
+    def evaluate(self, rt, correct):
+        """Evaluate the pdf at a given response time.
+
+        `rt` is a time, greater than zero, at which to evaluate the pdf.
+        `correct` is whether this response should be evaluated in the correct
+        or error distribution, with True for correct or False for error.
+
+        Returns the value of the pdf at the given RT.  Note that, despite being
+        from a probability distribution, this may be positive, since it is a
+        continuous probability distribution.
+        """
+        i = round(rt/self.model.dt)
+        if i >= len(self.pdf_corr()):
+            _logger.warning(f"T_dur={self.model.T_dur} is too short for rt={rt}")
+            return 0
+        return (self.pdf_corr() if correct else self.pdf_err())[i]

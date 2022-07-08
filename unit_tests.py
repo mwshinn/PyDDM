@@ -620,6 +620,12 @@ class TestSolution(TestCase):
             if s.undec is not None:
                 # Allow better tolerance since accuracy isn't perfect for undecided pdf
                 assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+    def test_evaluate(self):
+        for s in self.all_sols:
+            assert s.evaluate(.3, True) > 0
+            assert s.evaluate(.1, False) > 0
+            assert s.evaluate(100, True) == 0
+            assert s.evaluate(100, False) == 0
 
 class TestTriDiagMatrix(TestCase):
     def setUp(self):
