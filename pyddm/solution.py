@@ -354,6 +354,6 @@ class Solution(object):
         """
         i = round(rt/self.model.dt)
         if i >= len(self.pdf_corr()):
-            _logger.warning(f"T_dur={self.model.T_dur} is too short for rt={rt}")
+            _logger.warning("T_dur="+str(self.model.T_dur)+" is too short for rt="+str(rt))
             return 0
         return (self.pdf_corr() if correct else self.pdf_err())[i]
