@@ -1,3 +1,20 @@
+# Version 0.6.1
+
+Released July 10, 2022
+
+## Minor changes
+
+- The new C solver is now automatically selected under a wider range of
+  invocation methods
+- Solution objects allow evaluating the pdf at a single RT without creating a
+  Sample.
+
+## Bug fixes
+
+- The new C solver produced lower-accuracy results for leaky and unstable
+  integration
+
+
 # Version 0.6.0
 
 Released July 3, 2022
