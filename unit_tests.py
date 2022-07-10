@@ -700,7 +700,9 @@ class TestMisc(TestCase):
         # Will collapse to 0 by t=1
         b = ddm.models.bound.BoundCollapsingLinear(B=1, t=1)
         m = ddm.Model(bound=b, T_dur=2)
-        s = m.solve()
+        s = m.solve_analytical()
+        assert len(s.pdf_corr()) == len(m.t_domain())
+        s = m.solve_analytical(force_python=True)
         assert len(s.pdf_corr()) == len(m.t_domain())
     def test_get_set_parameters_functions(self):
         """Test get_parameters, set_parameters, and get_parameter_names"""
@@ -714,11 +716,44 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
-            
-            
-        
 
-        
+class TestCSolver(TestCase):
+    def test_numerical(self):
+        assert ddm.model.HAS_CSOLVE, "C extension build failed"
+        # Test all code paths
+        models = [
+            ddm.Model(),
+            ddm.Model(bound=ddm.BoundCollapsingExponential(B=2.5, tau=.5)),
+            ddm.Model(drift=ddm.DriftLinear(x=0, t=.5, drift=0)),
+            ddm.Model(drift=ddm.DriftLinear(x=-.5, t=0, drift=.1)),
+            ddm.Model(drift=ddm.DriftLinear(x=.5, t=.5, drift=.2), bound=ddm.BoundCollapsingExponential(B=1, tau=1)),
+            ddm.Model(noise=ddm.NoiseLinear(x=0, t=.2, noise=.5)),
+            ddm.Model(noise=ddm.NoiseLinear(x=-.2, t=0, noise=.4)),
+            ddm.Model(noise=ddm.NoiseLinear(x=.2, t=.2, noise=.6), bound=ddm.BoundCollapsingLinear(B=1, t=1)),
+            ]
+        for i,m in enumerate(models):
+            print(i)
+            s1 = m.solve_numerical_implicit(force_python=True)
+            s2 = m.solve_numerical_c()
+            assert np.all(np.isclose(s1.pdf_corr(), s2.pdf_corr(), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf_err(), s2.pdf_err(), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
+    def test_analytic(self):
+        assert ddm.analytic.HAS_CSOLVE, "C extension build failed"
+        models = [
+            ddm.Model(),
+            ddm.Model(bound=ddm.BoundCollapsingLinear(B=2.5, t=2)),
+            ddm.Model(bound=ddm.BoundCollapsingLinear(B=1.0, t=2)),
+            ddm.Model(IC=ddm.ICPoint(x0=.3)),
+            ddm.Model(IC=ddm.ICPoint(x0=.3), bound=ddm.BoundCollapsingLinear(B=1.0, t=2)),
+            ]
+        for i,m in enumerate(models):
+            s1 = m.solve_analytical(force_python=True)
+            s2 = m.solve_analytical(force_python=False)
+            assert np.all(np.isclose(s1.pdf_corr(), s2.pdf_corr(), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf_err(), s2.pdf_err(), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
+
+
+
 # TODO test if there is no overlay, then corr + err + undecided = 1
 # TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
 # TODO test solution.resample in integration testing

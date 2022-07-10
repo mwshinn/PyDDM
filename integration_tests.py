@@ -21,7 +21,7 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
     elif method == "cn":
         n = m.solve_numerical_cn(conditions=conditions)
     elif method == "implicit":
-        n = m.solve_numerical_implicit(conditions=conditions)
+        n = m.solve_numerical_implicit(conditions=conditions, force_python=True)
     elif method == "explicit":
         n = m.solve_numerical_explicit(conditions=conditions)
     elif method == "c":

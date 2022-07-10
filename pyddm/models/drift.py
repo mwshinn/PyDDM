@@ -167,3 +167,7 @@ class DriftLinear(Drift):
     @ensures("np.isscalar(x) <--> np.isscalar(return)")
     def get_drift(self, x, t, **kwargs):
         return self.drift + self.x*x + self.t*t
+    def _uses_t(self):
+        return self.t != 0
+    def _uses_x(self):
+        return self.x != 0

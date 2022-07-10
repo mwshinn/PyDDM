@@ -513,10 +513,7 @@ class Model(object):
         elif isinstance(self.get_dependence("bound"), BoundConstant) and return_evolution is False and (force_python or not HAS_CSOLVE):
             return self.solve_numerical_cn(conditions=conditions)
         else:
-            if force_python or not HAS_CSOLVE or return_evolution:
-                return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution)
-            else:
-                return self.solve_numerical_c(conditions=conditions)
+            return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution, force_python=force_python)
 
     @accepts(Self, conditions=Conditions, force_python=Boolean)
     @returns(Solution)
@@ -546,15 +543,15 @@ class Model(object):
         
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
-                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions),
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
+                                                       self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions),
                                                        self.t_domain(), shift, -self.get_dependence("bound").t,
                                                        force_python=force_python) # TODO why must this be negative? -MS
         else: # Constant bound DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, conditions=conditions),
-                                                       self.get_dependence("noise").get_noise(t=0, conditions=conditions),
-                                                       self.get_dependence("bound").get_bound(t=0, conditions=conditions), 
+            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
+                                                       self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
+                                                       self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions), 
                                                        self.t_domain(), shift,
                                                        force_python=force_python)
 
@@ -596,13 +593,13 @@ class Model(object):
         drift_uses_x = self.get_dependence("drift")._uses_x()
         if not drift_uses_t and not drift_uses_x:
             drifttype = 0
-            drift = np.asarray([get_drift(conditions=conditions)])
+            drift = np.asarray([get_drift(conditions=conditions, x=0, t=0)])
         elif drift_uses_t and not drift_uses_x:
             drifttype = 1
-            drift = np.asarray([get_drift(t=t, conditions=conditions) for t in self.t_domain()])
+            drift = np.asarray([get_drift(t=t, conditions=conditions, x=0) for t in self.t_domain()])
         elif not drift_uses_t and drift_uses_x:
             drifttype = 2
-            drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), conditions=conditions))
+            drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), t=0, conditions=conditions))
         elif drift_uses_t and drift_uses_x:
             drifttype = 3
             # TODO: Right now this calculates and passes the maximum x domain,
@@ -622,13 +619,13 @@ class Model(object):
         noise_uses_x = self.get_dependence("noise")._uses_x()
         if not noise_uses_t and not noise_uses_x:
             noisetype = 0
-            noise = np.asarray([get_noise(conditions=conditions)])
+            noise = np.asarray([get_noise(conditions=conditions, x=0, t=0)])
         elif noise_uses_t and not noise_uses_x:
             noisetype = 1
-            noise = np.asarray([get_noise(t=t, conditions=conditions) for t in self.t_domain()])
+            noise = np.asarray([get_noise(t=t, conditions=conditions, x=0) for t in self.t_domain()])
         elif not noise_uses_t and noise_uses_x:
             noisetype = 2
-            noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions))
+            noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions, t=0))
         elif noise_uses_t and noise_uses_x:
             noisetype = 3
             # See comment in drifttype = 3
@@ -638,7 +635,7 @@ class Model(object):
         bound_uses_t = self.get_dependence("bound")._uses_t()
         if not bound_uses_t:
             boundtype = 0
-            bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions)])
+            bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions, t=0)])
         elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
@@ -652,12 +649,11 @@ class Model(object):
         undec[undec<0] = 0
         return self.get_dependence('overlay').apply(Solution(corr, err, self, conditions=conditions, pdf_undec=undec))
 
-    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean)
+    @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
     @requires("method == 'cn' --> self.can_solve_cn()")
-    def solve_numerical(self, method="cn", conditions={}, return_evolution=False):
-
+    def solve_numerical(self, method="cn", conditions={}, return_evolution=False, force_python=False):
         """Solve the DDM model numerically.
 
         Use `method` to solve the DDM.  `method` can either be
@@ -677,10 +673,14 @@ class Model(object):
 
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
-        
-        return_evolution(default=False) governs whether or not the function 
+
+        `return_evolution` (default=False) governs whether or not the function 
         returns the full evolution of the pdf as part of the Solution object. 
         This only works with methods "explicit" or "implicit", not with "cn".
+
+        `force_python` makes PyDDM use the solver written in Python instead of
+        the optimized solver written in C.
+
         """
         self.check_conditions_satisfied(conditions)
         if method == "cn":
@@ -689,6 +689,8 @@ class Model(object):
             else:
                 _logger.warning("return_evolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
                 method = "implicit"
+        if method == "implicit" and HAS_CSOLVE and not force_python and not return_evolution:
+            return self.solve_numerical_c(conditions=conditions)
 
         # Initial condition of decision variable
         pdf_curr = self.IC(conditions=conditions)

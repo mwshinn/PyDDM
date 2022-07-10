@@ -3,6 +3,10 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 
+// Profiling results (as of July 2022) indicate that about 75% of total
+// execution time is spent in the easy_dgtsv function and the rest in the
+// _implicit_time function.  Profiling performed with the "yep" python module.
+
 // We want to avoid depending on lapack so this is an implementation of the
 // Thomas algorithm, which performs the same function as dgtsv in lapack.  It
 // modifies the coefficients to garbage values, but the return value is saved in
@@ -23,6 +27,7 @@ void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
     b[i] = (b[i] - du[i]*b[i+1])/d[i];
   }
 }
+
 
 double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsigned int nsteps, double tstep);
 int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
@@ -283,8 +288,8 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
       D_copy[j] = D[j];
     }
     for (int j=0; j<Xsteps-1; j++) {
-      DU[j]      =  .5*drift[i*dmultt+j*dmultx]*dt * dxinv - .5*noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx] * dt * dxinv * dxinv;
-      DL[j]      = -.5*drift[i*dmultt+j*dmultx]*dt * dxinv - .5*noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx] * dt * dxinv * dxinv;
+      DU[j]      =  .5*drift[i*dmultt+(j+1)*dmultx]*dt * dxinv - .125*(noise[i*nmultt+j*nmultx]+noise[i*nmultt+(j+1)*nmultx])*(noise[i*nmultt+j*nmultx]+noise[i*nmultt+(j+1)*nmultx]) * dt * dxinv * dxinv;
+      DL[j]      = -.5*drift[i*dmultt+j*dmultx]*dt * dxinv - .125*(noise[i*nmultt+j*nmultx]+noise[i*nmultt+(j+1)*nmultx])*(noise[i*nmultt+j*nmultx]+noise[i*nmultt+(j+1)*nmultx]) * dt * dxinv * dxinv;
       DU_copy[j] = DU[j];
       DL_copy[j] = DL[j];
     }
@@ -298,11 +303,11 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
       j = Xsteps-shift_outer-1; // For convenience
       easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j]*weight_outer;
-      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
+      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
       j = Xsteps-shift_inner-1; // For convenience
       easy_dgtsv(Xsteps-2*shift_inner, DL_copy+shift_inner, D_copy+shift_inner, DU_copy+shift_inner, pdfcurr_copy+shift_inner);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr_copy[j]*weight_inner;
-      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
+      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_inner*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
       for (int j=shift_outer; j<Xsteps-shift_outer; j++)
         pdfcurr[j] *= weight_outer;
       for (int j=shift_inner; j<Xsteps-shift_inner; j++)
