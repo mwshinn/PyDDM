@@ -129,8 +129,9 @@ class Dependence(object): # TODO Base this on ABC
     def _uses(self, f, name):
         """Check if function `f` uses a variable named `name`."""
         # This function can be slow when run iteratively during fitting, so check the cache first.
-        if f.__name__ in self._cache_uses.keys():
-            return self._cache_uses[f.__name__]
+        cachekey = (f.__name__, name)
+        if cachekey in self._cache_uses.keys():
+            return self._cache_uses[cachekey]
         # First get rid of wrappers, eh hem, paranoid
         while "__wrapped__" in f.__dict__:
             f = f.__wrapped__
@@ -138,7 +139,7 @@ class Dependence(object): # TODO Base this on ABC
         # then return True.
         vars_in_func = [inst.argrepr for inst in dis.get_instructions(f)]
         if name in vars_in_func:
-            self._cache_uses[f.__name__] = True
+            self._cache_uses[cachekey] = True
             return True
         # Check for the use of varargs or kwargs to be 100% safe.  Users
         # shouldn't use these anyway, so if they do, then too bad, their
@@ -146,12 +147,12 @@ class Dependence(object): # TODO Base this on ABC
         args = inspect.getargs(f.__code__).varargs
         kwargs = inspect.getargs(f.__code__).varkw
         if args and args in vars_in_func:
-            self._cache_uses[f.__name__] = True
+            self._cache_uses[cachekey] = True
             return True
         if kwargs and kwargs in vars_in_func:
-            self._cache_uses[f.__name__] = True
+            self._cache_uses[cachekey] = True
             return True
-        self._cache_uses[f.__name__] = False
+        self._cache_uses[cachekey] = False
         return False
 
 

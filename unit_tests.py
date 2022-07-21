@@ -108,7 +108,36 @@ class TestDependences(TestCase):
         tdc = TestDepComp(testparam1=7)
         assert tdc.testparam1 == 7
         assert tdc.testparam2 == 10
-            
+    def test_DependenceUses(self):
+        """Test the _uses function and its cache"""
+        class TestDrift(ddm.models.Drift):
+            name = "Test"
+            required_parameters = []
+            def get_drift(self, x, t, **kwargs):
+                return 0
+        class TestDriftX(ddm.models.Drift):
+            name = "TestX"
+            required_parameters = []
+            def get_drift(self, x, t, **kwargs):
+                return x
+        class TestDriftT(ddm.models.Drift):
+            name = "TestT"
+            required_parameters = []
+            def get_drift(self, x, t, **kwargs):
+                return t
+        class TestDriftXT(ddm.models.Drift):
+            name = "TestXT"
+            required_parameters = []
+            def get_drift(self, x, t, **kwargs):
+                return t + x
+        td = TestDrift()
+        tdx = TestDriftX()
+        tdt = TestDriftT()
+        tdxt = TestDriftXT()
+        assert not td._uses_x() and not td._uses_t()
+        assert tdx._uses_x() and not tdx._uses_t()
+        assert not tdt._uses_x() and tdt._uses_t()
+        assert tdxt._uses_x() and tdxt._uses_t()
     def test_DriftReduces(self):
         """DriftLinear reduces to DriftConstant when x and t are 0"""
         drift_constant_instances = [e for e in ddm.models.DriftConstant._generate()]
