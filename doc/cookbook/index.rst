@@ -185,6 +185,8 @@ Models from specific papers
 
 - :doc:`papers/shinn2020`
 
+- :doc:`papers/shinn2020b`
+
 - :doc:`papers/degee2020`
 
 - :doc:`papers/dip`
