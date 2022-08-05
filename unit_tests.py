@@ -452,10 +452,10 @@ class TestSample(TestCase):
             "undeccond": ddm.Sample(aa([1, 2, 3]), aa([]), 3,
                                     cond1=(aa([1, 1, 2]), aa([]), aa([2, 2, 1]))),
             # For the adding test
-            "adda": ddm.Sample(aa([1]), aa([2, 4]), 3,
-                               cond1=(aa(["a"]), aa(["a", "b"]), aa(["a", "b", "b"]))),
-            "addb": ddm.Sample(aa([1.5, 2, 1]), aa([]), 1,
-                               cond1=(aa(["b", "b", "c"]), aa([]), aa(["d"]))),
+            "adda": ddm.Sample(aa([1, 2]), aa([2, 3, 2]), 3,
+                               cond1=(aa(["a", "a"]), aa(["a", "b", "b"]), aa(["a", "b", "b"]))),
+            "addb": ddm.Sample(aa([1.5, 2, 1]), aa([1, 2, 3, 1]), 1,
+                               cond1=(aa(["b", "b", "c"]), aa(["c", "c", "c", "c"]), aa(["d"]))),
             # Two conditions
             "two": ddm.Sample(aa([1]), aa([2]), 1,
                                conda=(aa(["a"]), aa(["b"]), aa(["a"])),
@@ -466,12 +466,12 @@ class TestSample(TestCase):
         s1 = self.samps["adda"]
         s2 = self.samps["addb"]
         s = s1 + s2
-        assert len(s) == 10
+        assert len(s) == 16
         assert s.condition_names() == ["cond1"]
         assert s.condition_values("cond1") == ["a", "b", "c", "d"]
-        assert s.prob_undecided() == .4
-        assert s.prob_correct() == .4
-        assert s.prob_error() == .2
+        assert s.prob_undecided() == .25
+        assert s.prob_correct() == 5/16
+        assert s.prob_error() == 7/16
         # Try to add to the empty sample
         assert self.samps["empty"] + self.samps["undec"] == self.samps["undec"]
         assert self.samps["empty"] + self.samps["simple"] == self.samps["simple"]

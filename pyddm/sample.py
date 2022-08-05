@@ -112,6 +112,10 @@ class Sample(object):
         """Iterate through each reaction time, with no regard to whether it was a correct or error trial."""
         return np.concatenate([self.corr, self.err]).__iter__()
     def __eq__(self, other):
+        if len(self.corr) != len(other.corr) or \
+           len(self.err) != len(other.err) or \
+           self.undecided != other.undecided:
+            return False
         if not np.allclose(self.corr, other.corr) or \
            not np.allclose(self.err, other.err) or \
            self.undecided != other.undecided:
