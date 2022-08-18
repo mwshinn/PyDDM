@@ -91,7 +91,7 @@ class LossFunction(object):
 
         """
         from ..functions import solve_all_conditions
-        return solve_all_conditions(model, self.sample, method=self.method)
+        return solve_all_conditions(model, sample=self.sample, method=self.method)
                 
 @paranoidclass
 class LossSquaredError(LossFunction):
