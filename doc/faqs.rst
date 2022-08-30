@@ -4,7 +4,7 @@ FAQs
 How do I know if my model will run analytically or numerically?
 ---------------------------------------------------------------
 
-The function :func:`~ddm.model.Model.solve` will automatically choose the best
+The function :func:`~pyddm.model.Model.solve` will automatically choose the best
 solver for your model.  Solvers, in order of preference, are
 
 1. Analytical
@@ -26,15 +26,15 @@ models and thus serves as a fallback.
 
 Particle simulations and Forward Euler (explicit method) are also
 available, but must be explicitly called via
-:func:`~ddm.model.Model.solve_numerical_explicit` and
-:func:`~ddm.model.Model.simulated_solution`.  They will never be chosen
+:func:`~pyddm.model.Model.solve_numerical_explicit` and
+:func:`~pyddm.model.Model.simulated_solution`.  They will never be chosen
 automatically.
 
 For custom models, these are specified by including ``x`` or ``t`` in
 the argument list.
 
 
-What arguments do :func:`~ddm.models.drift.Drift.get_drift`, :func:`~ddm.models.noise.Noise.get_noise`, etc. take?
+What arguments do :func:`~pyddm.models.drift.Drift.get_drift`, :func:`~pyddm.models.noise.Noise.get_noise`, etc. take?
 ------------------------------------------------------------------------------------------------------------------
 
 The most appropriate solver is selected by PyDDM by examining the
@@ -57,7 +57,7 @@ rewards, and we hypothesize that different bounds are used in these
 two cases.  We could create the following Bound object which allows
 the bounds in the two blocks to be fit independently::
 
-  class BoundReward(ddm.Bound):
+  class BoundReward(pyddm.Bound):
       name = "Reward-modulated bounds"
       required_conditions = ["block"]
       required_parameters = ["bound1", "bound2"]
@@ -83,7 +83,7 @@ described above modulates the rate of collapse in exponentially
 collapsing bounds.  This could be modeled as::
 
   import numpy as np
-  class BoundReward(ddm.Bound):
+  class BoundReward(pyddm.Bound):
       name = "Reward-modulated bounds"
       required_conditions = ["block"]
       required_parameters = ["rate1", "rate2", "B0"]
@@ -207,7 +207,7 @@ Your model may be slow for a number of different reasons.
   time distribution will be inaccurate, and if dx and dt are smaller
   than 0.0001, solving the model will be extremely slow.
 - **The C solver is not working properly** -- You can confirm that the C solver
-  is operating by ensuring the variable ``ddm.model.HAS_CSOLVE`` is True.  If
+  is operating by ensuring the variable ``pyddm.model.HAS_CSOLVE`` is True.  If
   there was an error installing the C solver when installing PyDDM, PyDDM will
   still run, but it will be 10-100x slower.
 

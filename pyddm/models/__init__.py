@@ -11,7 +11,7 @@ __all__ = ["Dependence",
            "InitialCondition", "ICPointSourceCenter", "ICPoint", "ICUniform", "ICRange", "ICGaussian",
            "Overlay", "OverlayNone", "OverlayChain",
                "OverlaySimplePause", "OverlayBlurredPause",
-               "OverlayUniformMixture", "OverlayPoissonMixture",
+               "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayExponentialMixture",
                "OverlayNonDecision", "OverlayNonDecisionUniform", "OverlayNonDecisionGamma",
            "LossFunction", "LossSquaredError", "LossLikelihood", "LossBIC", "LossRobustLikelihood", "LossRobustBIC"]
 

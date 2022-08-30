@@ -5,34 +5,34 @@ Models
 Model object
 ------------
 
-.. autoclass:: ddm.model.Model
+.. autoclass:: pyddm.model.Model
    :show-inheritance:
    :members:
 
 Fittable object
 ---------------
 
-.. autoclass:: ddm.model.Fittable
+.. autoclass:: pyddm.model.Fittable
    :show-inheritance:
    :members:
 
 Fitted object
 -------------
 
-.. autoclass:: ddm.model.Fitted
+.. autoclass:: pyddm.model.Fitted
    :show-inheritance:
    :members:
 
 Sample object (for RT data)
 ---------------------------
 
-.. automodule:: ddm.sample
+.. automodule:: pyddm.sample
    :show-inheritance:
    :members:
 
 Solution object (for theoretical RT histograms)
 -----------------------------------------------
 
-.. automodule:: ddm.solution
+.. automodule:: pyddm.solution
    :show-inheritance:
    :members:

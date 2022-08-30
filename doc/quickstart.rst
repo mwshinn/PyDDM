@@ -316,7 +316,7 @@ Or, to access them within Python instead of printing them,
    :lines: 92
 
 Note that if you see "Warning: renormalizing model solution from X to
-1." for some X, this is okay as long as X is close ($<10^{-5}$ or so)
+1." for some X, this is okay as long as X is close (:math:`<10^{-5}` or so)
 to 1.0 or as long as this is seen early in the fitting procedure.  If
 it is larger or seen towards the end of the fitting procedure,
 consider using smaller dx or dt in the simulation.  This indicates

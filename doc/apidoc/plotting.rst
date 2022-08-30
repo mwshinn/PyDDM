@@ -1,5 +1,5 @@
 Plotting
 ========
 
-.. automodule:: ddm.plot
+.. automodule:: pyddm.plot
    :members:

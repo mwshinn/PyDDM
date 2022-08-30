@@ -4,7 +4,7 @@ Model components
 Drift rate
 ---------------
 
-.. automodule:: ddm.models.drift
+.. automodule:: pyddm.models.drift
    :members:
    :show-inheritance:
 
@@ -12,7 +12,7 @@ Drift rate
 Noise
 -------------
 
-.. automodule:: ddm.models.noise
+.. automodule:: pyddm.models.noise
    :members:
    :show-inheritance:
 
@@ -20,7 +20,7 @@ Noise
 Bounds
 ------
 
-.. automodule:: ddm.models.bound
+.. automodule:: pyddm.models.bound
    :members:
    :show-inheritance:
 
@@ -28,7 +28,7 @@ Bounds
 Initial Conditions (IC)
 -----------------------
 
-.. automodule:: ddm.models.ic
+.. automodule:: pyddm.models.ic
    :members:
    :show-inheritance:
 
@@ -36,7 +36,7 @@ Initial Conditions (IC)
 Overlay
 -------
 
-.. automodule:: ddm.models.overlay
+.. automodule:: pyddm.models.overlay
    :members:
    :show-inheritance:
 
@@ -44,7 +44,7 @@ Overlay
 Loss function (for optimization)
 --------------------------------
 
-.. automodule:: ddm.models.loss
+.. automodule:: pyddm.models.loss
    :members:
    :show-inheritance:
 
@@ -52,7 +52,7 @@ Loss function (for optimization)
 Base
 ----
 
-.. automodule:: ddm.models.base
+.. automodule:: pyddm.models.base
    :members:
    :show-inheritance:
 

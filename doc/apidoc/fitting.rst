@@ -4,13 +4,13 @@ Fitting
 Functions for fitting
 ---------------------
 
-.. autofunction:: ddm.functions.fit_adjust_model
+.. autofunction:: pyddm.functions.fit_adjust_model
 
-.. autofunction:: ddm.functions.fit_model
+.. autofunction:: pyddm.functions.fit_model
 
 Fit result
 ----------
 
-.. automodule:: ddm.fitresult
+.. automodule:: pyddm.fitresult
    :members:
 
