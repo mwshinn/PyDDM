@@ -9,6 +9,8 @@ build:
 python:
   install:
     - requirements: requirements.txt
+    - method: pip
+      path: matplotlib==3.5.3
     - method: setuptools
       path: .
   system_packages: true
