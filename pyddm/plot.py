@@ -183,7 +183,7 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     else:
         raise ValueError("Must specify non-empty model or sample in arguments")
     ax1 = fig.add_axes([.12, .56, .85, .43])
-    ax2 = fig.add_axes([.12, .13, .85, .43])
+    ax2 = fig.add_axes([.12, .13, .85, .43], sharex=ax1)
     ax2.invert_yaxis()
     # If a sample is given, plot it behind the model.
     if sample:
