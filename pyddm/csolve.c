@@ -260,13 +260,6 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
     if (bound[i] > bound_max)
       bound_max = bound[i];
   for (int i=0; i<Tsteps-1; i++) {
-    // Sum the current pdf and exit if it is small
-    double sumpdfcurr = 0;
-    for (int j=0; j<Xsteps; j++)
-      sumpdfcurr += pdfcurr[j];
-    //printf("%i %f\n", i, sumpdfcurr);
-    if (sumpdfcurr < .0001)
-      break;
     // Make a copy of the current pdf
     for (int j=0; j<Xsteps; j++)
       pdfcurr_copy[j] = pdfcurr[j];
@@ -279,6 +272,13 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
     shift_inner = (int)ceil(1e-10*round(bound_shift*dxinv*1e10));
     weight_inner = (bound_shift - shift_outer*dx)*dxinv;
     weight_outer = 1 - weight_inner;
+
+    // Sum the current pdf and exit if it is small
+    double sumpdfcurr = 0;
+    for (int j=shift_outer; j<Xsteps-shift_outer; j++)
+      sumpdfcurr += pdfcurr[j];
+    if (sumpdfcurr < .0001)
+      break;
 
 
     // Set up the arguments for lapack.  DL and DU are lower and upper,
@@ -293,18 +293,43 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
       DU_copy[j] = DU[j];
       DL_copy[j] = DL[j];
     }
+    // Correction for the implicit method
+    D[shift_outer] += DL[shift_outer];
+    DL[shift_outer] = 0;
+    D[Xsteps-1-shift_outer] += DU[Xsteps-2-shift_outer];
+    DU[Xsteps-2-shift_outer] = 0;
+    D_copy[shift_inner] += DL_copy[shift_inner];
+    DL_copy[shift_inner] = 0;
+    D_copy[Xsteps-1-shift_inner] += DU_copy[Xsteps-2-shift_inner];
+    DU_copy[Xsteps-2-shift_inner] = 0;
     if (shift_outer == shift_inner) { // Bound falls on a grid here
       j = Xsteps-shift_outer-1; // For convenience
+      for (int k=0; k<shift_outer; k++)
+        pdferr[i+1] += pdfcurr[k]*weight_outer;
+      for (int k=Xsteps-shift_outer; k<Xsteps; k++)
+        pdfcorr[i+1] += pdfcurr[k]*weight_outer;
       easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j];
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer];
+      for (int k=0; k<shift_outer; k++)
+        pdfcurr[k] = 0;
+      for (int k=Xsteps-shift_outer; k<Xsteps; k++)
+        pdfcurr[k] = 0;
       //printf("%f %f    ", pdfcurr[Xsteps-shift_outer-1], pdfcurr[shift_outer]);
     } else {
       j = Xsteps-shift_outer-1; // For convenience
+      for (int k=0; k<shift_outer; k++)
+        pdferr[i+1] += pdfcurr[k]*weight_outer;
+      for (int k=Xsteps-shift_outer; k<Xsteps; k++)
+        pdfcorr[i+1] += pdfcurr[k]*weight_outer;
       easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j]*weight_outer;
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
       j = Xsteps-shift_inner-1; // For convenience
+      for (int k=0; k<shift_inner; k++)
+        pdferr[i+1] += pdfcurr_copy[k]*weight_inner;
+      for (int k=Xsteps-shift_inner; k<Xsteps; k++)
+        pdfcorr[i+1] += pdfcurr_copy[k]*weight_inner;
       easy_dgtsv(Xsteps-2*shift_inner, DL_copy+shift_inner, D_copy+shift_inner, DU_copy+shift_inner, pdfcurr_copy+shift_inner);
       pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr_copy[j]*weight_inner;
       pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_inner*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
@@ -312,6 +337,14 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
         pdfcurr[j] *= weight_outer;
       for (int j=shift_inner; j<Xsteps-shift_inner; j++)
         pdfcurr[j] += pdfcurr_copy[j]*weight_inner;
+      for (int k=0; k<shift_outer; k++)
+        pdfcurr[k] = 0;
+      for (int k=Xsteps-shift_outer; k<Xsteps; k++)
+        pdfcurr[k] = 0;
+      for (int k=0; k<shift_inner; k++)
+        pdfcurr_copy[k] = 0;
+      for (int k=Xsteps-shift_inner; k<Xsteps; k++)
+        pdfcurr_copy[k] = 0;
     }
 
   }

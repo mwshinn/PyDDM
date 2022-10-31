@@ -27,10 +27,10 @@ class Drift(Dependence):
         return self._uses(self.get_drift, "t")
     def _uses_x(self):
         return self._uses(self.get_drift, "x")
-    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
+    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions, implicit=Boolean)
     @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
+    def get_matrix(self, x, t, dx, dt, conditions, implicit=False, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray of all positions in the grid.
@@ -44,12 +44,21 @@ class Drift(Dependence):
         subclasses.
         """
         drift = self.get_drift(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
+        D = np.zeros(len(x))
         if np.isscalar(drift):
-            return TriDiagMatrix(up=0.5*dt/dx * drift * np.ones(len(x)-1),
-                                 down=-0.5*dt/dx * drift * np.ones(len(x)-1))
+            UP = 0.5*dt/dx * drift * np.ones(len(x)-1)
+            DOWN = -0.5*dt/dx * drift * np.ones(len(x)-1)
         else:
-            return TriDiagMatrix(up=0.5*dt/dx * drift[1:],
-                                 down=-0.5*dt/dx * drift[:-1])
+            UP = 0.5*dt/dx * drift[1:]
+            DOWN = -0.5*dt/dx * drift[:-1]
+        if implicit:
+            D[-1] = UP[-1]
+            UP[-1] = 0
+            D[0] = DOWN[0]
+            DOWN[0] = 0
+        return TriDiagMatrix(up=UP,
+                             down=DOWN,
+                             diag=D)
     # Amount of flux from bound/end points to correct and erred
     # response probabilities, due to different parameters.
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)

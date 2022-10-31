@@ -741,8 +741,13 @@ class Model(object):
             # Diffusion Matrix for Implicit Method. Here defined as
             # Outer Matrix, and inder matrix is either trivial or an
             # extracted submatrix.
-            drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
-            noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+            drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
+                                                                   dt=self.dt, dx=self.dx,
+                                                                   conditions=conditions,
+                                                                   implicit=(method!="explicit"))
+            noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t,
+                                                                   dt=self.dt, dx=self.dx, conditions=conditions,
+                                                                   implicit=(method!="explicit"))
             if method == "implicit":
                 diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
             elif method == "explicit":
@@ -762,10 +767,23 @@ class Model(object):
             if x_index_inner == x_index_outer:
                 pdf_inner = pdf_outer
             else:
+                # Need a separate matrix here to get the proper corrections
+                drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds[1:-1], t=t,
+                                                                    dt=self.dt, dx=self.dx,
+                                                                    conditions=conditions,
+                                                                    implicit=(method!="explicit"))
+                noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds[1:-1], t=t,
+                                                                    dt=self.dt, dx=self.dx, conditions=conditions,
+                                                                    implicit=(method!="explicit"))
                 if method == "implicit":
-                    pdf_inner = diffusion_matrix.splice(1,-1).spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)-2) + drift_matrix + noise_matrix
                 elif method == "explicit":
-                    pdf_inner = diffusion_matrix_explicit.splice(1,-1).dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                    # Explicit method flips sign except for the identity matrix
+                    diffusion_matrix_explicit = TriDiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
+                if method == "implicit":
+                    pdf_inner = diffusion_matrix.spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
+                elif method == "explicit":
+                    pdf_inner = diffusion_matrix_explicit.dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
             # Pdfs out of bound is considered decisions made.
             pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
@@ -880,8 +898,8 @@ class Model(object):
         # pdf_prev = np.zeros((len(pdf_curr)))
         # If pdf_corr + pdf_err + undecided probability are summed, they
         # equal 1.  So these are componets of the joint pdf.
-        pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
-        pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_corr = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_err = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain(conditions=conditions)
 
         bound_shift = 0.
@@ -898,8 +916,10 @@ class Model(object):
         x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
 
 
+        prev_t = 0
+        prev_i_t = 0
         # Looping through time and updating the pdf.
-        for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
+        for i_t, t in enumerate(self.t_domain()):
             # Update Previous state.
             pdf_outer_prev = pdf_outer.copy()
             pdf_inner_prev = pdf_inner.copy()
@@ -938,21 +958,26 @@ class Model(object):
                 # Outer Matrix, and inner matrix is either trivial or an
                 # extracted submatrix.
                 # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inner matrix is either trivial or an extracted submatrix.
+                local_dt = t - prev_t if t!=0 else self.t_domain()[1]
                 drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
-                                                                       dt=self.dt, dx=self.dx, conditions=conditions)
+                                                                       dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                       implicit=True)
                 drift_matrix *= .5
                 noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
-                                                                       t=t, dt=self.dt, dx=self.dx, conditions=conditions)
+                                                                       t=t, dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                       implicit=True)
                 noise_matrix *= .5
                 diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix += drift_matrix
                 diffusion_matrix += noise_matrix
 
-                drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
-                                                                            dt=self.dt, dx=self.dx, conditions=conditions)
+                drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=prev_t,
+                                                                            dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                            implicit=True)
                 drift_matrix_prev *= .5
-                noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=np.maximum(0,t-self.dt),
-                                                                            dt=self.dt, dx=self.dx, conditions=conditions)
+                noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=prev_t,
+                                                                            dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                            implicit=True)
                 noise_matrix_prev *= .5
                 diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds))
                 diffusion_matrix_prev -= drift_matrix_prev
@@ -1032,7 +1057,15 @@ class Model(object):
             if bound < self.dx:
                 pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
                 pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+            prev_t = t
+            prev_i_t = i_t
 
+        # Fix the time-offest error of dt/2
+        pdf_corr = np.concatenate([[0], np.mean([pdf_corr[1:], pdf_corr[:-1]], axis=0)])
+        pdf_err = np.concatenate([[0], np.mean([pdf_err[1:], pdf_err[:-1]], axis=0)])
+        # Fix the truncation error at the end
+        pdf_corr = pdf_corr[:-1]
+        pdf_err = pdf_err[:-1]
         # Detect and fix below zero errors.  Here, we don't worry
         # about undecided probability as we did with the implicit
         # method, because CN tends to oscillate around zero,
@@ -1052,7 +1085,8 @@ class Model(object):
             pdf_err[pdf_err < 0] = 0
         # Fix numerical errors
         pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
-        if pdfsum > 1:
+        if pdfsum > 1 and False:
+            print('Renorm for', pdfsum)
             # If it is only a small renormalization, don't bother alerting the user.
             if pdfsum > 1.01 and param.renorm_warnings:
                 _logger.warning(("Renormalizing probability density from " + str(pdfsum) + " to 1."

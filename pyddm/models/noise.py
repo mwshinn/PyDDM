@@ -27,10 +27,10 @@ class Noise(Dependence):
         return self._uses(self.get_noise, "t")
     def _uses_x(self):
         return self._uses(self.get_noise, "x")
-    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
+    @accepts(Self, x=NDArray(d=1, t=Number), t=Positive0, dx=Positive, dt=Positive, conditions=Conditions, implicit=Boolean)
     @returns(TriDiagMatrix)
     @ensures("return.shape == (len(x), len(x))")
-    def get_matrix(self, x, t, dx, dt, conditions, **kwargs):
+    def get_matrix(self, x, t, dx, dt, conditions, implicit=False, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
         `x` should be a length N ndarray of all positions in the grid.
@@ -45,13 +45,23 @@ class Noise(Dependence):
         """
         noise = self.get_noise(x=x, t=t, dx=dx, dt=dt, conditions=conditions, **kwargs)
         if np.isscalar(noise):
-            return TriDiagMatrix(diag=1.0*noise**2 * dt/dx**2 * np.ones(len(x)),
-                                 up=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1),
-                                 down=-0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1))
+            D = 1.0*noise**2 * dt/dx**2 * np.ones(len(x))
+            UP = -0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1)
+            DOWN = -0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1)
         else:
-            return TriDiagMatrix(diag=1.0*noise**2 * dt/dx**2,
-                                 up=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2,
-                                 down=-0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2)
+            D = 1.0*noise**2 * dt/dx**2
+            UP = -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2
+            DOWN = -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2
+        if implicit:
+            D[0] += DOWN[0]
+            D[-1] += UP[-1]
+            DOWN[0] = 0
+            UP[-1] = 0
+        else:
+            print("WARNING - Explicit method")
+        return TriDiagMatrix(diag=D,
+                             up=UP,
+                             down=DOWN)
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Positive0)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
