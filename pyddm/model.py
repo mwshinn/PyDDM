@@ -979,7 +979,7 @@ class Model(object):
                                                                             dt=local_dt, dx=self.dx, conditions=conditions,
                                                                             implicit=True)
                 noise_matrix_prev *= .5
-                diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds))
+                diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds_prev))
                 diffusion_matrix_prev -= drift_matrix_prev
                 diffusion_matrix_prev -= noise_matrix_prev
 
@@ -1010,8 +1010,31 @@ class Model(object):
                 if x_index_inner == x_index_outer: # Should always be the case, since we removed CN changing bounds support
                     pdf_inner = pdf_outer
                 else:
-                    pdf_inner = diffusion_matrix.splice(si_from,si_to).spsolve(
-                                                      diffusion_matrix_prev.splice(si2_from,si2_to).dot(pdf_inner_prev)[si3_from:si3_to])
+                    # Need a separate matrix here to get the proper corrections
+                    drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds[si_from:si_to], t=t,
+                                                                           dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                           implicit=True)
+                    drift_matrix *= .5
+                    noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds[si_from:si_to],
+                                                                           t=t, dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                           implicit=True)
+                    noise_matrix *= .5
+                    diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds[si_from:si_to]))
+                    diffusion_matrix += drift_matrix
+                    diffusion_matrix += noise_matrix
+
+                    drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev[si2_from:si2_to], t=prev_t,
+                                                                                dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                                implicit=True)
+                    drift_matrix_prev *= .5
+                    noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev[si2_from:si2_to], t=prev_t,
+                                                                                dt=local_dt, dx=self.dx, conditions=conditions,
+                                                                                implicit=True)
+                    noise_matrix_prev *= .5
+                    diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds_prev[si2_from:si2_to]))
+                    diffusion_matrix_prev -= drift_matrix_prev
+                    diffusion_matrix_prev -= noise_matrix_prev
+                    pdf_inner = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_inner_prev)[si3_from:si3_to])
 
 
                 # Pdfs out of bound is considered decisions made.
