@@ -390,11 +390,10 @@ class Model(object):
                 break
 
         traj = self.get_dependence("overlay").apply_trajectory(trajectory=np.asarray(pos), model=self, seed=seed, rk4=rk4, conditions=conditions)
-        if cutoff is False:
-            if len(traj) < len(T):
-                traj = np.append(traj, [traj[-1]]*(len(T)-len(traj)))
-            elif len(traj) > len(T):
-                traj = traj[0:len(T)]
+        if cutoff is False and len(traj) < len(T):
+            traj = np.append(traj, [traj[-1]]*(len(T)-len(traj)))
+        if len(traj) > len(T):
+            traj = traj[0:len(T)]
         return traj
 
 
@@ -419,6 +418,7 @@ class Model(object):
         Solution.resample() function of the resulting Solution.
 
         """
+        _logger.warning("To generate a sample from a model, please use Solution.resample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
         corr_times = []
         err_times = []
         undec_count = 0
