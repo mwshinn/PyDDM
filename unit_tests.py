@@ -794,8 +794,8 @@ class TestMisc(TestCase):
         sols1 = ddm.functions.solve_all_conditions(m, sample=samp)
         sols2 = ddm.functions.solve_all_conditions(m, condition_combinations=cond_combs)
         for s1, s2 in zip(sols1.values(), sols2.values()):
-            assert np.all(np.isclose(s1.pdf("_upper"), s2.pdf("_upper"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (correct RT)"
-            assert np.all(np.isclose(s1.pdf("_lower"), s2.pdf("_lower"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (error RT)"
+            assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (correct RT)"
+            assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (error RT)"
         with self.assertRaises(AssertionError):
             ddm.functions.solve_all_conditions(m, condition_combinations=cond_combs + [{"c1": 1, "c2": 1.0, "dummy": -1}])
 
