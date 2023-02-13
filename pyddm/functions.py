@@ -463,21 +463,27 @@ def evolution_strategy(fitness, x_0, mu=1, lmbda=3, copyparents=True, mutate_var
 
 #@accepts(Model, Sample, Conditions, Unchecked, Set(["analytical", "numerical", "cn", "implicit", "explicit"]))
 #@returns(Unchecked)
-def solve_all_conditions(model, sample, method=None):
-    """Solve the model for all conditions relevant to the sample.
+def solve_all_conditions(model, sample=None, condition_combinations=None, method=None):
+    """Solve the model for all relevant conditions.
 
-    This takes the following parameters:
+    This takes the following parameters (note that there are two legal
+    parameterizations for this function):
 
     - `model` - A Model() object
     - `sample` - A Sample() object which has conditions for each of
-      the required conditions in `model`
+      the required conditions in `model`. Conditions may equivalently be
+      specified via `condition_combinations`.
+    - `condition_combinations` - A list of dicts, where each dict
+      specifies a combination of condition names and values for which to
+      solve the model (the same format as Sample.condition_combinations()
+      outputs). Conditions must be the same as the required conditions in
+      `model`. Conditions may equivalently be specified via `sample`.
     - `method` - A string describing the solver method.  Can be
       "analytical", "numerical", "cn", "implicit", or "explicit".
 
-    For each value of each relevant condition in sample (i.e. those in
-    the model's required conditions), this will solve the model for
-    that set of parameters.  It returns a dictionary indexed by a
-    frozenset of the condition names and values, with the Solution
+    For each combination of relevant condition-values, this will solve the
+    model for that "condition combination." It returns a dictionary indexed
+    by a frozenset of the condition names and values, with the Solution
     object as the value, e.g.:
     
         {frozenset({('reward', 3)}): <Solution object>,
@@ -486,8 +492,16 @@ def solve_all_conditions(model, sample, method=None):
     This function will automatically parallelize if set_N_cpus() has
     been called.
     """
+    if sample is not None and condition_combinations is None:
+        conds = sample.condition_combinations(required_conditions=model.required_conditions)
+    elif condition_combinations is not None and sample is None:
+        assert all(set(cond_combo.keys()) == set(model.required_conditions) for cond_combo in condition_combinations)
+        conds = condition_combinations
+    elif condition_combinations is None and sample is None:
+        raise ValueError("Must specify either `sample` or `condition_combinations` for solve_all_conditions().")
+    else:
+        raise ValueError("Cannot specify both `sample` and `condition_combinations` for solve_all_conditions().")
 
-    conds = sample.condition_combinations(required_conditions=model.required_conditions)
     if method is None:
         meth = model.solve
     elif method == "analytical":
@@ -601,7 +615,7 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
     # (incorrect) undecided probability
     if not isinstance(model.get_dependence("overlay"), OverlayNone):
         model_undec = None
-    all_conds = solve_all_conditions(model, samp, method=method)
+    all_conds = solve_all_conditions(model, sample=samp, method=method)
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]

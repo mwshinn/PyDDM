@@ -780,6 +780,24 @@ class TestMisc(TestCase):
         str(m)
         from pyddm import Model, DriftConstant, NoiseConstant, BoundConstant, ICPointSourceCenter, OverlayNone
         assert m == eval(repr(m))
+    def test_solve_all_conditions_parameterizations(self):
+        class DriftCond(ddm.Drift):
+            name = "Simple drift requires two conditions"
+            required_conditions = ["c1", "c2"]
+            required_parameters = []
+            def get_drift(self, conditions, **kwargs):
+                return conditions["c1"] * conditions["c2"]
+        m = ddm.Model(drift=DriftCond())
+        cond_combs = [{"c1": 2, "c2": 0.9}, {"c1": 2, "c2": 1.0}, {"c1": 2, "c2": 0.9}, {"c1": 2, "c2": 1.0}]
+        samp_arr = np.array([[1, 0, conditions["c1"], conditions["c2"]] for conditions in cond_combs])
+        samp = ddm.Sample.from_numpy_array(samp_arr, ["c1", "c2"])
+        sols1 = ddm.functions.solve_all_conditions(m, sample=samp)
+        sols2 = ddm.functions.solve_all_conditions(m, condition_combinations=cond_combs)
+        for s1, s2 in zip(sols1.values(), sols2.values()):
+            assert np.all(np.isclose(s1.pdf("_upper"), s2.pdf("_upper"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (correct RT)"
+            assert np.all(np.isclose(s1.pdf("_lower"), s2.pdf("_lower"), atol=1e-3, rtol=1e-3)), "solve_all_conditions parameterizations differed (error RT)"
+        with self.assertRaises(AssertionError):
+            ddm.functions.solve_all_conditions(m, condition_combinations=cond_combs + [{"c1": 1, "c2": 1.0, "dummy": -1}])
 
 class TestCSolver(TestCase):
     def test_numerical(self):
