@@ -41,7 +41,7 @@ class Overlay(Dependence):
         This function takes a Solution object as its argument and
         returns a Solution object which was modified in some way.
         Often times, this will be by modifying `solution.corr` and
-        `solution.err`.  See the documentation for Solution for more
+        `solution.choice_lower`.  See the documentation for Solution for more
         information about this object.
 
         Note that while this does not take `conditions` as an
@@ -203,8 +203,8 @@ class OverlayUniformMixture(Overlay):
     @returns(Solution)
     def apply(self, solution):
         assert self.umixturecoef >= 0 and self.umixturecoef <= 1
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
@@ -212,10 +212,10 @@ class OverlayUniformMixture(Overlay):
         # To make this work with undecided probability, we need to
         # normalize by the sum of the decided density.  That way, this
         # function will never touch the undecided pieces.
-        norm = np.sum(corr)+np.sum(err)
-        corr = corr*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
-        err = err*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
-        return Solution(corr, err, m, cond, undec, evolution)
+        norm = np.sum(choice_upper)+np.sum(choice_lower)
+        choice_upper = choice_upper*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
+        choice_lower = choice_lower*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
+        return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
 
 @paranoidclass
 class OverlayExponentialMixture(Overlay):
@@ -253,8 +253,8 @@ class OverlayExponentialMixture(Overlay):
     def apply(self, solution):
         assert self.pmixturecoef >= 0 and self.pmixturecoef <= 1
         assert isinstance(solution, Solution)
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
@@ -262,16 +262,16 @@ class OverlayExponentialMixture(Overlay):
         # To make this work with undecided probability, we need to
         # normalize by the sum of the decided density.  That way, this
         # function will never touch the undecided pieces.
-        norm = np.sum(corr)+np.sum(err)
+        norm = np.sum(choice_upper)+np.sum(choice_lower)
         lapses = lambda t : 2*self.rate*np.exp(-1*self.rate*t)
-        X = m.dt * np.arange(0, len(corr))
+        X = m.dt * np.arange(0, len(choice_upper))
         Y = lapses(X)
         Y /= np.sum(Y)
-        corr = corr*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm # Assume numpy ndarrays, not lists
-        err = err*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm
-        #print(corr)
-        #print(err)
-        return Solution(corr, err, m, cond, undec, evolution)
+        choice_upper = choice_upper*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm # Assume numpy ndarrays, not lists
+        choice_lower = choice_lower*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm
+        #print(choice_upper)
+        #print(choice_lower)
+        return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
 
 # Backward compatibility
 class OverlayPoissonMixture(OverlayExponentialMixture):
@@ -307,29 +307,29 @@ class OverlayNonDecision(Overlay):
         return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
-    @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
+    @ensures("set(return.choice_upper.tolist()) - set(solution.choice_upper.tolist()).union({0.0}) == set()")
+    @ensures("set(return.choice_lower.tolist()) - set(solution.choice_lower.tolist()).union({0.0}) == set()")
     @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     def apply(self, solution):
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
         evolution = solution.evolution
         shifts = int(self.get_nondecision_time(conditions=cond)/m.dt) # truncate
-        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
-        newerr = np.zeros(err.shape, dtype=err.dtype)
+        newchoice_upper = np.zeros(choice_upper.shape, dtype=choice_upper.dtype)
+        newchoice_lower = np.zeros(choice_lower.shape, dtype=choice_lower.dtype)
         if shifts > 0:
-            newcorr[shifts:] = corr[:-shifts]
-            newerr[shifts:] = err[:-shifts]
+            newchoice_upper[shifts:] = choice_upper[:-shifts]
+            newchoice_lower[shifts:] = choice_lower[:-shifts]
         elif shifts < 0:
-            newcorr[:shifts] = corr[-shifts:]
-            newerr[:shifts] = err[-shifts:]
+            newchoice_upper[:shifts] = choice_upper[-shifts:]
+            newchoice_lower[:shifts] = choice_lower[-shifts:]
         else:
-            newcorr = corr
-            newerr = err
-        return Solution(newcorr, newerr, m, cond, undec, evolution)
+            newchoice_upper = choice_upper
+            newchoice_lower = choice_lower
+        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
     @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, conditions, **kwargs):
@@ -373,14 +373,14 @@ class OverlayNonDecisionUniform(Overlay):
         return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
-    @ensures("np.sum(return.err) <= np.sum(solution.err) + 1e-10")
+    @ensures("np.sum(return.choice_upper) <= np.sum(solution.choice_upper) + 1e-10")
+    @ensures("np.sum(return.choice_lower) <= np.sum(solution.choice_lower) + 1e-10")
     def apply(self, solution):
         # Make sure params are within range
         assert self.halfwidth >= 0, "Invalid st parameter"
         # Extract components of the solution object for convenience
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
@@ -394,19 +394,19 @@ class OverlayNonDecisionUniform(Overlay):
         # add shifts of each distribution to them.  Use this over the
         # np.convolution because it handles negative non-decision
         # times.
-        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
-        newerr = np.zeros(err.shape, dtype=err.dtype)
+        newchoice_upper = np.zeros(choice_upper.shape, dtype=choice_upper.dtype)
+        newchoice_lower = np.zeros(choice_lower.shape, dtype=choice_lower.dtype)
         for offset in offsets:
             if offset > 0:
-                newcorr[offset:] += corr[:-offset]/len(offsets)
-                newerr[offset:] += err[:-offset]/len(offsets)
+                newchoice_upper[offset:] += choice_upper[:-offset]/len(offsets)
+                newchoice_lower[offset:] += choice_lower[:-offset]/len(offsets)
             elif offset < 0:
-                newcorr[:offset] += corr[-offset:]/len(offsets)
-                newerr[:offset] += err[-offset:]/len(offsets)
+                newchoice_upper[:offset] += choice_upper[-offset:]/len(offsets)
+                newchoice_lower[:offset] += choice_lower[-offset:]/len(offsets)
             else:
-                newcorr += corr/len(offsets)
-                newerr += err/len(offsets)
-        return Solution(newcorr, newerr, m, cond, undec, evolution)
+                newchoice_upper += choice_upper/len(offsets)
+                newchoice_lower += choice_lower/len(offsets)
+        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
     @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, conditions, **kwargs):
@@ -457,26 +457,26 @@ class OverlayNonDecisionGamma(Overlay):
         return self.nondectime
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("np.sum(return.corr) <= np.sum(solution.corr) + 1e-10")
-    @ensures("np.sum(return.err) <= np.sum(solution.err) + 1e-10")
-    @ensures("np.all(return.corr[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.model.dt)] == 0)")
+    @ensures("np.sum(return.choice_upper) <= np.sum(solution.choice_upper) + 1e-10")
+    @ensures("np.sum(return.choice_lower) <= np.sum(solution.choice_lower) + 1e-10")
+    @ensures("np.all(return.choice_upper[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.model.dt)] == 0)")
     def apply(self, solution):
         # Make sure params are within range
         assert self.shape >= 1, "Invalid shape parameter"
         assert self.scale > 0, "Invalid scale parameter"
         # Extract components of the solution object for convenience
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         dt = solution.model.dt
         # Create the weights for different timepoints
-        times = np.asarray(list(range(-len(corr), len(corr))))*dt
+        times = np.asarray(list(range(-len(choice_upper), len(choice_upper))))*dt
         weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=solution.conditions)).pdf(times)
         if np.sum(weights) > 0:
             weights /= np.sum(weights) # Ensure it integrates to 1
         # Divide by 1+1e-14 to avoid numerical errors after the convolution, which are on the order of 10^-16
-        newcorr = np.convolve(corr, weights, mode="full")[len(corr):(2*len(corr))]/(1+1e-14)
-        newerr = np.convolve(err, weights, mode="full")[len(corr):(2*len(corr))]/(1+1e-14)
-        return Solution(newcorr, newerr, solution.model,
+        newchoice_upper = np.convolve(choice_upper, weights, mode="full")[len(choice_upper):(2*len(choice_upper))]/(1+1e-14)
+        newchoice_lower = np.convolve(choice_lower, weights, mode="full")[len(choice_upper):(2*len(choice_upper))]/(1+1e-14)
+        return Solution(newchoice_upper, newchoice_lower, solution.model,
                         solution.conditions, solution.undec, solution.evolution)
     @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
     @returns(NDArray(d=1, t=Number))
@@ -507,13 +507,13 @@ class OverlaySimplePause(Overlay):
         yield OverlaySimplePause(pausestart=.1, pausestop=.2)
     @accepts(Self, Solution)
     @returns(Solution)
-    @ensures("set(return.corr.tolist()) - set(solution.corr.tolist()).union({0.0}) == set()")
-    @ensures("set(return.err.tolist()) - set(solution.err.tolist()).union({0.0}) == set()")
+    @ensures("set(return.choice_upper.tolist()) - set(solution.choice_upper.tolist()).union({0.0}) == set()")
+    @ensures("set(return.choice_lower.tolist()) - set(solution.choice_lower.tolist()).union({0.0}) == set()")
     @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     @ensures('self.pausestart == self.pausestop --> solution == return')
     def apply(self, solution):
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
@@ -522,13 +522,13 @@ class OverlaySimplePause(Overlay):
         stop = int((self.pausestop)/m.dt) # truncate
         if stop <= start:
             return solution
-        newcorr = np.zeros(corr.shape, dtype=corr.dtype)
-        newerr = np.zeros(err.shape, dtype=err.dtype)
-        newcorr[0:start] = corr[0:start]
-        newerr[0:start] = err[0:start]
-        newcorr[stop:] = corr[start:-(stop-start)]
-        newerr[stop:] = err[start:-(stop-start)]
-        return Solution(newcorr, newerr, m, cond, undec, evolution)
+        newchoice_upper = np.zeros(choice_upper.shape, dtype=choice_upper.dtype)
+        newchoice_lower = np.zeros(choice_lower.shape, dtype=choice_lower.dtype)
+        newchoice_upper[0:start] = choice_upper[0:start]
+        newchoice_lower[0:start] = choice_lower[0:start]
+        newchoice_upper[stop:] = choice_upper[start:-(stop-start)]
+        newchoice_lower[stop:] = choice_lower[start:-(stop-start)]
+        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
 
 @paranoidclass
 class OverlayBlurredPause(Overlay):
@@ -550,8 +550,8 @@ class OverlayBlurredPause(Overlay):
     @ensures("solution.prob_undecided() <= return.prob_undecided() + 1e-10")
     @ensures('self.pausestart == self.pausestop --> solution == return')
     def apply(self, solution):
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
         undec = solution.undec
@@ -567,18 +567,18 @@ class OverlayBlurredPause(Overlay):
         gamma_start = next(i for i,t in enumerate(m.t_domain() - self.pausestart) if t >= 0)
 
         # Generate first part of pdf (before the pause)
-        newcorr = np.zeros(m.t_domain().shape, dtype=corr.dtype)
-        newerr = np.zeros(m.t_domain().shape, dtype=err.dtype)
+        newchoice_upper = np.zeros(m.t_domain().shape, dtype=choice_upper.dtype)
+        newchoice_lower = np.zeros(m.t_domain().shape, dtype=choice_lower.dtype)
         # Generate pdf after the pause
         for i,t in enumerate(m.t_domain()):
-            #print(np.sum(newcorr)+np.sum(newerr))
+            #print(np.sum(newchoice_upper)+np.sum(newchoice_lower))
             if 0 <= t < self.pausestart:
-                newcorr[i] = corr[i]
-                newerr[i] = err[i]
+                newchoice_upper[i] = choice_upper[i]
+                newchoice_lower[i] = choice_lower[i]
             elif self.pausestart <= t:
-                newcorr[i:] += corr[gamma_start:len(corr)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
-                newerr[i:] += err[gamma_start:len(corr)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
+                newchoice_upper[i:] += choice_upper[gamma_start:len(choice_upper)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
+                newchoice_lower[i:] += choice_lower[gamma_start:len(choice_upper)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
             else:
                 raise ValueError("Invalid domain")
-        return Solution(newcorr, newerr, m, cond, undec, evolution)
+        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
 

@@ -82,6 +82,7 @@ def get_model_loss(model, sample, lossfunction=LossLikelihood, method=None):
     it is faster to use the optimizations implemented in
     fit_adjust_model.
     """
+    assert model.choice_names == sample.choice_names, f"Model and sample choice names must match, currently {model.choice_names} and {sample.choice_names}.  Please specify the correct choice names when creating your Model and Sample."
     # Count parameters (for AIC/BIC), making sure not to double count
     # for repeated parameters.
     params = []
@@ -181,7 +182,7 @@ def fit_model(sample,
     # model with all of the Fittables inside.  Deep copy on the entire
     # model is a shortcut for deep copying each individual component
     # of the model.
-    m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx))
+    m = copy.deepcopy(Model(name=name, drift=drift, noise=noise, bound=bound, IC=IC, overlay=overlay, T_dur=T_dur, dt=dt, dx=dx, choice_names=sample.choice_names))
     return fit_adjust_model(sample, m, fitparams=fitparams, fitting_method=fitting_method, 
                             method=method, lossfunction=lossfunction, verbose=verbose)
 
@@ -250,6 +251,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     been called.
 
     """
+    assert model.choice_names == sample.choice_names, f"Model and sample choice names must match, currently {model.choice_names} and {sample.choice_names}.  Please specify the correct choice names when creating your Model and Sample."
     # Disable paranoid if `verify` is False.
     paranoid_state = paranoid_settings.get('enabled')
     renorm_warnings_state = param.renorm_warnings
@@ -591,9 +593,9 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
         # conditions
         if len(cond_combs) == 1:
             cond_combs = cond_combs + cond_combs
-        samp = Sample.from_numpy_array(np.asarray(cond_combs, dtype=object), all_conds)
-    model_corr = 0*model.t_domain()
-    model_err = 0*model.t_domain()
+        samp = Sample.from_numpy_array(np.asarray(cond_combs, dtype=object), all_conds, choice_names=model.choice_names)
+    model_choice_upper = 0*model.t_domain()
+    model_choice_lower = 0*model.t_domain()
     model_undec = -1 # Set to dummy value -1 so we can detect this in our loop
     # If we have an overlay, this function should not calculate the
     # (incorrect) undecided probability
@@ -603,8 +605,8 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]
-        model_corr += len(subset)/len(samp)*sol.pdf_corr()
-        model_err += len(subset)/len(samp)*sol.pdf_err()
+        model_choice_upper += len(subset)/len(samp)*sol.pdf(model.choice_names[0])
+        model_choice_lower += len(subset)/len(samp)*sol.pdf(model.choice_names[1])
         # We can't get the size of the undecided pdf until we have a
         # specific set of conditions.  Once we do, if the simulation
         # method doesn't support an undecided probability, set it to
@@ -618,7 +620,7 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
             model_undec += len(subset)/len(samp)*sol.pdf_undec()
         else:
             model_undec = None
-    sol = Solution(model_corr*model.dt, model_err*model.dt, model, conditions={}, pdf_undec=model_undec)
+    sol = Solution(model_choice_upper*model.dt, model_choice_lower*model.dt, model, conditions={}, pdf_undec=model_undec)
     sol.partial_conditions = conditions
     return sol
 

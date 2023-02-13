@@ -64,6 +64,10 @@ class FitResult:
                       "value=%s" % repr(self.val)]
         components += ["%s=%s" % (k,repr(v)) for k,v in self.properties.items()]
         return type(self).__name__ + "(" + ", ".join(components) + ")"
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        return False
     @accepts(Self)
     @returns(ExtendedReal)
     def value(self):

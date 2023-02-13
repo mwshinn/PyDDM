@@ -90,7 +90,8 @@ class Model(object):
                  IC=ICPointSourceCenter(),
                  overlay=OverlayNone(), name="",
                  dx=param.dx, dt=param.dt,
-                 T_dur=param.T_dur, fitresult=None):
+                 T_dur=param.T_dur, fitresult=None,
+                 choice_names=("correct", "error")):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
@@ -116,8 +117,18 @@ class Model(object):
         file, and then run "exec" on that file in a new script to load
         the model.
 
+        By default, the choice associated with the upper boundary is "correct
+        responses" and the lower boundary is "error responses".  To change
+        these, set the `choice_names` argument to be a tuple containing two
+        strings, with the names of the boundaries.  So the default is
+        ("correct", "error"), but could be anything, e.g. ("left", "right"),
+        ("high value" and "low value"), etc.  This is sometimes referred to as
+        "accuracy coding" and "stimulus coding".  When fitting data, this must
+        match the choice names of the sample.
+
         The `name` parameter is exclusively for convenience, and may
         be used in plotting or in debugging.
+
         """
         assert isinstance(name, str)
         self.name = name
@@ -133,6 +144,8 @@ class Model(object):
         self._overlay = overlay
         self.dependencies = [self._driftdep, self._noisedep, self._bounddep, self._IC, self._overlay]
         self.required_conditions = list(set([x for l in self.dependencies for x in l.required_conditions]))
+        assert isinstance(choice_names, tuple) and len(choice_names) == 2, "choice_names must be a tuple of length 2"
+        self.choice_names = choice_names
         self.dx = dx
         self.dt = dt
         if self.dx > .01:
@@ -141,6 +154,27 @@ class Model(object):
             _logger.warning("dt is large.  Estimated pdfs may be imprecise.  Decrease dt to 0.01 or less.")
         self.T_dur = T_dur
         self.fitresult = FitResultEmpty() if fitresult is None else fitresult # If the model was fit, store the status here
+    def __eq__(self, other):
+        for i in range(0, len(self.dependencies)):
+            if self.dependencies[i] != other.dependencies[i]:
+                print("Dep", i, self.dependencies[i])
+                return False
+        if self.dx != other.dx:
+            print("Dx diff")
+            return False
+        if self.dt != other.dt:
+            print("Dt diff")
+            return False
+        if self.fitresult != other.fitresult:
+            print("Fit diff")
+            return False
+        if self.name != other.name:
+            print("Name diff")
+            return False
+        if self.choice_names != other.choice_names:
+            return False
+        return True
+
     # Get a string representation of the model
     def __repr__(self, pretty=False):
         # Use a list so they can be sorted
@@ -162,6 +196,11 @@ class Model(object):
                 params += ",\n  fitresult=" + repr(self.fitresult)
             else:
                 params += ", fitresult=" + repr(self.fitresult)
+        if self.choice_names != ("correct", "error"):
+            if pretty:
+                params += f",\n  choice_names=({self.choice_names[0]!r}, {self.choice_names[1]!r})"
+            else:
+                params += f", choice_names=({self.choice_names[0]!r}, {self.choice_names[1]!r})"
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
@@ -419,8 +458,8 @@ class Model(object):
 
         """
         _logger.warning("To generate a sample from a model, please use Solution.resample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
-        corr_times = []
-        err_times = []
+        choice_upper_times = []
+        choice_lower_times = []
         undec_count = 0
 
         T = self.t_domain()
@@ -436,17 +475,17 @@ class Model(object):
             dt_correction = self.dt/2
             # Determine whether the sim is a correct or error trial.
             if timecourse[-1] > B:
-                corr_times.append(T_finish - dt_correction)
+                choice_upper_times.append(T_finish - dt_correction)
             elif timecourse[-1] < -B:
-                err_times.append(T_finish - dt_correction)
+                choice_lower_times.append(T_finish - dt_correction)
             elif len(timecourse) == len(T):
                 undec_count += 1
             else:
                 raise SystemError("Internal error: Invalid particle simulation")
             
         aa = lambda x : np.asarray(x)
-        conds = {k:(aa(len(corr_times)*[v]), aa(len(err_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items() if k and v}
-        return Sample(aa(corr_times), aa(err_times), undec_count, **conds)
+        conds = {k:(aa(len(choice_upper_times)*[v]), aa(len(choice_lower_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items() if k and v}
+        return Sample(aa(choice_upper_times), aa(choice_lower_times), undec_count, **conds)
 
     @accepts(Self)
     @returns(Boolean)
@@ -543,38 +582,38 @@ class Model(object):
         
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
+            anal_pdf_choice_upper, anal_pdf_choice_lower = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions),
                                                        self.t_domain(), shift, -self.get_dependence("bound").t,
                                                        force_python=force_python) # TODO why must this be negative? -MS
         else: # Constant bound DDM
-            anal_pdf_corr, anal_pdf_err = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
-                                                       self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
+            anal_pdf_choice_upper, anal_pdf_choice_lower = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
+                                                        self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions), 
                                                        self.t_domain(), shift,
                                                        force_python=force_python)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
-        anal_pdf_corr[anal_pdf_corr==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
-        anal_pdf_corr[0] = 0.
-        anal_pdf_err[anal_pdf_err==np.NaN] = 0.
-        anal_pdf_err[0] = 0.
+        anal_pdf_choice_upper[anal_pdf_choice_upper==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
+        anal_pdf_choice_upper[0] = 0.
+        anal_pdf_choice_lower[anal_pdf_choice_lower==np.NaN] = 0.
+        anal_pdf_choice_lower[0] = 0.
 
         # Fix numerical errors
-        anal_pdf_corr *= self.dt
-        anal_pdf_err *= self.dt
-        pdfsum = np.sum(anal_pdf_corr) + np.sum(anal_pdf_err)
+        anal_pdf_choice_upper *= self.dt
+        anal_pdf_choice_lower *= self.dt
+        pdfsum = np.sum(anal_pdf_choice_upper) + np.sum(anal_pdf_choice_lower)
         if pdfsum > 1:
             if pdfsum > 1.01 and param.renorm_warnings:
                 _logger.warning(("Renormalizing probability density from " + str(pdfsum) + " to 1."
                     + "  Try decreasing dt.  If that doesn't eliminate this warning, it may be due"
                     + " to extreme parameter values and/or bugs in your model spefication."))
                 _logger.debug(self.parameters())
-            anal_pdf_corr /= pdfsum
-            anal_pdf_err /= pdfsum
+            anal_pdf_choice_upper /= pdfsum
+            anal_pdf_choice_lower /= pdfsum
 
-        sol = Solution(anal_pdf_corr, anal_pdf_err, self, conditions=conditions)
+        sol = Solution(anal_pdf_choice_upper, anal_pdf_choice_lower, self, conditions=conditions)
         return self.get_dependence('overlay').apply(sol)
     
     def solve_numerical_c(self, conditions={}):
@@ -641,13 +680,13 @@ class Model(object):
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
         res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()))
         # TODO: Handle the pdf going below zero, returning pdfcurr, and fix numerical errors
-        corr = (res[0]*self.dt)
-        corr[corr<0] = 0
-        err = (res[1]*self.dt)
-        err[err<0] = 0
+        choice_upper = (res[0]*self.dt)
+        choice_upper[choice_upper<0] = 0
+        choice_lower = (res[1]*self.dt)
+        choice_lower[choice_lower<0] = 0
         undec = res[2]
         undec[undec<0] = 0
-        return self.get_dependence('overlay').apply(Solution(corr, err, self, conditions=conditions, pdf_undec=undec))
+        return self.get_dependence('overlay').apply(Solution(choice_upper, choice_lower, self, conditions=conditions, pdf_undec=undec))
 
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
     @returns(Solution)
@@ -697,8 +736,8 @@ class Model(object):
         # Output correct and error pdfs.  If pdf_corr + pdf_err +
         # undecided probability are summed, they equal 1.  So these
         # are componets of the joint pdf.
-        pdf_corr = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
-        pdf_err = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_choice_upper = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_choice_lower = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain(conditions=conditions)
 
         # If evolution of pdf should be returned, preallocate np.array pdf_evolution for performance reasons
@@ -786,9 +825,9 @@ class Model(object):
                     pdf_inner = diffusion_matrix_explicit.dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
 
             # Pdfs out of bound is considered decisions made.
-            pdf_err[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
+            pdf_choice_lower[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
                               + weight_inner * np.sum(pdf_prev[:x_index_inner])
-            pdf_corr[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
+            pdf_choice_upper[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
                                + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
             # Reconstruct current probability density function,
             # adding outer and inner contribution to it.  Use
@@ -801,22 +840,22 @@ class Model(object):
             # Increase current, transient probability of crossing
             # either bounds, as flux.  Corr is a correct answer, err
             # is an incorrect answer
-            _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
-            _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
-            _inner_B_err = x_list[x_index_inner]
-            _outer_B_err = x_list[x_index_outer]
+            _inner_B_choice_upper = x_list[len(x_list)-1-x_index_inner]
+            _outer_B_choice_upper = x_list[len(x_list)-1-x_index_outer]
+            _inner_B_choice_lower = x_list[x_index_inner]
+            _outer_B_choice_lower = x_list[x_index_outer]
             if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
                 pdf_inner = np.array([0])
-            pdf_corr[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_corr, t, conditions=conditions) \
-                            +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_corr, t, conditions=conditions)
-            pdf_err[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_err, t, conditions=conditions) \
-                            +  weight_inner * pdf_inner[0] * self.flux(_inner_B_err, t, conditions=conditions)
+            pdf_choice_upper[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_choice_upper, t, conditions=conditions) \
+                               +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_choice_upper, t, conditions=conditions)
+            pdf_choice_lower[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_choice_lower, t, conditions=conditions) \
+                                +  weight_inner * pdf_inner[0] * self.flux(_inner_B_choice_lower, t, conditions=conditions)
 
             # Renormalize when the channel size has <1 grid, although
             # all hell breaks loose in this regime.
             if bound < self.dx:
-                pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
-                pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_choice_upper[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_choice_lower[i_t+1] *= (1+ (1-bound/self.dx))
 
             # If evolution of pdf should be returned, append pdf_curr to pdf_evolution
             if return_evolution:
@@ -824,9 +863,9 @@ class Model(object):
 
         # Detect and fix below zero errors
         pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_corr), np.min(pdf_err), np.min(pdf_undec)))
+        minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower), np.min(pdf_undec)))
         if minval < 0:
-            sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
+            sum_negative_strength = np.sum(pdf_choice_upper[pdf_choice_upper<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
             sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
             if sum_negative_strength < -.01 and param.renorm_warnings:
                 _logger.warning(("Probability density included values less than zero (minimum=%f, "
@@ -838,11 +877,11 @@ class Model(object):
                     + "(minimum=%f, total=%f).  Please decrease dt and/or avoid extreme parameter "
                     + "values.") % (minval, sum_negative_strength_undec))
                 _logger.debug(self.parameters())
-            pdf_corr[pdf_corr < 0] = 0
-            pdf_err[pdf_err < 0] = 0
+            pdf_choice_lower[pdf_choice_lower < 0] = 0
+            pdf_choice_lower[pdf_choice_lower < 0] = 0
             pdf_undec[pdf_undec < 0] = 0
         # Fix numerical errors
-        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err) + np.sum(pdf_undec)
+        pdfsum = np.sum(pdf_choice_upper) + np.sum(pdf_choice_lower) + np.sum(pdf_undec)
         if pdfsum > 1:
             if pdfsum > 1.01 and param.renorm_warnings:
                 _logger.warning(("Renormalizing probability density from " + str(pdfsum) + "to 1. "
@@ -850,14 +889,14 @@ class Model(object):
                     + "If that doesn't eliminate this warning, it may be due to extreme parameter "
                     + "values and/or bugs in your model spefication."))
                 _logger.debug(self.parameters())
-            pdf_corr /= pdfsum
-            pdf_err /= pdfsum
+            pdf_choice_upper /= pdfsum
+            pdf_choice_lower /= pdfsum
             pdf_undec /= pdfsum
 
         if return_evolution:
-            return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec, pdf_evolution=pdf_evolution))
+            return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=pdf_undec, pdf_evolution=pdf_evolution))
         
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=pdf_undec))
+        return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=pdf_undec))
 
     @accepts(Self, Conditions)
     @returns(Solution)
@@ -898,8 +937,8 @@ class Model(object):
         # pdf_prev = np.zeros((len(pdf_curr)))
         # If pdf_corr + pdf_err + undecided probability are summed, they
         # equal 1.  So these are componets of the joint pdf.
-        pdf_corr = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
-        pdf_err = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_choice_upper = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
+        pdf_choice_lower = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
         x_list = self.x_domain(conditions=conditions)
 
         bound_shift = 0.
@@ -1038,10 +1077,10 @@ class Model(object):
 
 
                 # Pdfs out of bound is considered decisions made.
-                pdf_err[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \
-                                + weight_inner_prev * np.sum(pdf_inner_prev[:x_index_inner_shift])
-                pdf_corr[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[len(pdf_outer_prev)-x_index_outer_shift:]) \
-                                 + weight_inner_prev * np.sum(pdf_inner_prev[len(pdf_inner_prev)-x_index_inner_shift:])
+                pdf_choice_lower[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \
+                                   + weight_inner_prev * np.sum(pdf_inner_prev[:x_index_inner_shift])
+                pdf_choice_upper[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[len(pdf_outer_prev)-x_index_outer_shift:]) \
+                                   + weight_inner_prev * np.sum(pdf_inner_prev[len(pdf_inner_prev)-x_index_inner_shift:])
                 # Reconstruct current probability density function,
                 # adding outer and inner contribution to it.  Use
                 # .fill() method to avoid allocating memory with
@@ -1056,58 +1095,58 @@ class Model(object):
             # Increase current, transient probability of crossing
             # either bounds, as flux.  Corr is a correct answer, err
             # is an incorrect answer
-            _inner_B_corr = x_list[len(x_list)-1-x_index_inner]
-            _outer_B_corr = x_list[len(x_list)-1-x_index_outer]
-            _inner_B_err = x_list[x_index_inner]
-            _outer_B_err = x_list[x_index_outer]
-            flux_outer_B_corr = self.flux(_outer_B_corr, t, conditions=conditions)
-            flux_inner_B_corr = self.flux(_inner_B_corr, t, conditions=conditions)
-            flux_outer_B_err = self.flux(_outer_B_err, t, conditions=conditions)
-            flux_inner_B_err = self.flux(_inner_B_err, t, conditions=conditions)
+            _inner_B_choice_upper = x_list[len(x_list)-1-x_index_inner]
+            _outer_B_choice_upper = x_list[len(x_list)-1-x_index_outer]
+            _inner_B_choice_lower = x_list[x_index_inner]
+            _outer_B_choice_lower = x_list[x_index_outer]
+            flux_outer_B_choice_upper = self.flux(_outer_B_choice_upper, t, conditions=conditions)
+            flux_inner_B_choice_upper = self.flux(_inner_B_choice_upper, t, conditions=conditions)
+            flux_outer_B_choice_lower = self.flux(_outer_B_choice_lower, t, conditions=conditions)
+            flux_inner_B_choice_lower = self.flux(_inner_B_choice_lower, t, conditions=conditions)
             if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
                 pdf_inner = np.array([0])
-            pdf_corr[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_corr \
-                            +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_corr
-            pdf_err[i_t+1]  += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_err \
-                            +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_err
-            pdf_corr[i_t]   += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_corr \
-                            +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_corr
-            pdf_err[i_t]    += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_err \
-                            +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_err
+            pdf_choice_upper[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_choice_upper \
+                               +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_choice_upper
+            pdf_choice_lower[i_t+1] += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_choice_lower \
+                               +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_choice_lower
+            pdf_choice_upper[i_t]   += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_choice_upper \
+                               +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_choice_upper
+            pdf_choice_lower[i_t]   += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_choice_lower \
+                               +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_choice_lower
 
             # Renormalize when the channel size has <1 grid, although
             # all hell breaks loose in this regime.
             if bound < self.dx:
-                pdf_corr[i_t+1] *= (1+ (1-bound/self.dx))
-                pdf_err[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_choice_upper[i_t+1] *= (1+ (1-bound/self.dx))
+                pdf_choice_lower[i_t+1] *= (1+ (1-bound/self.dx))
             prev_t = t
             prev_i_t = i_t
 
         # Fix the time-offest error of dt/2
-        pdf_corr = np.concatenate([[0], np.mean([pdf_corr[1:], pdf_corr[:-1]], axis=0)])
-        pdf_err = np.concatenate([[0], np.mean([pdf_err[1:], pdf_err[:-1]], axis=0)])
+        pdf_choice_upper = np.concatenate([[0], np.mean([pdf_choice_upper[1:], pdf_choice_upper[:-1]], axis=0)])
+        pdf_choice_lower = np.concatenate([[0], np.mean([pdf_choice_lower[1:], pdf_choice_lower[:-1]], axis=0)])
         # Fix the truncation error at the end
-        pdf_corr = pdf_corr[:-1]
-        pdf_err = pdf_err[:-1]
+        pdf_choice_upper = pdf_choice_upper[:-1]
+        pdf_choice_lower = pdf_choice_lower[:-1]
         # Detect and fix below zero errors.  Here, we don't worry
         # about undecided probability as we did with the implicit
         # method, because CN tends to oscillate around zero,
         # especially when noise (sigma) is large.  The user would be
         # directed to decrease dt.
         pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_corr), np.min(pdf_err)))
+        minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower)))
         if minval < 0:
-            sum_negative_strength = np.sum(pdf_corr[pdf_corr<0]) + np.sum(pdf_err[pdf_err<0])
+            sum_negative_strength = np.sum(pdf_choice_upper[pdf_corr<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
             # For small errors, don't bother alerting the user
             if sum_negative_strength < -.01 and param.renorm_warnings:
                 _logger.warning(("Probability density included values less than zero (minimum=%f, "
                     + "total=%f).  Please decrease dt and/or avoid extreme parameter values.")
                     % (minval, sum_negative_strength))
                 _logger.debug(self.parameters())
-            pdf_corr[pdf_corr < 0] = 0
-            pdf_err[pdf_err < 0] = 0
+            pdf_choice_upper[pdf_choice_upper < 0] = 0
+            pdf_choice_lower[pdf_choice_lower < 0] = 0
         # Fix numerical errors
-        pdfsum = np.sum(pdf_corr) + np.sum(pdf_err)
+        pdfsum = np.sum(pdf_choice_upper) + np.sum(pdf_choice_lower)
         if pdfsum > 1 and False:
             print('Renorm for', pdfsum)
             # If it is only a small renormalization, don't bother alerting the user.
@@ -1116,11 +1155,11 @@ class Model(object):
                     + "  Try decreasing dt.  If that doesn't eliminate this warning, it may be due"
                     + " to extreme parameter values and/or bugs in your model spefication."))
                 _logger.debug(self.parameters())
-            pdf_corr /= pdfsum
-            pdf_err /= pdfsum
+            pdf_choice_upper /= pdfsum
+            pdf_choice_lower /= pdfsum
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
-        return self.get_dependence('overlay').apply(Solution(pdf_corr, pdf_err, self, conditions=conditions, pdf_undec=None))
+        return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=None))
 
 
 @paranoidclass

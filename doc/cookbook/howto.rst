@@ -153,4 +153,4 @@ This is equivalent to (but much faster than)::
 Note that::
 
     
-    sum(pdf_corr()[0:t]*dt) + sum(pdf_err()[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1
+    sum(pdf("correct")[0:t]*dt) + sum(pdf("error")[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1

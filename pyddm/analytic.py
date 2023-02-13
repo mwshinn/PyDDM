@@ -98,17 +98,17 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=Fal
     teval_valid = teval[b+b_slope*teval>0]
 
     if force_python or not HAS_CSOLVE:
-        dist_cor = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
-        dist_err = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
+        dist_choice_upper = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
+        dist_choice_lower = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
     else:
         dt = teval_valid[1]-teval_valid[0]
-        dist_cor = csolve.analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, len(teval_valid), dt)
-        dist_err = csolve.analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, len(teval_valid), dt)
+        dist_choice_upper = csolve.analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, len(teval_valid), dt)
+        dist_choice_lower = csolve.analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, len(teval_valid), dt)
 
     # For invalid time points, set the probability to be a very small number
     if len(teval_valid) < len(teval):
         eps = np.ones(len(teval)-len(teval_valid)) * 1e-100
-        dist_cor = np.concatenate((dist_cor,eps))
-        dist_err = np.concatenate((dist_err,eps))
+        dist_choice_upper = np.concatenate((dist_choice_upper,eps))
+        dist_choice_lower = np.concatenate((dist_choice_lower,eps))
 
-    return dist_cor, dist_err
+    return dist_choice_upper, dist_choice_lower

@@ -58,8 +58,7 @@ to define model::
   sol = model.solve(conditions={"frequency": 5})
   
 The model is solved and the result is saved in the variable "sol",
-where the :meth:`probability correct <.Solution.prob_correct>`, the
-:meth:`reaction time distribution <.Solution.pdf_corr>`, and other
+where the :meth:`probability of each choice <.Solution.prob>` and other
 outputs could be retrieved. Finally, note that the conditions, being
 externally defined (e.g. trial-by-trial), must be input during the
 call to model.solve. The parameters, such as offset, are defined

@@ -49,7 +49,6 @@ class LossFunction(object):
             if s.setup is LossFunction.setup:
                 samp = Sample.from_numpy_array(np.asarray([[.3, 1], [.4, 0], [.1, 0], [.2, 1]]), [])
                 yield s(sample=samp, dt=.01, T_dur=2)
-    
     def __init__(self, sample, required_conditions=None, method=None, **kwargs):
         assert hasattr(self, "name"), "Solver needs a name"
         self.sample = sample
@@ -92,7 +91,7 @@ class LossFunction(object):
         """
         from ..functions import solve_all_conditions
         return solve_all_conditions(model, self.sample, method=self.method)
-                
+
 @paranoidclass
 class LossSquaredError(LossFunction):
     """Squared-error loss function"""
@@ -101,28 +100,28 @@ class LossSquaredError(LossFunction):
     def _test(v):
         assert v.dt in Positive0()
         assert v.T_dur in Positive0()
-        assert v.hists_corr != {}
-        assert v.hists_err != {}
-        assert v.target.size == 2*len(v.hists_corr.keys())*(v.T_dur/v.dt+1)
+        assert v.hists_choice_upper != {}
+        assert v.hists_choice_lower != {}
+        assert v.target.size == 2*len(v.hists_choice_upper.keys())*(v.T_dur/v.dt+1)
     @staticmethod
     def _generate():
         yield LossSquaredError(sample=next(Sample._generate()), dt=.01, T_dur=3)
     def setup(self, dt, T_dur, **kwargs):
         self.dt = dt
         self.T_dur = T_dur
-        self.hists_corr = {}
-        self.hists_err = {}
+        self.hists_choice_upper = {}
+        self.hists_choice_lower = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
-            self.hists_corr[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).corr, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
-            self.hists_err[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).err, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
-        self.target = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [self.hists_corr[i], self.hists_err[i]]])
+            self.hists_choice_upper[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).choice_upper, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt # dt/2 (and +1) is continuity correction
+            self.hists_choice_lower[frozenset(comb.items())] = np.histogram(self.sample.subset(**comb).choice_lower, bins=int(T_dur/dt)+1, range=(0-dt/2, T_dur+dt/2))[0]/len(self.sample.subset(**comb))/dt
+        self.target = np.concatenate([s for i in sorted(self.hists_choice_upper.keys()) for s in [self.hists_choice_upper[i], self.hists_choice_lower[i]]])
     @accepts(Self, Model)
     @returns(Number)
     @requires("model.dt == self.dt and model.T_dur == self.T_dur")
     def loss(self, model):
         assert model.dt == self.dt and model.T_dur == self.T_dur
         sols = self.cache_by_conditions(model)
-        this = np.concatenate([s for i in sorted(self.hists_corr.keys()) for s in [sols[i].pdf_corr(), sols[i].pdf_err()]])
+        this = np.concatenate([s for i in sorted(self.hists_choice_upper.keys()) for s in [sols[i].pdf("_top"), sols[i].pdf("_bottom")]])
         return np.sum((this-self.target)**2)*self.dt**2
 
 @paranoidclass
@@ -151,15 +150,15 @@ class LossLikelihood(LossFunction):
         self.hist_indexes = {}
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             s = self.sample.subset(**comb)
-            maxt = max(max(s.corr) if s.corr.size != 0 else -1, max(s.err) if s.err.size != 0 else -1)
+            maxt = max(max(s.choice_upper) if s.choice_upper.size != 0 else -1, max(s.choice_lower) if s.choice_lower.size != 0 else -1)
             assert maxt <= self.T_dur, "Simulation time T_dur=%f not long enough for these data. (max sample RT=%f)" % (self.T_dur, maxt)
             # Find the integers which correspond to the timepoints in
             # the pdfs.  Also don't group them into the first bin
             # because this creates bias.
-            corr = [int(round(e/dt)) for e in s.corr]
-            err = [int(round(e/dt)) for e in s.err]
+            choice_upper = [int(round(e/dt)) for e in s.choice_upper]
+            choice_lower = [int(round(e/dt)) for e in s.choice_lower]
             undec = self.sample.undecided
-            self.hist_indexes[frozenset(comb.items())] = (corr, err, undec)
+            self.hist_indexes[frozenset(comb.items())] = (choice_upper, choice_lower, undec)
     @accepts(Self, Model)
     @returns(Number)
     @requires("model.dt == self.dt and model.T_dur == self.T_dur")
@@ -178,10 +177,10 @@ class LossLikelihood(LossFunction):
             # make sure it doesn't go unnoticed.
             with np.errstate(all='raise', under='ignore'):
                 try:
-                    loglikelihood += np.sum(np.log(sols[k].pdf_corr()[self.hist_indexes[k][0]] + self._robustness_param))
-                    loglikelihood += np.sum(np.log(sols[k].pdf_err()[self.hist_indexes[k][1]] + self._robustness_param))
+                    loglikelihood += np.sum(np.log(sols[k].pdf("_top")[self.hist_indexes[k][0]] + self._robustness_param))
+                    loglikelihood += np.sum(np.log(sols[k].pdf("_bottom")[self.hist_indexes[k][1]] + self._robustness_param))
                 except FloatingPointError:
-                    minlike = min(np.min(sols[k].pdf_corr()), np.min(sols[k].pdf_corr()))
+                    minlike = min(np.min(sols[k].pdf("_top")), np.min(sols[k].pdf("_bottom")))
                     if minlike == 0:
                         _logger.warning("Infinite likelihood encountered. Please either use a Robust likelihood method (e.g. LossRobustLikelihood or LossRobustBIC) or even better use a mixture model (via an Overlay) which covers the full range of simulated times to avoid infinite negative log likelihood.  See the FAQs in the documentation for more information.")
                     elif minlike < 0:

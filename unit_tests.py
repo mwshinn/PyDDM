@@ -30,10 +30,10 @@ class TestDependences(TestCase):
         # Fake model which solves to be a uniform distribution
         class FakeUniformModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
-                corr = self.t_domain()*0+.4/len(self.t_domain())
-                err = self.t_domain()*0+.4/len(self.t_domain())
+                choice_upper = self.t_domain()*0+.4/len(self.t_domain())
+                choice_lower = self.t_domain()*0+.4/len(self.t_domain())
                 undec = self.x_domain(conditions=conditions)*0+.2/len(self.x_domain(conditions=conditions))
-                return ddm.Solution(corr, err, self, conditions, undec)
+                return ddm.Solution(choice_upper, choice_lower, self, conditions, undec)
         FakeUniformModel.solve_analytical = FakeUniformModel.solve
         FakeUniformModel.solve_numerical = FakeUniformModel.solve
         FakeUniformModel.solve_numerical_cn = FakeUniformModel.solve
@@ -43,11 +43,11 @@ class TestDependences(TestCase):
         # Fake model which solves to be a single point
         class FakePointModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
-                corr = self.t_domain()*0
-                corr[1] = 1/256
-                err = self.t_domain()*0
-                err[1] = 255/256
-                return ddm.Solution(corr, err, self, conditions)
+                choice_upper = self.t_domain()*0
+                choice_upper[1] = 1/256
+                choice_lower = self.t_domain()*0
+                choice_lower[1] = 255/256
+                return ddm.Solution(choice_upper, choice_lower, self, conditions)
         FakePointModel.solve_analytical = FakePointModel.solve
         FakePointModel.solve_numerical = FakePointModel.solve
         FakePointModel.solve_numerical_cn = FakePointModel.solve
@@ -57,10 +57,10 @@ class TestDependences(TestCase):
         # Fake model which has all trials undecided
         class FakeUndecidedModel(ddm.Model):
             def solve(self, conditions={}, *args, **kwargs):
-                corr = self.t_domain()*0
-                err = self.t_domain()*0
+                choice_upper = self.t_domain()*0
+                choice_lower = self.t_domain()*0
                 undec = self.x_domain(conditions=conditions)*0+1/len(self.x_domain(conditions=conditions))
-                return ddm.Solution(corr, err, self, conditions, undec)
+                return ddm.Solution(choice_upper, choice_lower, self, conditions, undec)
         FakeUndecidedModel.solve_analytical = FakeUndecidedModel.solve
         FakeUndecidedModel.solve_numerical = FakeUndecidedModel.solve
         FakeUndecidedModel.solve_numerical_cn = FakeUndecidedModel.solve
@@ -208,15 +208,15 @@ class TestDependences(TestCase):
         # With mixture coef 1, integrate to 1
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=1).apply(s)
-        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1, atol=1e-4)
+        assert np.isclose(np.sum(smix.choice_upper) + np.sum(smix.choice_lower), 1, atol=1e-4)
         # Should not change uniform distribution
         s = self.FakeUniformModel(dt=.001).solve()
         assert s == ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
         # Don't change total probability
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
-        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
-                          np.sum(smix.corr) + np.sum(smix.err))
+        assert np.isclose(np.sum(s.choice_upper) + np.sum(s.choice_lower),
+                          np.sum(smix.choice_upper) + np.sum(smix.choice_lower))
 
     def test_OverlayPoissonMixture(self):
         """Poisson mixture model overlay: an exponential distribution plus the model's solved distribution"""
@@ -227,17 +227,17 @@ class TestDependences(TestCase):
         # With mixture coef 1, integrate to 1
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=1, rate=10).apply(s)
-        assert np.isclose(np.sum(smix.corr) + np.sum(smix.err), 1)
+        assert np.isclose(np.sum(smix.choice_upper) + np.sum(smix.choice_lower), 1)
         # Should be monotonic decreasing on uniform distribution
         s = self.FakeUniformModel(dt=.001).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=.2, rate=1).apply(s)
-        assert np.all([smix.corr[i-1]-smix.corr[i] > 0 for i in range(1, len(smix.corr))])
-        assert np.all([smix.err[i-1]-smix.err[i] > 0 for i in range(1, len(smix.err))])
+        assert np.all([smix.choice_upper[i-1]-smix.choice_upper[i] > 0 for i in range(1, len(smix.choice_upper))])
+        assert np.all([smix.choice_lower[i-1]-smix.choice_lower[i] > 0 for i in range(1, len(smix.choice_lower))])
         # Don't change total probability
         s = ddm.Model(ddm.models.DriftConstant(drift=1)).solve()
         smix = ddm.models.OverlayPoissonMixture(pmixturecoef=.2, rate=7).apply(s)
-        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
-                          np.sum(smix.corr) + np.sum(smix.err))
+        assert np.isclose(np.sum(s.choice_upper) + np.sum(s.choice_lower),
+                          np.sum(smix.choice_upper) + np.sum(smix.choice_lower))
     def test_OverlayNonDecision(self):
         """Non-decision time shifts the histogram"""
         # Should do nothing with no shift
@@ -246,18 +246,18 @@ class TestDependences(TestCase):
         # Shifts a single point distribution
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=.01).apply(s)
-        assert s.corr[1] == sshift.corr[2]
-        assert s.err[1] == sshift.err[2]
+        assert s.choice_upper[1] == sshift.choice_upper[2]
+        assert s.choice_lower[1] == sshift.choice_lower[2]
         # Shift the other way
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=-.01).apply(s)
-        assert s.corr[1] == sshift.corr[0]
-        assert s.err[1] == sshift.err[0]
+        assert s.choice_upper[1] == sshift.choice_upper[0]
+        assert s.choice_lower[1] == sshift.choice_lower[0]
         # Truncate when time bin doesn't align
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecision(nondectime=.019).apply(s)
-        assert s.corr[1] == sshift.corr[2]
-        assert s.err[1] == sshift.err[2]
+        assert s.choice_upper[1] == sshift.choice_upper[2]
+        assert s.choice_lower[1] == sshift.choice_lower[2]
         # Test subclassing
         class OverlayNonDecisionCondition(ddm.models.OverlayNonDecision):
             name = "condition_nondecision"
@@ -267,8 +267,8 @@ class TestDependences(TestCase):
                 return conditions['amount'] * self.nondectime
         sshift = ddm.models.OverlayNonDecision(nondectime=.02).apply(s)
         sshift2 = OverlayNonDecisionCondition(nondectime=.01).apply(s)
-        assert np.all(sshift.corr == sshift2.corr)
-        assert np.all(sshift.err == sshift2.err)
+        assert np.all(sshift.choice_upper == sshift2.choice_upper)
+        assert np.all(sshift.choice_lower == sshift2.choice_lower)
         
     def test_OverlayNonDecisionUniform(self):
         """Uniform-distributed non-decision time shifts the histogram"""
@@ -277,22 +277,22 @@ class TestDependences(TestCase):
         for nondectime in [0, -.1, .01, .0099, .011111, 1]:
             ndunif = ddm.models.OverlayNonDecisionUniform(nondectime=nondectime, halfwidth=0).apply(s)
             ndpoint = ddm.models.OverlayNonDecision(nondectime=nondectime).apply(s)
-            assert np.all(np.isclose(ndunif.corr, ndpoint.corr)), (nondectime, list(ndunif.corr), list(ndpoint.corr))
-            assert np.all(np.isclose(ndunif.err, ndpoint.err))
+            assert np.all(np.isclose(ndunif.choice_upper, ndpoint.choice_upper)), (nondectime, list(ndunif.choice_upper), list(ndpoint.choice_upper))
+            assert np.all(np.isclose(ndunif.choice_lower, ndpoint.choice_lower))
         # Simple shift example
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.02, halfwidth=.01).apply(s)
-        assert sshift.corr[2] == sshift.corr[3] == sshift.corr[4]
-        assert sshift.err[2] == sshift.err[3] == sshift.err[4]
-        assert sshift.corr[0] == sshift.corr[1] == sshift.corr[5] == 0
-        assert sshift.err[0] == sshift.err[1] == sshift.err[5] == 0
+        assert sshift.choice_upper[2] == sshift.choice_upper[3] == sshift.choice_upper[4]
+        assert sshift.choice_lower[2] == sshift.choice_lower[3] == sshift.choice_lower[4]
+        assert sshift.choice_upper[0] == sshift.choice_upper[1] == sshift.choice_upper[5] == 0
+        assert sshift.choice_lower[0] == sshift.choice_lower[1] == sshift.choice_lower[5] == 0
         # Off-boundary and behind 0 example
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.021111, halfwidth=.033333).apply(s)
-        assert sshift.corr[0] == sshift.corr[1]
-        assert sshift.err[0] == sshift.err[1]
-        assert len(set(sshift.corr)) == 2
-        assert len(set(sshift.err)) == 2
+        assert sshift.choice_upper[0] == sshift.choice_upper[1]
+        assert sshift.choice_lower[0] == sshift.choice_lower[1]
+        assert len(set(sshift.choice_upper)) == 2
+        assert len(set(sshift.choice_lower)) == 2
         # Test subclassing
         class OverlayNonDecisionUniformCondition(ddm.models.OverlayNonDecisionUniform):
             name = "condition_uniform_nondecision"
@@ -302,16 +302,16 @@ class TestDependences(TestCase):
                 return conditions['amount'] * self.nondectime
         sshift = ddm.models.OverlayNonDecisionUniform(nondectime=.02, halfwidth=.01).apply(s)
         sshift2 = OverlayNonDecisionUniformCondition(nondectime=.01, halfwidth=.01).apply(s)
-        assert np.all(sshift.corr == sshift2.corr)
-        assert np.all(sshift.err == sshift2.err)
+        assert np.all(sshift.choice_upper == sshift2.choice_upper)
+        assert np.all(sshift.choice_lower == sshift2.choice_lower)
     def test_OverlayNonDecisionGamma(self):
         """Gamma-distributed non-decision time shifts the histogram"""
         # Should get back a gamma distribution from a delta spike
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.01, shape=1.3, scale=.002).apply(s)
         gamfn = scipy.stats.gamma(a=1.3, scale=.002).pdf(s.model.t_domain()[0:-2])
-        assert np.all(np.isclose(sshift.corr[2:], gamfn/np.sum(gamfn)*s.corr[1]))
-        assert np.all(np.isclose(sshift.err[2:], gamfn/np.sum(gamfn)*s.err[1]))
+        assert np.all(np.isclose(sshift.choice_upper[2:], gamfn/np.sum(gamfn)*s.choice_upper[1]))
+        assert np.all(np.isclose(sshift.choice_lower[2:], gamfn/np.sum(gamfn)*s.choice_lower[1]))
         # Test subclassing
         class OverlayNonDecisionGammaCondition(ddm.models.OverlayNonDecisionGamma):
             name = "condition_gamma_nondecision"
@@ -321,8 +321,8 @@ class TestDependences(TestCase):
                 return conditions['amount'] * self.nondectime
         sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.02, shape=1.3, scale=.002).apply(s)
         sshift2 = OverlayNonDecisionGammaCondition(nondectime=.01, shape=1.3, scale=.002).apply(s)
-        assert np.all(sshift.corr == sshift2.corr)
-        assert np.all(sshift.err == sshift2.err)
+        assert np.all(sshift.choice_upper == sshift2.choice_upper)
+        assert np.all(sshift.choice_lower == sshift2.choice_lower)
     def test_OverlaySimplePause(self):
         """Pause at some point in the trial and then continue, leaving 0 probability in the gap"""
         # Should do nothing with no shift
@@ -331,35 +331,35 @@ class TestDependences(TestCase):
         # Shift should make a gap in the uniform model
         s = self.FakeUniformModel().solve()
         smix = ddm.models.OverlaySimplePause(pausestart=.3, pausestop=.6).apply(s)
-        assert len(set(smix.corr).union(set(smix.err))) == 2
-        assert len(list(groupby(smix.corr))) == 3 # Looks like ----____----------
+        assert len(set(smix.choice_upper).union(set(smix.choice_lower))) == 2
+        assert len(list(groupby(smix.choice_upper))) == 3 # Looks like ----____----------
         # Should start with 0 and then go to constant with pausestart=.3
         s = self.FakeUniformModel(dt=.01).solve()
         smix = ddm.models.OverlaySimplePause(pausestart=0, pausestop=.05).apply(s)
-        assert len(set(smix.corr).union(set(smix.err))) == 2
-        assert len(list(groupby(smix.corr))) == 2 # Looks like ____----------
-        assert np.all(smix.corr[0:5] == 0) and smix.corr[6] != 0
+        assert len(set(smix.choice_upper).union(set(smix.choice_lower))) == 2
+        assert len(list(groupby(smix.choice_upper))) == 2 # Looks like ____----------
+        assert np.all(smix.choice_upper[0:5] == 0) and smix.choice_upper[6] != 0
         # Truncate when time bin doesn't align
         s = self.FakePointModel(dt=.01).solve()
         sshift = ddm.models.OverlaySimplePause(pausestart=.01, pausestop=.029).apply(s)
-        assert s.corr[1] == sshift.corr[2]
-        assert s.err[1] == sshift.err[2]
+        assert s.choice_upper[1] == sshift.choice_upper[2]
+        assert s.choice_lower[1] == sshift.choice_lower[2]
     def test_OverlayBlurredPause(self):
         """Like OverlaySimplePause but with a gamma distribution on delay times"""
         # Don't change total probability when there are no undecided responses
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=1), T_dur=10).solve()
         smix = ddm.models.OverlayBlurredPause(pausestart=.3, pausestop=.6, pauseblurwidth=.1).apply(s)
-        assert np.isclose(np.sum(s.corr) + np.sum(s.err),
-                          np.sum(smix.corr) + np.sum(smix.err))
+        assert np.isclose(np.sum(s.choice_upper) + np.sum(s.choice_lower),
+                          np.sum(smix.choice_upper) + np.sum(smix.choice_lower))
         # Make sure responses before the pause aren't affected
         s = self.FakePointModel(dt=.01).solve()
         sshift = ddm.models.OverlayBlurredPause(pausestart=.02, pausestop=.03, pauseblurwidth=.002).apply(s)
-        assert s.corr[1] == sshift.corr[1] != 0
-        assert s.err[1] == sshift.err[1] != 0
+        assert s.choice_upper[1] == sshift.choice_upper[1] != 0
+        assert s.choice_lower[1] == sshift.choice_lower[1] != 0
         # Make sure responses after look like a gamma distribution
         s = self.FakePointModel(dt=.01).solve()
         sshift = ddm.models.OverlayBlurredPause(pausestart=0, pausestop=.05, pauseblurwidth=.01).apply(s)
-        positive = (sshift.corr[2:] > sshift.err[1:-1]).astype(int) # Excluding first 0 point, should go from + to - slope only once
+        positive = (sshift.choice_upper[2:] > sshift.choice_lower[1:-1]).astype(int) # Excluding first 0 point, should go from + to - slope only once
         assert positive[0] == 1 and positive[-1] == 0 and len(set(positive)) == 2
     def test_OverlayChain(self):
         """Combine multiple overlays in sequence"""
@@ -370,8 +370,8 @@ class TestDependences(TestCase):
                 ddm.models.OverlayNonDecision(nondectime=.01),
                 ddm.models.OverlayNone()])
         sshift = o.apply(s)
-        assert s.corr[1] == sshift.corr[2]
-        assert s.err[1] == sshift.err[2]
+        assert s.choice_upper[1] == sshift.choice_upper[2]
+        assert s.choice_lower[1] == sshift.choice_lower[2]
         assert o.nondectime == .01
         o.nondectime = .3
         assert o.nondectime == .3
@@ -385,14 +385,14 @@ class TestDependences(TestCase):
         m = self.FakePointModel()
         sol = m.solve()
         err = ddm.models.LossSquaredError(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m)
-        assert np.isclose(err, np.sum(sol.corr)**2 + np.sum(sol.err)**2)
+        assert np.isclose(err, np.sum(sol.choice_upper)**2 + np.sum(sol.choice_lower)**2)
     def test_LossLikelihood(self):
         """Likelihood loss function"""
         # We can calculate likelihood for this simple case
         m = self.FakePointModel(dt=.02)
         sol = m.solve()
         s = ddm.Sample(aa([.02]), aa([]))
-        expected = -np.log(np.sum(sol.corr)/m.dt)
+        expected = -np.log(np.sum(sol.choice_upper)/m.dt)
         assert np.isclose(expected, ddm.models.LossLikelihood(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m))
         # And for the uniform case we can assert equivalence
         m = self.FakeUniformModel()
@@ -405,7 +405,7 @@ class TestDependences(TestCase):
         # And it should not depend on dt since it is comparing to the pdf
         # m1 = self.FakeUniformModel(dt=.02)
         # m2 = self.FakeUniformModel(dt=.01)
-        # print(m1.solve().pdf_corr(), m2.solve().pdf_corr())
+        # print(m1.solve().pdf("_top"), m2.solve().pdf("_bottom"))
         # s = ddm.Sample(aa([.14, .1, .01]), aa([.66, .16, .89]))
         # assert np.isclose(ddm.models.LossLikelihood(sample=s, dt=m1.dt, T_dur=m1.T_dur).loss(m1),
         #                   ddm.models.LossLikelihood(sample=s, dt=m2.dt, T_dur=m2.T_dur).loss(m2))
@@ -415,7 +415,7 @@ class TestDependences(TestCase):
         m = self.FakePointModel(dt=.02)
         sol = m.solve()
         s = ddm.Sample(aa([.02]), aa([]))
-        expected = -np.log(np.sum(sol.corr)/m.dt)
+        expected = -np.log(np.sum(sol.choice_upper)/m.dt)
         assert np.isclose(ddm.models.LossBIC(sample=s, dt=m.dt, T_dur=m.T_dur, nparams=1, samplesize=1).loss(m),
                           2*ddm.models.LossLikelihood(sample=s, dt=m.dt, T_dur=m.T_dur).loss(m))
 
@@ -436,10 +436,10 @@ class TestSample(TestCase):
                                 cond1=(aa([1, 1, 2]), aa([]))),
             # Sample with conditions as strings
             "condsstr": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
-                                cond1=(aa(["x", "yy", "z z z"]), aa([]))),
+                                cond1=(aa(["x", "yy", "z z z"]), aa([])), choice_names=("x", "Y with space")),
             # Sample with conditions as tuples
             "condstuple": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
-                                cond1=(aa([(3, 1, 2), (5, 5), (1, 1, 1, 1, 1)], dtype=object), aa([]))),
+                                     cond1=(aa([(3, 1, 2), (5, 5), (1, 1, 1, 1, 1)], dtype=object), aa([]))),
             # Sample with conditions as tuples which are the same length
             "condstuplesame": ddm.Sample(aa([1, 2, 3]), aa([]), 0,
                                 cond1=(_tuple_same_length, aa([]))),
@@ -470,8 +470,8 @@ class TestSample(TestCase):
         assert s.condition_names() == ["cond1"]
         assert s.condition_values("cond1") == ["a", "b", "c", "d"]
         assert s.prob_undecided() == .25
-        assert s.prob_correct() == 5/16
-        assert s.prob_error() == 7/16
+        assert s.prob(1) == 5/16
+        assert s.prob(0) == 7/16
         # Try to add to the empty sample
         assert self.samps["empty"] + self.samps["undec"] == self.samps["undec"]
         assert self.samps["empty"] + self.samps["simple"] == self.samps["simple"]
@@ -518,17 +518,20 @@ class TestSample(TestCase):
         dt = .02
         for n,s in self.samps.items():
             if n == "empty": continue
-            assert np.isclose(fsum([fsum(s.pdf_corr(T_dur=4, dt=dt))*dt, fsum(s.pdf_err(T_dur=4, dt=dt))*dt, s.prob_undecided()]), 1)
-            assert np.isclose(fsum(s.pdf_corr(T_dur=4, dt=dt)*dt), s.prob_correct())
-            assert np.isclose(fsum(s.pdf_err(T_dur=4, dt=dt)*dt), s.prob_error())
-            assert s.mean_decision_time() > 0
+            assert np.isclose(fsum([fsum(s.pdf("_top", T_dur=4, dt=dt))*dt, fsum(s.pdf("_bottom", T_dur=4, dt=dt))*dt, s.prob_undecided()]), 1)
+            assert np.isclose(fsum(s.pdf("_top", T_dur=4, dt=dt)*dt), s.prob("_top"))
+            assert np.isclose(fsum(s.pdf("_bottom", T_dur=4, dt=dt)*dt), s.prob("_bottom"))
+            if s.choice_names == ("correct", "error"):
+                assert s.mean_decision_time() > 0
             if s.prob_undecided() == 0:
-                assert s.prob_correct() == s.prob_correct_forced()
-                assert s.prob_error() == s.prob_error_forced()
-            assert len(s.pdf_corr(T_dur=4, dt=dt)) == len(s.t_domain(T_dur=4, dt=dt))
+                assert s.prob("_top") == s.prob_forced("_top")
+                assert s.prob("_bottom") == s.prob_forced("_bottom")
+            assert len(s.pdf("_top", T_dur=4, dt=dt)) == len(s.t_domain(T_dur=4, dt=dt))
+            s.cdf("_top")
+            s.cdf("_bottom")
     def test_iter(self):
         """The iterator .items() goes through correct or error trials and their conditions"""
-        itr = self.samps["conds"].items(correct=True)
+        itr = self.samps["conds"].items("_top")
         assert next(itr) == (1, {"cond1": 1})
         assert next(itr) == (2, {"cond1": 1})
         assert next(itr) == (3, {"cond1": 2})
@@ -538,8 +541,14 @@ class TestSample(TestCase):
         # Create a list to make sure we don't iterate past the end
         list(self.samps["conds"].items(correct=True))
         list(self.samps["conds"].items(correct=False))
-        list(self.samps["condsstr"].items(correct=True))
-        list(self.samps["condsstr"].items(correct=False))
+        fails(lambda : list(self.samps["condsstr"].items(correct=True)))
+        list(self.samps["condsstr"].items("_top"))
+        list(self.samps["condsstr"].items(1))
+        list(self.samps["condsstr"].items(0))
+        list(self.samps["condsstr"].items(2))
+        list(self.samps["condsstr"].items("_bottom"))
+        list(self.samps["condsstr"].items("x"))
+        list(self.samps["condsstr"].items("Y with space"))
     def test_subset(self):
         """Filter a sample by some conditions"""
         # Basic access
@@ -548,7 +557,7 @@ class TestSample(TestCase):
         assert len(self.samps['condstuple'].subset(cond1=(3,1,2))) == 1
         assert len(self.samps['condstuplesame'].subset(cond1=(3,1,2))) == 1
         # The elements being accessed
-        assert list(self.samps['conds'].subset(cond1=1).corr) == [1, 2]
+        assert list(self.samps['conds'].subset(cond1=1).choice_upper) == [1, 2]
         # An empty subset with two conditions
         assert len(self.samps['two'].subset(conda="b", condb=1)) == 0
         # A non-epty subset with two conditions
@@ -574,14 +583,19 @@ class TestSample(TestCase):
         cond_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': [1, 1, 2]})
         assert ddm.Sample.from_pandas_dataframe(cond_df, 'rt', 'c') == self.samps['conds']
         assert ddm.Sample.from_pandas_dataframe(cond_df, correct_column_name='c', rt_column_name='rt') == self.samps['condsexp']
+        assert ddm.Sample.from_pandas_dataframe(cond_df, choice_column_name='c', rt_column_name='rt') == self.samps['condsexp']
+        assert ddm.Sample.from_pandas_dataframe(cond_df, choice_column_name='c', rt_column_name='rt', choice_names=("c", "d")) != self.samps['condsexp']
         condsstr_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': ["x", "yy", "z z z"]})
-        assert ddm.Sample.from_pandas_dataframe(condsstr_df, 'rt', 'c') == self.samps['condsstr']
+        assert ddm.Sample.from_pandas_dataframe(condsstr_df, 'rt', 'c', choice_names=("x", "Y with space")) == self.samps['condsstr']
     def test_to_pandas(self):
-        for _,s in self.samps.items():
+        for sname,s in self.samps.items():
             if s.undecided == 0:
-                assert s == ddm.Sample.from_pandas_dataframe(s.to_pandas_dataframe("a", "b"), "a", "b")
+                if sname == "condsstr":
+                    assert s == ddm.Sample.from_pandas_dataframe(s.to_pandas_dataframe("a", "b"), "a", "b", choice_names=("x", "Y with space"))
+                else:
+                    assert s == ddm.Sample.from_pandas_dataframe(s.to_pandas_dataframe("a", "b"), "a", "b")
             else:
-                assert len(s.corr)+len(s.err) == len(s.to_pandas_dataframe("a", "b", drop_undecided=True))
+                assert len(s.choice_upper)+len(s.choice_lower) == len(s.to_pandas_dataframe("a", "b", drop_undecided=True))
 
 class TestSolution(TestCase):
     def setUp(self):
@@ -622,39 +636,51 @@ class TestSolution(TestCase):
         self.params_strarg = ddm.Model(drift=DriftSimpleStringArg(), T_dur=.5).solve_analytical(conditions={"type": "a"})
         # Dependence with a tuple argument
         self.params_tuplearg = ddm.Model(drift=DriftSimpleTupleArg(), T_dur=.5).solve_analytical(conditions={"cohs": (.2, 1, 2)})
-        self.all_sols = [self.quick_ana, self.quick_cn, self.quick_imp, self.params_ana, self.params_cn, self.params_imp, self.params_strarg, self.params_tuplearg]
+        self.quick_cn_b = ddm.Model(T_dur=.5, choice_names=("a", "b b")).solve_numerical_cn()
+        self.all_sols = [self.quick_ana, self.quick_cn, self.quick_imp, self.params_ana, self.params_cn, self.params_imp, self.params_strarg, self.params_tuplearg, self.quick_cn_b]
+        # Includes undecided
     def test_pdfs(self):
         """Make sure we produce valid distributions from solutions"""
         # For each test model
         for s in self.all_sols:
             dt = s.model.dt
             # Distribution sums to 1
-            assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, s.prob_undecided()]), 1)
+            assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, s.prob_undecided()]), 1)
             # Correct and error probabilities are sensible
-            assert np.isclose(fsum(s.pdf_corr()*dt), s.prob_correct())
-            assert np.isclose(fsum(s.pdf_err()*dt), s.prob_error())
-            assert s.mean_decision_time() > 0
+            assert np.isclose(fsum(s.pdf("_top")*dt), s.prob("_top"))
+            assert np.isclose(fsum(s.pdf("_bottom")*dt), s.prob("_bottom"))
+            if s.choice_names == ("correct", "error"):
+                assert s.mean_decision_time() > 0
             if s.prob_undecided() == 0:
-                assert s.prob_correct() == s.prob_correct_forced()
-                assert s.prob_error() == s.prob_error_forced()
+                assert s.prob(1) == s.prob_forced(1)
+                assert s.prob(2) == s.prob_forced(0)
             # Signed probabilities sum to 1
             if s.undec is not None:
-                assert np.isclose(np.sum(s.prob_correct_sign()) + np.sum(s.prob_error_sign()), 1, rtol=.005)
-                assert np.sum(s.prob_correct_sign()) + np.sum(s.prob_error_sign()) <= 1
+                assert np.isclose(np.sum(s.prob_sign("_top")) + np.sum(s.prob_sign("_bottom")), 1, rtol=.005)
+                assert np.sum(s.prob_sign("_top")) + np.sum(s.prob_sign("_bottom")) <= 1
             # Correct time domain
-            assert len(s.pdf_corr()) == len(s.model.t_domain())
-        # pdf_undec with pdf_corr and pdf_err sums to one if pdf_undec exists
+            assert len(s.pdf("_top")) == len(s.model.t_domain())
+        self.quick_cn_b.pdf("a")
+        self.quick_cn_b.pdf("b b")
+        self.quick_cn_b.cdf("a")
+        self.quick_cn_b.cdf("_bottom")
+        self.quick_cn_b.prob("a")
+        self.quick_cn_b.prob("b b")
+        self.quick_cn_b.prob_forced("b b")
+        # pdf_undec with pdf and pdf bottom sum to one if pdf_undec exists
         for s in [self.quick_cn, self.quick_imp, self.params_cn, self.params_imp]:
             dx = s.model.dx
             if s.undec is not None:
                 # Allow better tolerance since accuracy isn't perfect for undecided pdf
-                assert np.isclose(fsum([fsum(s.pdf_corr())*dt, fsum(s.pdf_err())*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+                assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
     def test_evaluate(self):
         for s in self.all_sols:
             assert s.evaluate(.3, True) > 0
             assert s.evaluate(.1, False) > 0
-            assert s.evaluate(100, True) == 0
-            assert s.evaluate(100, False) == 0
+            assert s.evaluate(100, "_top") == 0
+            assert s.evaluate(100, "_bottom") == 0
+        self.quick_cn_b.evaluate(100, "a") == 0
+        self.quick_cn_b.evaluate(100, "a") == 0
 
 class TestTriDiagMatrix(TestCase):
     def setUp(self):
@@ -730,9 +756,9 @@ class TestMisc(TestCase):
         b = ddm.models.bound.BoundCollapsingLinear(B=1, t=1)
         m = ddm.Model(bound=b, T_dur=2)
         s = m.solve_analytical()
-        assert len(s.pdf_corr()) == len(m.t_domain())
+        assert len(s.pdf("_top")) == len(m.t_domain())
         s = m.solve_analytical(force_python=True)
-        assert len(s.pdf_corr()) == len(m.t_domain())
+        assert len(s.pdf("_top")) == len(m.t_domain())
     def test_get_set_parameters_functions(self):
         """Test get_parameters, set_parameters, and get_parameter_names"""
         p1 = ddm.Fittable(minval=0, maxval=1)
@@ -745,6 +771,15 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
+    def test_model_stuff(self):
+        m = ddm.Model(choice_names=("Aaa", "b b"), dx=.002, dt=.002, T_dur=5, drift=ddm.DriftConstant(drift=3), name='xxx')
+        s = m.solve()
+        assert m.choice_names == s.choice_names
+        samp = s.resample(10)
+        assert s.choice_names == m.choice_names
+        str(m)
+        from pyddm import Model, DriftConstant, NoiseConstant, BoundConstant, ICPointSourceCenter, OverlayNone
+        assert m == eval(repr(m))
 
 class TestCSolver(TestCase):
     def test_numerical(self):
@@ -757,15 +792,15 @@ class TestCSolver(TestCase):
             ddm.Model(drift=ddm.DriftLinear(x=-.5, t=0, drift=.1)),
             ddm.Model(drift=ddm.DriftLinear(x=.5, t=.5, drift=.2), bound=ddm.BoundCollapsingExponential(B=1, tau=1)),
             ddm.Model(noise=ddm.NoiseLinear(x=0, t=.2, noise=.5)),
-            ddm.Model(noise=ddm.NoiseLinear(x=-.2, t=0, noise=.4)),
+            ddm.Model(noise=ddm.NoiseLinear(x=-.2, t=0, noise=.4), choice_names=("left", "right")),
             ddm.Model(noise=ddm.NoiseLinear(x=.2, t=.2, noise=.6), bound=ddm.BoundCollapsingLinear(B=1, t=1)),
             ]
         for i,m in enumerate(models):
             print(i)
             s1 = m.solve_numerical_implicit(force_python=True)
             s2 = m.solve_numerical_c()
-            assert np.all(np.isclose(s1.pdf_corr(), s2.pdf_corr(), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
-            assert np.all(np.isclose(s1.pdf_err(), s2.pdf_err(), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
     def test_analytic(self):
         assert ddm.analytic.HAS_CSOLVE, "C extension build failed"
         models = [
@@ -778,8 +813,8 @@ class TestCSolver(TestCase):
         for i,m in enumerate(models):
             s1 = m.solve_analytical(force_python=True)
             s2 = m.solve_analytical(force_python=False)
-            assert np.all(np.isclose(s1.pdf_corr(), s2.pdf_corr(), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
-            assert np.all(np.isclose(s1.pdf_err(), s2.pdf_err(), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=1e-3, rtol=1e-3)), "Testing model id " + str(i)
 
 
 

@@ -125,7 +125,7 @@ ensure each stimulus strength at each time-step is considered)::
           dx=.001, dt=.01, T_dur=2)
       sol = model.solve(conditions={"coh_t_list": coh_t_list, "dt_PK": dt_PK})
       for i_t in range(int(Tdur/dt_PK)):
-          PK_Mat[i_t, i_coh_t_list[i_t]] += sol.prob_correct() - sol.prob_error()
+          PK_Mat[i_t, i_coh_t_list[i_t]] += sol.prob("correct") - sol.prob("error")
           PK_n[i_t, i_coh_t_list[i_t]] += 1
   PK_Mat = PK_Mat/PK_n
 

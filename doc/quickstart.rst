@@ -60,9 +60,10 @@ runs the simulation.  This model can be described as shown below:
    :language: python
    :lines: 4-13, 17-18
 
-Solution objects represent correct and erred probability distribution 
-functions over time. We can generate psuedo-data from this solved 
-model with the :meth:`~.Solution.resample` function:
+Solution objects represent the probability distribution functions over time for
+choices associated with upper and lower bound crossings.  By default, this is
+"correct" and "error" responses, respectively. We can generate psuedo-data from
+this solved model with the :meth:`~.Solution.resample` function:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -138,11 +139,10 @@ PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
 
 .. image:: images/simple-fit.png
 
-Using the :class:`.Solution` object ``sol`` we have access to a number
-of other useful functions.  For instance, we can display the
-probability of a correct response using
-:meth:`~.Solution.prob_correct` or the entire histogram of errors
-using :meth:`~.Solution.pdf_err`.
+Using the :class:`.Solution` object ``sol`` we have access to a number of other
+useful functions.  For instance, we can display the probability of a correct
+response using :meth:`~.Solution.prob("correct")` or the entire histogram of
+errors using :meth:`~.Solution.pdf("error")`.
 
 .. literalinclude:: downloads/simple.py
    :language: python

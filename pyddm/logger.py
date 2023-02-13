@@ -1,4 +1,5 @@
 import logging
+import sys
 
 DEFAULT_LOG_LEVEL = logging.INFO
 
@@ -22,6 +23,15 @@ def set_log_level(level):
     module. See https://docs.python.org/3/library/logging.html for more.
     """
     logger.setLevel(level)
+
+def deprecation_warning(instead=None, isfunction=True):
+    caller = sys._getframe().f_back.f_code.co_name
+    funcvar = "function" if isfunction else "variable"
+    functerm = "()" if isfunction else ""
+    if instead:
+        logger.warning(f"This {funcvar} ({caller}{functerm}) is deprecated and will be removed in a future version of PyDDM.  Please use {instead} instead.")
+    else:
+        logger.warning(f"This {funcvar} ({caller}{functerm}) is deprecated and will be removed in a future version of PyDDM.")
 
 # Set default log-level
 set_log_level(DEFAULT_LOG_LEVEL)

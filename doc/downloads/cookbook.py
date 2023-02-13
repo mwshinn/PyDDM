@@ -117,17 +117,17 @@ class OverlayNonDecisionGaussian(Overlay):
         # Make sure params are within range
         assert self.ndsigma > 0, "Invalid st parameter"
         # Extract components of the solution object for convenience
-        corr = solution.corr
-        err = solution.err
+        choice_upper = solution.choice_upper
+        choice_lower = solution.choice_lower
         dt = solution.model.dt
         # Create the weights for different timepoints
-        times = np.asarray(list(range(-len(corr), len(corr))))*dt
+        times = np.asarray(list(range(-len(choice_upper), len(choice_upper))))*dt
         weights = scipy.stats.norm(scale=self.ndsigma, loc=self.nondectime).pdf(times)
         if np.sum(weights) > 0:
             weights /= np.sum(weights) # Ensure it integrates to 1
-        newcorr = np.convolve(weights, corr, mode="full")[len(corr):(2*len(corr))]
-        newerr = np.convolve(weights, err, mode="full")[len(corr):(2*len(corr))]
-        return Solution(newcorr, newerr, solution.model,
+        newchoice_upper = np.convolve(weights, choice_upper, mode="full")[len(choice_upper):(2*len(choice_upper))]
+        newchoice_lower = np.convolve(weights, choice_lower, mode="full")[len(choice_upper):(2*len(choice_upper))]
+        return Solution(newchoice_upper, newchoice_lower, solution.model,
                         solution.conditions, solution.undec)
 # End OverlayNonDecisionGaussian
 
@@ -290,8 +290,8 @@ class LossByMeans(LossFunction):
         for comb in self.sample.condition_combinations(required_conditions=self.required_conditions):
             c = frozenset(comb.items())
             s = self.sample.subset(**comb)
-            MSE += (sols[c].prob_correct() - s.prob_correct())**2
-            if sols[c].prob_correct() > 0:
+            MSE += (sols[c].prob("correct") - s.prob("correct"))**2
+            if sols[c].prob("correct") > 0:
                 MSE += (sols[c].mean_decision_time() - np.mean(list(s)))**2
         return MSE
 # End LossByMeans
@@ -341,14 +341,14 @@ RESOLUTION = 11
 def prepare_sample_for_variable_drift(sample, resolution=RESOLUTION):
     new_samples = []
     for i in range(0, resolution):
-        corr = sample.corr.copy()
-        err = sample.err.copy()
+        choice_upper = sample.choice_upper.copy()
+        choice_lower = sample.choice_lower.copy()
         undecided = sample.undecided
         conditions = copy.deepcopy(sample.conditions)
-        conditions['driftnum'] = (np.asarray([i]*len(corr)),
-                                  np.asarray([i]*len(err)),
+        conditions['driftnum'] = (np.asarray([i]*len(choice_upper)),
+                                  np.asarray([i]*len(choice_lower)),
                                   np.asarray([i]*undecided))
-        new_samples.append(ddm.Sample(corr, err, undecided, **conditions))
+        new_samples.append(ddm.Sample(choice_upper, choice_lower, undecided, choice_names=samplue.choice_names, **conditions))
     new_sample = new_samples.pop()
     for s in new_samples:
         new_sample += s

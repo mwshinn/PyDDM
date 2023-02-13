@@ -35,7 +35,7 @@ from .functions import solve_partial_conditions
 
 
 
-def plot_solution_pdf(sol, ax=None, correct=True):
+def plot_solution_pdf(sol, ax=None, choice=None, correct=True):
     """Plot the PDF of the solution.
 
     - `ax` is optionally the matplotlib axis on which to plot.
@@ -45,19 +45,22 @@ def plot_solution_pdf(sol, ax=None, correct=True):
     This does not return anything, but it plots the PDF.  It does not
     show it, and thus requires a call to plt.show() to see.
     """
+    if correct is not None:
+        assert choice is None, "Either choice or correct argument must be None"
+        assert self.choice_names == ("correct", "error")
+        choice = sol.choice_names[0] if correct else sol.choice_names[1]
+    else:
+        assert choice is not None, "Choice and correct arguments cannot both be None"
+
     if ax is None:
         ax = plt.gca()
 
-    if correct == True:
-        ts = sol.pdf_corr()
-    else:
-        ts = sol.pdf_err()
-    
+    ts = sol.pdf(choice)
     ax.plot(sol.model.t_domain(), ts, label=sol.model.name)
     ax.set_xlabel('time (s)')
-    ax.set_ylabel('PDF (normalized)')
+    ax.set_ylabel(f'{choice} PDF (normalized)')
     
-def plot_solution_cdf(sol, ax=None, correct=True):
+def plot_solution_cdf(sol, ax=None, choice=None, correct=None):
     """Plot the CDF of the solution.
 
     - `ax` is optionally the matplotlib axis on which to plot.
@@ -67,17 +70,19 @@ def plot_solution_cdf(sol, ax=None, correct=True):
     This does not return anything, but it plots the CDF.  It does not
     show it, and thus requires a call to plt.show() to see.
     """
+    if correct is not None:
+        assert choice is None, "Either choice or correct argument must be None"
+        choice = sol.choice_names[0] if correct else sol.choice_names[1]
+    else:
+        assert choice is not None, "Choice and correct arguments cannot both be None"
     if ax is None:
         ax = plt.gca()
 
-    if correct == True:
-        ts = sol.cdf_corr()
-    else:
-        ts = sol.cdf_err()
+    ts = sol.cdf(choice)
     
     ax.plot(sol.model.t_domain(), ts, label=sol.model.name)
     ax.set_xlabel('time (s)')
-    ax.set_ylabel('CDF (normalized)')
+    ax.set_ylabel(f'{choice} CDF (normalized)')
     
 
 def plot_compare_solutions(s1, s2):
@@ -87,12 +92,12 @@ def plot_compare_solutions(s1, s2):
     pretty picture of the correct and error distribution pdfs.
     """
     plt.subplot(2, 1, 1)
-    plot_solution_pdf(s1)
-    plot_solution_pdf(s2)
+    plot_solution_pdf(s1, choice=s1.choice_names[0])
+    plot_solution_pdf(s2, choice=s2.choice_names[0])
     plt.legend()
     plt.subplot(2, 1, 2)
-    plot_solution_pdf(s1, correct=False)
-    plot_solution_pdf(s2, correct=False)
+    plot_solution_pdf(s1, choice=s1.choice_names[1])
+    plot_solution_pdf(s2, choice=s2.choice_names[1])
 
                             
 def plot_decision_variable_distribution(model, conditions={}, resolution=.1, figure=None):
@@ -121,8 +126,8 @@ def plot_decision_variable_distribution(model, conditions={}, resolution=.1, fig
     # resolution) so this should be improved someday...
     s = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
     hists = s.pdf_evolution()
-    top = s.pdf_corr()
-    bot = s.pdf_err()
+    top = s.pdf("_top")
+    bot = s.pdf("_bottom")
     # Plot the output
     f = figure if figure is not None else plt.figure()
     # Set up three axes, with one in the middle and two on the borders
@@ -189,15 +194,17 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     if sample:
         sample = sample.subset(**conditions)
         t_domain_data = np.linspace(0, T_dur, int(T_dur/data_dt+1))
-        data_hist_top = np.histogram(sample.corr, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
-        data_hist_bot = np.histogram(sample.err, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
+        data_hist_top = np.histogram(sample.choice_upper, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
+        data_hist_bot = np.histogram(sample.choice_lower, bins=int(T_dur/data_dt)+1, range=(0-data_dt/2, T_dur+data_dt/2))[0]
         total_samples = len(sample)
         ax1.fill_between(t_domain_data, np.asarray(data_hist_top)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
         ax2.fill_between(t_domain_data, np.asarray(data_hist_bot)/total_samples/data_dt, label="Data", alpha=.5, color=(.5, .5, .5))
+        toplabel,bottomlabel = sample.choice_names
     if model:
         s = solve_partial_conditions(model, sample, conditions=conditions, method=method)
-        ax1.plot(model.t_domain(), s.pdf_corr(), lw=2, color='k')
-        ax2.plot(model.t_domain(), s.pdf_err(), lw=2, color='k')
+        ax1.plot(model.t_domain(), s.pdf("_top"), lw=2, color='k')
+        ax2.plot(model.t_domain(), s.pdf("_bottom"), lw=2, color='k')
+        toplabel,bottomlabel = model.choice_names
     # Set up nice looking plots
     for ax in [ax1, ax2]:
         ax.spines['right'].set_visible(False)
@@ -226,8 +233,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1.spines['left'].set_position(('outward', 10))
     ax2.spines['left'].set_position(('outward', 10))
     ax2.spines['bottom'].set_position(('outward', 10))
-    ax1.set_ylabel("Correct RTs")
-    ax2.set_ylabel("Error RTs")
+    ax1.set_ylabel(f"{toplabel} RTs")
+    ax2.set_ylabel(f"{bottomlabel} RTs")
     ax2.set_xlabel("Time (s)")
     pt = fig.suptitle("")
 

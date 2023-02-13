@@ -30,7 +30,7 @@ void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
 
 
 double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsigned int nsteps, double tstep);
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
+int _implicit_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
 
 static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   double a1, b1, a2, b2, tstep;
@@ -70,20 +70,20 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   ic = (double*)PyArray_DATA(_ic);
 
 
-  double *pdfcorr = (double*)malloc(nsteps*sizeof(double));
-  double *pdferr = (double*)malloc(nsteps*sizeof(double));
+  double *pdfchoice1 = (double*)malloc(nsteps*sizeof(double));
+  double *pdfchoice2 = (double*)malloc(nsteps*sizeof(double));
   double *pdfcurr = (double*)malloc(len_x0*sizeof(double));
-  _implicit_time(nsteps, pdfcorr, pdferr, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype);
+  _implicit_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype);
   npy_intp dims[1] = { nsteps };
   npy_intp dimscurr[1] = { len_x0 };
-  PyObject *corrarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfcorr);
-  PyObject *errarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdferr);
+  PyObject *choice1array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice1);
+  PyObject *choice2array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice2);
   PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
   // Need ENABLEFLAGS here, not UpdateFlags, because UpdateFlags checks to make
   // sure you aren't using flags it doesn't like and silently drops those flags.
   // (OWNDATA is one such flag.)  ENABLEFLAGS doesn't perform this validation.
-  PyArray_ENABLEFLAGS((PyArrayObject*)corrarray, NPY_ARRAY_OWNDATA);
-  PyArray_ENABLEFLAGS((PyArrayObject*)errarray, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)choice1array, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)choice2array, NPY_ARRAY_OWNDATA);
   PyArray_ENABLEFLAGS((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
 
   // Get rid of the reference to the PyArray arguments, without this there is a memory leak
@@ -93,7 +93,7 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   Py_DECREF(_ic);
 
   // Use NNN instead of OOO because OOO increments the reference count.
-  PyObject *ret = Py_BuildValue("(NNN)", corrarray, errarray, currarray);
+  PyObject *ret = Py_BuildValue("(NNN)", choice1array, choice2array, currarray);
   return ret;
 }
 
@@ -185,7 +185,7 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsig
 
 
 
-int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode) {
+int _implicit_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode) {
   int dmultt=-1, dmultx=-1, nmultt=-1, nmultx=-1, bmultt=-1;
   int j;
   double dxinv = 1/dx;
@@ -199,8 +199,8 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
   double *D_copy = (double*)malloc(Xsteps*sizeof(double));
   double *DL_copy = (double*)malloc((Xsteps-1)*sizeof(double));
   double *pdfcurr_copy = (double*)malloc(Xsteps*sizeof(double));
-  memset(pdfcorr, 0, Tsteps*sizeof(double));
-  memset(pdferr, 0, Tsteps*sizeof(double));
+  memset(pdfchoice1, 0, Tsteps*sizeof(double));
+  memset(pdfchoice2, 0, Tsteps*sizeof(double));
   memset(pdfcurr, 0, Xsteps*sizeof(double));
   for (int i=0; i<Xsteps; i++) pdfcurr[i] = ic[i];
   // The different modes define whether we are using a constant
@@ -305,12 +305,12 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
     if (shift_outer == shift_inner) { // Bound falls on a grid here
       j = Xsteps-shift_outer-1; // For convenience
       for (int k=0; k<shift_outer; k++)
-        pdferr[i+1] += pdfcurr[k]*weight_outer;
+        pdfchoice2[i+1] += pdfcurr[k]*weight_outer;
       for (int k=Xsteps-shift_outer; k<Xsteps; k++)
-        pdfcorr[i+1] += pdfcurr[k]*weight_outer;
+        pdfchoice1[i+1] += pdfcurr[k]*weight_outer;
       easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
-      pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j];
-      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer];
+      pdfchoice1[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j];
+      pdfchoice2[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer];
       for (int k=0; k<shift_outer; k++)
         pdfcurr[k] = 0;
       for (int k=Xsteps-shift_outer; k<Xsteps; k++)
@@ -319,20 +319,20 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
     } else {
       j = Xsteps-shift_outer-1; // For convenience
       for (int k=0; k<shift_outer; k++)
-        pdferr[i+1] += pdfcurr[k]*weight_outer;
+        pdfchoice2[i+1] += pdfcurr[k]*weight_outer;
       for (int k=Xsteps-shift_outer; k<Xsteps; k++)
-        pdfcorr[i+1] += pdfcurr[k]*weight_outer;
+        pdfchoice1[i+1] += pdfcurr[k]*weight_outer;
       easy_dgtsv(Xsteps-2*shift_outer, DL+shift_outer, D+shift_outer, DU+shift_outer, pdfcurr+shift_outer);
-      pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j]*weight_outer;
-      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
+      pdfchoice1[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr[j]*weight_outer;
+      pdfchoice2[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_outer*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_outer*nmultx]*noise[i*nmultt+shift_outer*nmultx])*pdfcurr[shift_outer]*weight_outer;
       j = Xsteps-shift_inner-1; // For convenience
       for (int k=0; k<shift_inner; k++)
-        pdferr[i+1] += pdfcurr_copy[k]*weight_inner;
+        pdfchoice2[i+1] += pdfcurr_copy[k]*weight_inner;
       for (int k=Xsteps-shift_inner; k<Xsteps; k++)
-        pdfcorr[i+1] += pdfcurr_copy[k]*weight_inner;
+        pdfchoice1[i+1] += pdfcurr_copy[k]*weight_inner;
       easy_dgtsv(Xsteps-2*shift_inner, DL_copy+shift_inner, D_copy+shift_inner, DU_copy+shift_inner, pdfcurr_copy+shift_inner);
-      pdfcorr[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr_copy[j]*weight_inner;
-      pdferr[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_inner*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
+      pdfchoice1[i+1] += (0.5*dt*dxinv * drift[i*dmultt+j*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+j*nmultx]*noise[i*nmultt+j*nmultx])*pdfcurr_copy[j]*weight_inner;
+      pdfchoice2[i+1] += (-0.5*dt*dxinv * drift[i*dmultt+shift_inner*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+shift_inner*nmultx]*noise[i*nmultt+shift_inner*nmultx])*pdfcurr_copy[shift_inner]*weight_inner;
       for (int j=shift_outer; j<Xsteps-shift_outer; j++)
         pdfcurr[j] *= weight_outer;
       for (int j=shift_inner; j<Xsteps-shift_inner; j++)
@@ -348,20 +348,20 @@ int _implicit_time(int Tsteps, double *pdfcorr, double *pdferr, double *pdfcurr,
     }
 
   }
-  // Normalize pdfcorr and pdferr
-  double sumcorrerr = 0;
+  // Normalize pdfchoice1 and pdfchoice2
+  double sumpdfs = 0;
   for (int i=0; i<Tsteps; i++)
-    sumcorrerr += pdfcorr[i] + pdferr[i];
-  if (sumcorrerr > 1) {
+    sumpdfs += pdfchoice1[i] + pdfchoice2[i];
+  if (sumpdfs > 1) {
     for (int i=0; i<Tsteps; i++) {
-      pdfcorr[i] /= sumcorrerr;
-      pdferr[i] /= sumcorrerr;
+      pdfchoice1[i] /= sumpdfs;
+      pdfchoice2[i] /= sumpdfs;
     }
   }
   // Scale the output to make it a pdf, not a pmf
   for (int i=0; i<Tsteps; i++) {
-    pdfcorr[i] *= dtinv;
-    pdferr[i] *= dtinv;
+    pdfchoice1[i] *= dtinv;
+    pdfchoice2[i] *= dtinv;
   }
   // Free memory
   free(pdfcurr_copy);

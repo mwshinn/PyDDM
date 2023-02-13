@@ -97,13 +97,12 @@ class Dependence(object): # TODO Base this on ABC
             setattr(self, key, value)
         # Cache for "_uses()".  Use super settattr so we don't call the "__setattr__" method
         super().__setattr__("_cache_uses", dict())
-
     def __eq__(self, other):
         """Equality is defined as having the same algorithm type and the same parameters."""
         if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
+            return {k:v for k,v in self.__dict__.items() if k != "_cache_uses"} == \
+                {k:v for k,v in other.__dict__.items() if k != "_cache_uses"}
         return False
-
     def __setattr__(self, name, val):
         """Only allow the required parameters to be assigned."""
         if name in self.required_parameters:
