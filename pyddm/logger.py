@@ -29,9 +29,9 @@ def deprecation_warning(instead=None, isfunction=True):
     funcvar = "function" if isfunction else "variable"
     functerm = "()" if isfunction else ""
     if instead:
-        logger.warning(f"This {funcvar} ({caller}{functerm}) is deprecated and will be removed in a future version of PyDDM.  Please use {instead} instead.")
+        logger.warning("This "+funcvar+" ("+caller+functerm+") is deprecated and will be removed in a future version of PyDDM.  Please use "+instead+" instead.")
     else:
-        logger.warning(f"This {funcvar} ({caller}{functerm}) is deprecated and will be removed in a future version of PyDDM.")
+        logger.warning("This "+funcvar+" ("+caller+functerm+") is deprecated and will be removed in a future version of PyDDM.")
 
 # Set default log-level
 set_log_level(DEFAULT_LOG_LEVEL)

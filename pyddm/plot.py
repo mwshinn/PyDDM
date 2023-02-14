@@ -233,8 +233,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
     ax1.spines['left'].set_position(('outward', 10))
     ax2.spines['left'].set_position(('outward', 10))
     ax2.spines['bottom'].set_position(('outward', 10))
-    ax1.set_ylabel(f"{toplabel} RTs")
-    ax2.set_ylabel(f"{bottomlabel} RTs")
+    ax1.set_ylabel(toplabel+" RTs")
+    ax2.set_ylabel(bottomlabel+" RTs")
     ax2.set_xlabel("Time (s)")
     pt = fig.suptitle("")
 

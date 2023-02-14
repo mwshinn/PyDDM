@@ -473,7 +473,7 @@ class Sample(object):
             return 1
         if choice == "_bottom":
             return 2
-        raise NotImplementedError(f"\"choice\" needs to be '{self.choice_names[0]}' or '{self.choice_names[1]}' to use this function, not '{choice}'")
+        raise NotImplementedError("\"choice\" needs to be '"+self.choice_names[0]+"' or '"+self.choice_names[1]+"' to use this function, not '"+choice+"'")
 
     @accepts(Self, Choice, dt=Positive, T_dur=Positive)
     @returns(NDArray(d=1, t=Positive0))

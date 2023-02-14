@@ -198,9 +198,9 @@ class Model(object):
                 params += ", fitresult=" + repr(self.fitresult)
         if self.choice_names != ("correct", "error"):
             if pretty:
-                params += f",\n  choice_names=({self.choice_names[0]!r}, {self.choice_names[1]!r})"
+                params += ",\n  choice_names="+repr(self.choice_names)
             else:
-                params += f", choice_names=({self.choice_names[0]!r}, {self.choice_names[1]!r})"
+                params += ", choice_names="+repr(self.choice_names)
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)

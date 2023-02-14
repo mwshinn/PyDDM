@@ -152,7 +152,7 @@ class Solution(object):
             return 1
         if choice == "_bottom":
             return 2
-        raise NotImplementedError(f"\"choice\" needs to be '{self.choice_names[0]}' or '{self.choice_names[1]}' to use this function, not '{choice}'")
+        raise NotImplementedError("\"choice\" needs to be '"+self.choice_names[0]+"' or '"+self.choice_names[1]+"' to use this function, not '"+choice+"'")
 
     @accepts(Self, Choice)
     @returns(NDArray(d=1, t=Positive0))
@@ -414,7 +414,7 @@ class Solution(object):
         elif self._choice_name_to_id(choice) == 2:
             undec = np.sum(self.undec[:len(self.undec)//2])
         else:
-            raise NotImplementedError(f"\"choice\" needs to be '{self.choice_names[0]}' or '{self.choice_names[1]}' to use this function")
+            raise NotImplementedError("\"choice\" needs to be '"+self.choice_names[0]+"' or '"+self.choice_names[1]+"' to use this function, not '"+choice+"'")
         return self.prob(choice) + undec
 
     @accepts(Self)

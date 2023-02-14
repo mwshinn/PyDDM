@@ -82,7 +82,7 @@ def get_model_loss(model, sample, lossfunction=LossLikelihood, method=None):
     it is faster to use the optimizations implemented in
     fit_adjust_model.
     """
-    assert model.choice_names == sample.choice_names, f"Model and sample choice names must match, currently {model.choice_names} and {sample.choice_names}.  Please specify the correct choice names when creating your Model and Sample."
+    assert model.choice_names == sample.choice_names, "Model and sample choice names must match, currently "+repr(model.choice_names)+" and "+repr(sample.choice_names)+".  Please specify the correct choice names when creating your Model and Sample."
     # Count parameters (for AIC/BIC), making sure not to double count
     # for repeated parameters.
     params = []
@@ -251,7 +251,7 @@ def fit_adjust_model(sample, model, fitparams=None, fitting_method="differential
     been called.
 
     """
-    assert model.choice_names == sample.choice_names, f"Model and sample choice names must match, currently {model.choice_names} and {sample.choice_names}.  Please specify the correct choice names when creating your Model and Sample."
+    assert model.choice_names == sample.choice_names, "Model and sample choice names must match, currently "+repr(model.choice_names)+" and "+repr(sample.choice_names)+".  Please specify the correct choice names when creating your Model and Sample."
     # Disable paranoid if `verify` is False.
     paranoid_state = paranoid_settings.get('enabled')
     renorm_warnings_state = param.renorm_warnings
