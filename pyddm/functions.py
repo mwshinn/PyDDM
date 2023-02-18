@@ -714,6 +714,7 @@ def display_model(model, print_output=True):
         return OUT
     # Start displaying the model information
     OUT += ("Model %s information:\n" % model.name) if model.name != "" else "Model information:" + "\n"
+    OUT += "Choices: '%s' (upper boundary), '%s' (lower boundary)\n" % model.choice_names
     for component in model.dependencies:
         OUT += "%s component %s:" % (component.depname, type(component).__name__) + "\n"
         if isinstance(component, OverlayChain):
