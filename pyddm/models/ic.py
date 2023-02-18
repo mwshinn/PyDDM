@@ -99,10 +99,10 @@ class ICPointRatio(InitialCondition):
 
     Example usage:
 
-      | ic = ICPointRatio(x0=.2)
+      | ic = ICPointRatio(x0=-.2)
 
     The advantage of ICPointRatio over ICPoint is that, as long as x0 is
-    greater than -1 and less than 0, the starting point will always stay within
+    greater than -1 and less than 1, the starting point will always stay within
     the bounds, even when bounds are being fit.
     """
     name = "An arbitrary starting point expressed as a proportion of the distance between the bounds."

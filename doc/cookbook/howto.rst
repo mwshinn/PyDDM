@@ -154,3 +154,145 @@ Note that::
 
     
     sum(pdf("correct")[0:t]*dt) + sum(pdf("error")[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1
+
+
+.. _howto-stimulus-coding:
+
+Stimulus coding vs accuracy coding vs anything else coding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, the upper boundary in PyDDM represents "correct" choices and the
+lower boundary represents "error" choices.  However, these boundaries can
+represent whatever you would like: "left" vs "right" choice, "high value" vs
+"low value" choice, choice "inside the receptive field" vs "outside the
+receptive field", etc.
+
+To change the name of the choices represented by the bounds, we need to pass the
+name of the two boundaries as an argument to the Model and the Sample.  For
+example, if "High value" is represented by the upper boundary and "Low value" by
+the lower boundary, we can write::
+
+    model = Model(..., choice_names=("High value", "Low value"))
+    sample = Sample.from_pandas_dataframe(..., choice_names=("High value", "Low value"))
+
+Then, these names can be used to access properties of sample or solution from
+the solved model, just as we did for "correct" and "error" in the :doc:`tutorial
+<quickstart>`.  For example::
+
+    sample.prob("High value")
+    sol = model.solve()
+    sol.prob("High value")
+    sol.pdf("Low value")
+
+However, note that the data must be in the appropriate format.  You are
+responsible for formatting the data correctly for these interpretations to hold.
+For example, consider the :ref:`Roitman-Shadlen dataset from the tutorial
+<quickstart-roitman>`.  The dataset looks as follows:
+
+====== ===== ===== ======= =========
+monkey rt    coh   correct trgchoice
+====== ===== ===== ======= =========
+1      0.355 0.512 1.0     2.0
+1      0.359 0.256 1.0     1.0
+1      0.525 0.128 1.0     1.0
+====== ===== ===== ======= =========
+
+In this format, "coh" is the motion coherence, "correct" is whether the monkey
+chose the target in the direction of the random dot motion, and "trgchoice" is
+whether the monkey chose target 1 (inside the receptive field) or target 2
+(outside the receptive field).  In this experiment, the targets were chosen to
+be in different places for each session, so they did not map directly onto a
+location on the screen.
+
+**Let's make the top boundary represent "target 1" and the bottom represent
+"target 2".** We already have the variable "trgchoice", describing whether the
+monkey chose "target 1" or "target 2".  So we can use this as the "choice"
+variable (for which we previously used "correct" or "error").  PyDDM assumes
+that the upper boundary choice is given by a "1" and the lower boundary choice
+by "0", so all we need to correct the trgchoice variable such that responses to
+target 2 are coded as "0" instead of "2".
+
+But, the "coh" column measures coherence with respect to the correct choice, not
+with respect to one of the targets.  Since we are defining our upper boundary
+choice as "target 1" and our lower boundary choice as "target 2", positive
+coherence should represent the case where the stimulus showed motion in the
+direction of "target 1" and negative coherence in the direction of "target 2".
+In the dataset, "coh" is always positive.  So, we need to make "coh" negative if
+the motion was coherent towards "target 2".  This happened when the monkey was
+correct and chose target 2 (``correct == 1.0 and trgchoice == 2.0``) or when the
+monkey was incorrect and chose target 1 (``correct == 0.0 and trgchoice ==
+1.0``).
+
+So, after performing these transformations, our dataset looks like the
+following:
+
+====== ===== ====== ======= ========= 
+monkey rt    coh    correct choice
+====== ===== ====== ======= =========
+1      0.355 -0.512 1.0     0.0
+1      0.359  0.256 1.0     1.0
+1      0.525  0.128 1.0     1.0
+====== ===== ====== ======= =========
+
+Loading the data therefore looks like:
+
+.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+   :language: python
+   :lines: 5-27
+
+And defining and fitting the model looks like:
+
+.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+   :language: python
+   :lines: 41-65
+
+As we see, we recover approximately the same parameters::
+
+    Model Roitman data, drift varies with coherence information:
+    Choices: 'target 1' (upper boundary), 'target 2' (lower boundary)
+    Drift component DriftCoherence:
+        Drift depends linearly on coherence
+        Fitted parameters:
+        - driftcoh: 10.362975
+    Noise component NoiseConstant:
+        constant
+        Fixed parameters:
+        - noise: 1.000000
+    Bound component BoundConstant:
+        constant
+        Fitted parameters:
+        - B: 0.744039
+    IC component ICPointSourceCenter:
+        point_source_center
+        (No parameters)
+    Overlay component OverlayChain:
+        Overlay component OverlayNonDecision:
+            Add a non-decision by shifting the histogram
+            Fitted parameters:
+            - nondectime: 0.310893
+        Overlay component OverlayPoissonMixture:
+            Poisson distribution mixture model (lapse rate)
+            Fixed parameters:
+            - pmixturecoef: 0.020000
+            - rate: 1.000000
+    Fit information:
+        Loss function: Negative log likelihood
+        Loss function value: 199.33386049405675
+        Fitting method: differential_evolution
+        Solver: auto
+        Other properties:
+            - nparams: 3
+            - samplesize: 2611
+            - mess: ''
+
+
+When displaying in the model GUI, as desired, the two distributions represent
+"target 1" and "target 2" instead of "correct" and "error".
+
+.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+   :language: python
+   :lines: 70
+
+This coding scheme may impact the interpretation of the other parameters in the
+model, so be careful!  For example, :ref:`starting point biases require special
+considerations <ic-biased>`.

@@ -157,19 +157,14 @@ class Model(object):
     def __eq__(self, other):
         for i in range(0, len(self.dependencies)):
             if self.dependencies[i] != other.dependencies[i]:
-                print("Dep", i, self.dependencies[i])
                 return False
         if self.dx != other.dx:
-            print("Dx diff")
             return False
         if self.dt != other.dt:
-            print("Dt diff")
             return False
         if self.fitresult != other.fitresult:
-            print("Fit diff")
             return False
         if self.name != other.name:
-            print("Name diff")
             return False
         if self.choice_names != other.choice_names:
             return False

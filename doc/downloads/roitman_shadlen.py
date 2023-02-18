@@ -20,7 +20,7 @@ df_rt = df_rt[df_rt["rt"] < 1.65] # Remove trials greater than 1650ms
 # format for fitting procedures.  Since RT and correct/error are
 # both mandatory columns, their names are specified by command line
 # arguments.
-roitman_sample = Sample.from_pandas_dataframe(df_rt, rt_column_name="rt", correct_column_name="correct")
+roitman_sample = Sample.from_pandas_dataframe(df_rt, rt_column_name="rt", choice_column_name="correct")
 
 
 

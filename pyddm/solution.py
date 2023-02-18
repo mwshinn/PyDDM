@@ -162,9 +162,11 @@ class Solution(object):
         `choice` should be the name of the choice for which to obtain the pdf,
         corresponding to the upper or lower boundary crossings.  E.g.,
         "correct", "error", or the choice names specified in the model's
+        choice_names parameter.
 
         Note that the return value will not sum to one, but both choices plus
         the undecided distribution will collectively sum to one.
+
         """
         v = self.choice_upper if self._choice_name_to_id(choice) == 1 else self.choice_lower
         return v/self.dt
@@ -273,9 +275,11 @@ class Solution(object):
         `choice` should be the name of the choice for which to obtain the cdf,
         corresponding to the upper or lower boundary crossings.  E.g.,
         "correct", "error", or the choice names specified in the model's
+        choice_names parameter.
 
         Note that the return value will not converge to one, but both choices plus
         the undecided distribution will collectively converge to one.
+
         """
         v = self.choice_upper if self._choice_name_to_id(choice) == 1 else self.choice_lower
         return np.cumsum(v)

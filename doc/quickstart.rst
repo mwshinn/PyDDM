@@ -140,9 +140,11 @@ PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
 .. image:: images/simple-fit.png
 
 Using the :class:`.Solution` object ``sol`` we have access to a number of other
-useful functions.  For instance, we can display the probability of a correct
-response using :meth:`~.Solution.prob("correct")` or the entire histogram of
-errors using :meth:`~.Solution.pdf("error")`.
+useful functions.  For instance, we can find the probability of a response using
+:meth:`~.Solution.prob`, such as ``sol.prob("correct")`` for the probability of
+a correct response, or the entire histogram of responses using
+:meth:`~.Solution.pdf`, such as ``sol.pdf("error")`` for the distribution of
+errors.
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -150,6 +152,12 @@ errors using :meth:`~.Solution.pdf("error")`.
 
 See :class:`the Solution object documentation <.Solution>` for more
 such functions.
+
+We could also named the upper and lower boundary as something else (e.g. "left"
+and "right" response), sometimes called "stimulus coding".  To do this, we need
+to pass the "choice_names" parameter to the Sample and the Model object.  See
+:ref:`the section on stimulus coding <howto-stimulus-coding>`
+
 
 To save the model for later use, we can use the repr() function built-in to
 Python.  This function outputs a string with all the information needed to
@@ -180,6 +188,9 @@ Working with data
 -----------------
 
 (`View a shortened interactive version of this tutorial. <https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_gddm_short_tutorial.ipynb>`_)
+
+
+.. _quickstart-roitman
 
 Loading data from a CSV file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

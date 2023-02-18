@@ -485,6 +485,7 @@ class Sample(object):
         `choice` should be the name of the choice for which to obtain the pdf,
         corresponding to the upper or lower boundary crossings.  E.g.,
         "correct", "error", or the choice names specified in the model's
+        choice_names parameter.
 
         Note that the return value will not sum to one, but both choices plus
         the undecided distribution will collectively sum to one.
@@ -531,9 +532,12 @@ class Sample(object):
         `choice` should be the name of the choice for which to obtain the cdf,
         corresponding to the upper or lower boundary crossings.  E.g.,
         "correct", "error", or the choice names specified in the model's
+        choice_names parameter.
+
 
         Note that the return value will not converge to one, but both choices plus
         the undecided distribution will collectively converge to one.
+
         """
         return np.cumsum(self.pdf(choice, dt=dt, T_dur=T_dur))*dt
 

@@ -12,22 +12,6 @@ users to your paper!
 :download:`Download cookbook.py (all models in the cookbook) <../downloads/cookbook.py>`
 
 
-.. _task-paradigms:
-
-Task paradigms
-~~~~~~~~~~~~~~
-
-Here are some examples of potential task paradigms that can be
-simulated with PyDDM.
-
-- :ref:`A pulse paradigm <paradigm-pulse>`
-
-- :ref:`Evidence oscillating in a sine wave <drift-sine>`
-
-- :ref:`A psychophysical kernel paradigm <paradigm-pk>`
-
-- Something else :doc:`(Write your own, using these as a guide.) <driftnoise>`
-
 
 Drift and noise
 ~~~~~~~~~~~~~~~
@@ -140,6 +124,23 @@ according to:
 - :class:`An exponential distribution (corresponding to a Poisson process) <.OverlayExponentialMixture>`
 
 - Something else (Write your own)
+
+
+.. _task-paradigms:
+
+Task paradigms
+~~~~~~~~~~~~~~
+
+Here are some examples of potential task paradigms that can be
+simulated with PyDDM.
+
+- :ref:`A pulse paradigm <paradigm-pulse>`
+
+- :ref:`Evidence oscillating in a sine wave <drift-sine>`
+
+- :ref:`A psychophysical kernel paradigm <paradigm-pk>`
+
+- Something else :doc:`(Write your own, using these as a guide.) <driftnoise>`
 
 
 Objective functions
