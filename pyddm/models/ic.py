@@ -4,13 +4,13 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["InitialCondition", "ICPointSourceCenter", "ICPoint", "ICUniform", "ICRange", "ICGaussian", "ICArbitrary"]
+__all__ = ["InitialCondition", "ICPointSourceCenter", "ICPoint", "ICPointRatio", "ICUniform", "ICRange", "ICGaussian", "ICArbitrary"]
 
 import numpy as np
 
 from .base import Dependence
 from paranoid import accepts, returns, requires, ensures, paranoidclass
-from paranoid.types import NDArray, Number, Positive
+from paranoid.types import NDArray, Number, Positive, Range
 from paranoid.types import Self
 import scipy.stats
 
@@ -91,6 +91,35 @@ class ICPoint(InitialCondition):
             "Please ensure the value of the parameter x0 falls within the bounds."
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=self.x0.
+        return pdf
+
+@paranoidclass
+class ICPointRatio(InitialCondition):
+    """Initial condition: any point expressed as a ratio between bounds, from -1 to 1.
+
+    Example usage:
+
+      | ic = ICPointRatio(x0=.2)
+
+    The advantage of ICPointRatio over ICPoint is that, as long as x0 is
+    greater than -1 and less than 0, the starting point will always stay within
+    the bounds, even when bounds are being fit.
+    """
+    name = "An arbitrary starting point expressed as a proportion of the distance between the bounds."
+    required_parameters = ["x0"]
+    @staticmethod
+    def _test(v):
+        assert v.x0 in Range(-1, 1)
+    @staticmethod
+    def _generate():
+        yield ICPointRatio(x0=.2)
+        yield ICPointRatio(x0=-.8)
+    def get_IC(self, x, dx, conditions):
+        x0 = self.x0/2 + .5 #rescale to between 0 and 1
+        shift_i = int((len(x)-1)*x0)
+        assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
+        pdf = np.zeros(len(x))
+        pdf[shift_i] = 1.
         return pdf
 
 @paranoidclass

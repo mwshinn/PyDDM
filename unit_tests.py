@@ -810,6 +810,8 @@ class TestCSolver(TestCase):
             ddm.Model(drift=ddm.DriftLinear(x=-.5, t=0, drift=.1)),
             ddm.Model(drift=ddm.DriftLinear(x=.5, t=.5, drift=.2), bound=ddm.BoundCollapsingExponential(B=1, tau=1)),
             ddm.Model(noise=ddm.NoiseLinear(x=0, t=.2, noise=.5)),
+            ddm.Model(IC=ddm.ICPoint(x0=.3)),
+            ddm.Model(IC=ddm.ICPointRatio(x0=.8), bound=ddm.BoundConstant(B=.3)),
             ddm.Model(noise=ddm.NoiseLinear(x=-.2, t=0, noise=.4), choice_names=("left", "right")),
             ddm.Model(noise=ddm.NoiseLinear(x=.2, t=.2, noise=.6), bound=ddm.BoundCollapsingLinear(B=1, t=1)),
             ]
