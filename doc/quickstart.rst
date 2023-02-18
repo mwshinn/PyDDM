@@ -190,7 +190,7 @@ Working with data
 (`View a shortened interactive version of this tutorial. <https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_gddm_short_tutorial.ipynb>`_)
 
 
-.. _quickstart-roitman
+.. _quickstart-roitman:
 
 Loading data from a CSV file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

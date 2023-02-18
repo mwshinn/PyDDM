@@ -177,7 +177,7 @@ the lower boundary, we can write::
 
 Then, these names can be used to access properties of sample or solution from
 the solved model, just as we did for "correct" and "error" in the :doc:`tutorial
-<quickstart>`.  For example::
+<../quickstart>`.  For example::
 
     sample.prob("High value")
     sol = model.solve()
@@ -236,13 +236,13 @@ monkey rt    coh    correct choice
 
 Loading the data therefore looks like:
 
-.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+.. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
    :lines: 5-27
 
 And defining and fitting the model looks like:
 
-.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+.. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
    :lines: 41-65
 
@@ -289,7 +289,7 @@ As we see, we recover approximately the same parameters::
 When displaying in the model GUI, as desired, the two distributions represent
 "target 1" and "target 2" instead of "correct" and "error".
 
-.. literalinclude:: downloads/roitman_shadlen_stimulus_coding.py
+.. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
    :lines: 70
 
