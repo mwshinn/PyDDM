@@ -120,6 +120,15 @@ values may vary slightly::
       Add a non-decision by shifting the histogram
       Fitted parameters:
       - nondectime: 0.119300
+  Fit information:
+      Loss function: BIC
+      Loss function value: 562.1805934500456
+      Fitting method: differential_evolution
+      Solver: auto
+      Other properties:
+          - nparams: 3
+          - samplesize: 1000
+          - mess: ''
 
 While the values are close to the true values, the fit is not perfect due to the
 finite size of the resampled data.  If we want to use these programmatically, we
@@ -129,13 +138,24 @@ can use the :meth:`~.Model.parameters` function, like:
    :language: python
    :lines: 41
 
-We can also draw a plot
-visualizing the fit.  Unlike our first example, we will now use one of
-PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
+The :class:`~.model.Fitted` objects it returns can be used anywhere as if it is
+a normal number/float.  (Actually, :class:`~.model.Fitted` is a subclass of
+"float"!)
+
+We can also examine different properties of the fitting process in the
+:class:`~.fitresult.FitResult` object.  For instance, to get the value of the
+loss function, we can do:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 44-48
+   :lines: 42
+
+We can also draw a plot visualizing the fit.  Unlike our first example, we will
+now use one of PyDDM's convenience methods, :func:`~.plot.plot_fit_diagnostics`:
+
+.. literalinclude:: downloads/simple.py
+   :language: python
+   :lines: 45-49
 
 .. image:: images/simple-fit.png
 
@@ -148,7 +168,7 @@ errors.
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 50-51
+   :lines: 51-52
 
 See :class:`the Solution object documentation <.Solution>` for more
 such functions.
@@ -167,20 +187,14 @@ following:
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 54-55
+   :lines: 55-56
 
 Then, you can load the saved model with the following.  You may need to add
 additional imports from PyDDM if you get an "import error".
 
 .. literalinclude:: downloads/simple.py
    :language: python
-   :lines: 58-60
-
-If you would like to just access the parameters for a separate analysis, you can
-save them with :meth:`~.Model.get_model_parameters`.  The names of these
-parameters can be accessed with :meth:`~.Model.get_model_parameter_names`.  Note
-that any "Fitted" value can be used as if it is a number/float.  (It is actually
-a subclass of "float"!)
+   :lines: 59-61
 
 :download:`Download this full example <downloads/simple.py>`
            
@@ -475,7 +489,7 @@ To fit a model to data:
    the model will be changed to :class:`.Fitted` objects, which are
    just like :class:`.Fittable` objects except they contain the fitted
    values.
-4. View the output by calling :func:`.display_model` on the model.
-   The value of the loss function is accessible via
-   :meth:`.Model.get_fit_result`.
+4. View the output by calling :func:`.display_model` on the model.  The value of
+   the loss function is accessible via :meth:`.Model.get_fit_result` and the
+   parameters via :meth:`.Model.parameters`.
            
