@@ -254,7 +254,7 @@ class Solution(object):
         contain information about the evolution of the pdf.  This is not
         enabled by default, as it causes substantial memory overhead.  To
         enable this, see the documentation for the Model.solve() argument
-        "return_pdf", which should be set to True.
+        "return_evolution", which should be set to True.
         """
         # Common mistake so we want to warn the user of any possible
         # misunderstanding.
