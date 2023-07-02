@@ -40,7 +40,7 @@ class Solution(object):
             assert v.undec in NDArray(d=1, t=Number), "Invalid err histogram"
             assert len(v.undec) == len(v.model.x_domain(conditions=v.conditions))
         #assert v.model is Generic(Model), "Invalid model" # TODO could cause inf recursion issue
-        assert len(v.choice_upper) == len(v.choice_lower) == len(v.model.t_domain()), "Histogram lengths must match"
+        assert len(v.choice_upper) == len(v.choice_lower) == len(v.t_domain), "Histogram lengths must match"
         assert 0 <= np.sum(v.choice_upper) + np.sum(v.choice_lower) <= 1, "Histogram should integrate " \
             " to 1, not to " + str(np.sum(v.choice_upper)+np.sum(v.choice_lower))
         assert v.conditions in Conditions()
@@ -90,6 +90,7 @@ class Solution(object):
         self.dt = model.dt
         self.T_dur = model.T_dur
         self.t_domain = model.t_domain()
+        self.model_name = model.name
         self.model_parameters = model.parameters()
         # Import here to avoid recursion
         from .models.overlay import OverlayNone

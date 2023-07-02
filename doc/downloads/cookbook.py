@@ -119,7 +119,7 @@ class OverlayNonDecisionGaussian(Overlay):
         # Extract components of the solution object for convenience
         choice_upper = solution.choice_upper
         choice_lower = solution.choice_lower
-        dt = solution.model.dt
+        dt = solution.dt
         # Create the weights for different timepoints
         times = np.asarray(list(range(-len(choice_upper), len(choice_upper))))*dt
         weights = scipy.stats.norm(scale=self.ndsigma, loc=self.nondectime).pdf(times)

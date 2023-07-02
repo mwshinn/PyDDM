@@ -56,7 +56,7 @@ def plot_solution_pdf(sol, ax=None, choice=None, correct=True):
         ax = plt.gca()
 
     ts = sol.pdf(choice)
-    ax.plot(sol.model.t_domain(), ts, label=sol.model.name)
+    ax.plot(sol.t_domain, ts, label=sol.model_name)
     ax.set_xlabel('time (s)')
     ax.set_ylabel(f'{choice} PDF (normalized)')
     
@@ -80,7 +80,7 @@ def plot_solution_cdf(sol, ax=None, choice=None, correct=None):
 
     ts = sol.cdf(choice)
     
-    ax.plot(sol.model.t_domain(), ts, label=sol.model.name)
+    ax.plot(sol.t_domain, ts, label=sol.model_name)
     ax.set_xlabel('time (s)')
     ax.set_ylabel(f'{choice} CDF (normalized)')
     

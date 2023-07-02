@@ -309,7 +309,7 @@ class TestDependences(TestCase):
         # Should get back a gamma distribution from a delta spike
         s = self.FakePointModel(dt=.01).solve(conditions={"amount": 2})
         sshift = ddm.models.OverlayNonDecisionGamma(nondectime=.01, shape=1.3, scale=.002).apply(s)
-        gamfn = scipy.stats.gamma(a=1.3, scale=.002).pdf(s.model.t_domain()[0:-2])
+        gamfn = scipy.stats.gamma(a=1.3, scale=.002).pdf(s.t_domain[0:-2])
         assert np.all(np.isclose(sshift.choice_upper[2:], gamfn/np.sum(gamfn)*s.choice_upper[1]))
         assert np.all(np.isclose(sshift.choice_lower[2:], gamfn/np.sum(gamfn)*s.choice_lower[1]))
         # Test subclassing
@@ -643,7 +643,7 @@ class TestSolution(TestCase):
         """Make sure we produce valid distributions from solutions"""
         # For each test model
         for s in self.all_sols:
-            dt = s.model.dt
+            dt = s.dt
             # Distribution sums to 1
             assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, s.prob_undecided()]), 1)
             # Correct and error probabilities are sensible
@@ -659,7 +659,7 @@ class TestSolution(TestCase):
                 assert np.isclose(np.sum(s.prob_sign("_top")) + np.sum(s.prob_sign("_bottom")), 1, rtol=.005)
                 assert np.sum(s.prob_sign("_top")) + np.sum(s.prob_sign("_bottom")) <= 1
             # Correct time domain
-            assert len(s.pdf("_top")) == len(s.model.t_domain())
+            assert len(s.pdf("_top")) == len(s.t_domain)
         self.quick_cn_b.pdf("a")
         self.quick_cn_b.pdf("b b")
         self.quick_cn_b.cdf("a")
@@ -669,7 +669,7 @@ class TestSolution(TestCase):
         self.quick_cn_b.prob_forced("b b")
         # pdf_undec with pdf and pdf bottom sum to one if pdf_undec exists
         for s in [self.quick_cn, self.quick_imp, self.params_cn, self.params_imp]:
-            dx = s.model.dx
+            dx = s.dx
             if s.undec is not None:
                 # Allow better tolerance since accuracy isn't perfect for undecided pdf
                 assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)

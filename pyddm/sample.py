@@ -297,7 +297,7 @@ class Sample(object):
 
         """
         if choice_column_name is None:
-            assert correct_column_name is 'correct' or correct_column_name is None
+            assert correct_column_name == 'correct' or correct_column_name is None
             assert self.choice_names == ("correct", "error")
             choice_column_name = correct_column_name
         import pandas

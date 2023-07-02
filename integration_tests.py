@@ -46,9 +46,9 @@ def _modeltest_numerical_vs_analytical(m, conditions={}, method=None, max_diff=.
 
 def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1, max_deviation=.01):
     sol_with_evolution = m.solve_numerical_implicit(conditions=conditions, return_evolution=True)    
-    sol_without_evolution = np.zeros((len(sol_with_evolution.model.x_domain(conditions)), len(sol_with_evolution.model.t_domain())))          
+    sol_without_evolution = np.zeros((len(sol_with_evolution.model.x_domain(conditions)), len(sol_with_evolution.t_domain)))
     sol_without_evolution[:,0] = m.IC(conditions=conditions)/m.dx
-    for t_ind, t in enumerate(sol_with_evolution.model.t_domain()[1:]):
+    for t_ind, t in enumerate(sol_with_evolution.t_domain[1:]):
         T_dur_backup = m.T_dur
         m.T_dur = t
         sol = m.solve_numerical_implicit(conditions=conditions, return_evolution=False) 
@@ -58,7 +58,7 @@ def _modeltest_pdf_evolution(m, conditions={}, max_diff=.1, max_deviation=.01):
     difference = sol_with_evolution.pdf_evolution() - sol_without_evolution
     max_difference = np.max(np.abs(difference))
     print(max_difference)
-    sums = np.array([np.sum(sol_with_evolution.pdf("_top")[0:t]*m.dt) + np.sum(sol_with_evolution.pdf("_bottom")[0:t]*m.dt) + np.sum(sol_with_evolution.pdf_evolution()[:,t]*m.dx) for t in range(1,len(sol_with_evolution.model.t_domain()))])
+    sums = np.array([np.sum(sol_with_evolution.pdf("_top")[0:t]*m.dt) + np.sum(sol_with_evolution.pdf("_bottom")[0:t]*m.dt) + np.sum(sol_with_evolution.pdf_evolution()[:,t]*m.dx) for t in range(1,len(sol_with_evolution.t_domain))])
     print(np.max(np.abs(sums-1)))
     assert max_difference < max_diff, "Maximum distance between pdf evolutions was too high"
     assert np.max(np.abs(sums-1)) < max_deviation, "PDF does not sum up to 1"

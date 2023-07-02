@@ -459,7 +459,7 @@ class OverlayNonDecisionGamma(Overlay):
     @returns(Solution)
     @ensures("np.sum(return.choice_upper) <= np.sum(solution.choice_upper) + 1e-10")
     @ensures("np.sum(return.choice_lower) <= np.sum(solution.choice_lower) + 1e-10")
-    @ensures("np.all(return.choice_upper[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.model.dt)] == 0)")
+    @ensures("np.all(return.choice_upper[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.dt)] == 0)")
     def apply(self, solution):
         # Make sure params are within range
         assert self.shape >= 1, "Invalid shape parameter"
@@ -467,7 +467,7 @@ class OverlayNonDecisionGamma(Overlay):
         # Extract components of the solution object for convenience
         choice_upper = solution.choice_upper
         choice_lower = solution.choice_lower
-        dt = solution.model.dt
+        dt = solution.dt
         # Create the weights for different timepoints
         times = np.asarray(list(range(-len(choice_upper), len(choice_upper))))*dt
         weights = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=solution.conditions)).pdf(times)
