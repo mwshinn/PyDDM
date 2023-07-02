@@ -24,8 +24,9 @@ Key features include:
 See the [documentation](https://pyddm.readthedocs.io/en/latest/index.html),
 [FAQs](https://pyddm.readthedocs.io/en/latest/faqs.html), or
 [tutorial](https://pyddm.readthedocs.io/en/latest/quickstart.html) for more
-information.  You can also try the [Interactive online
-demo](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_demo_leaky_collapse.ipynb>).
+information.  If you want to try it out before installing, visit the
+[interactive online
+demo](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_demo_leaky_collapse.ipynb).
 See the [Github Forums](https://github.com/mwshinn/PyDDM/discussions) for help
 from the PyDDM community.  You can also sign up for [release announcements by
 email](https://www.freelists.org/list/pyddm-announce).
