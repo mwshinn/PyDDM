@@ -80,7 +80,7 @@ class Solution(object):
             - `pdf_undec` - a size M numpy ndarray describing the final state of the simulation.  None if unavailable.
             - `pdf_evolution` - a size M-by-N numpy ndarray describing the state of the simulation at each time step. None if unavailable.
         """
-        self.model = copy.deepcopy(model) # TODO this could cause a memory leak if I forget it is there...
+        self.model = model # If the model changes, this var will change too.  So create local versions of important variables below.
         self.choice_upper = pdf_choice_upper
         self.choice_lower = pdf_choice_lower
         self.undec = pdf_undec
