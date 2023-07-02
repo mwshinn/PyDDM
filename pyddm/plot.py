@@ -585,6 +585,7 @@ def model_gui_jupyter(model,
         util_widgets[2]._trait_notifiers['value']['change'] = []
         util_widgets[2].value = False
         util_widgets[2]._trait_notifiers['value']['change'] = changes_tmp
+        plt.show()
     def draw(*args, **kwargs):
         util_widgets[2].value = True
     # Reset to default values
