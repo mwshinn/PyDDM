@@ -1,3 +1,41 @@
+# Version 0.7.0
+
+Released July 2, 2023
+
+## New features
+
+- Stimulus coding, accuracy coding, or "anything else" coding
+
+  Previously, the top boundary in PyDDM always represented correct responses,
+  and the bottom represented error responses.  Now, either boundary can
+  represent anything.  This is given during model creation by specifying the
+  names of the boundaries, e.g., Model(..., choice_names=("left", "right"))
+
+- Speedup for the analytical solver
+
+  The analytical solver now runs about 50% faster.  This is due to increased
+  caching and a change to the structure of Solution objects.
+
+## Other
+
+- Fixes to resizing the axes when plotting the model
+- Compatibility with Python 3.11
+- solve_all_conditions can now accept condition combinations (thanks Cove!)
+- Added ICPointRatio, a relative biased starting position
+
+## Bug fixes
+
+- Samples of different lengths can now be compared
+- Fixed Boundary condition in the core simulation code, slightly improving
+  accuracy for a given dx and dt
+- Fixed Google Colab online demo
+
+## Breaking changes
+
+- Loops which depended on the copy of the model in the Solution object may have
+  to be changed.  (This is unlikely to impact most users.)
+
+
 # Version 0.6.1
 
 Released July 10, 2022
