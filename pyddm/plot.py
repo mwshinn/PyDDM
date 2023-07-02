@@ -534,7 +534,7 @@ def model_gui_jupyter(model,
     try:
         get_ipython
         import ipywidgets as widgets
-        from IPython.display import display
+        from IPython.display import display, clear_output
     except (NameError, ImportError):
         return
     # Set up conditions
@@ -578,6 +578,7 @@ def model_gui_jupyter(model,
                 parameters[k[3:]] = v
         ordered_parameters = [parameters[p] for p in param_names]
         model.set_model_parameters(ordered_parameters)
+        clear_output(wait=True)
         plot(model=model, sample=sample, conditions=conditions, data_dt=data_dt)
         # Set the "update" button back to False, but don't trigger a redraw
         changes_tmp = util_widgets[2]._trait_notifiers['value']['change']
