@@ -22,4 +22,4 @@ In addition, this GUI is also compatible with Jupyter notebooks.
 .. image:: images/jupyter-gui.png
 
 `Try it out on Google Colab!
-<https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_demo_leaky_collapse.ipynb>`_
+<https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb>`_

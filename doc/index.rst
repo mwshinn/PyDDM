@@ -23,7 +23,7 @@ Key features include:
   techniques
 
 `Interactive online demo on Google Colab
-<https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/pyddm_demo_leaky_collapse.ipynb>`_.
+<https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb>`_.
 
 
 Start with the :doc:`tutorial <quickstart>`.  To see what PyDDM is
