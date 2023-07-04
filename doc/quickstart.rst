@@ -28,15 +28,26 @@ data.  After the artificial data has been generated, it fits a new
 model to these data and shows that the parameters are similar.
 
 :class:`.Model` is the object which represents a DDM.  Its default
-behavior can be changed through :class:`.Drift`, :class:`.Noise`,
-:class:`.Bound`, :class:`.InitialCondition`, and :class:`.Overlay`
-objects, which specify the behavior of each of these model components.
-Each model must have one of each of these, but defaults to a simple
-case for each.  These determine how it calculates the drift rate
-(:class:`.Drift`), diffusion coefficient (:class:`.Noise`), shape of the
-integration boundaries (:class:`.Bound`), initial particle
-distribution (:class:`.InitialCondition`), and any other modifications
-to the generated solution (:class:`.Overlay`).
+behavior can be changed through individual model components which can be
+mixed and matched.
+
+- :class:`.Drift` specifies the drift rate.  In GDDMs, this may change over time
+  or across spatial positions.  It defaults to a constant drift of zero.
+- :class:`.Noise` specifies the standard deviation of the noise.  Most DDMs fix
+  this to a constant, such as 0.1 or 1.  However, in GDDMs, it may also change over time
+  or across spatial positions.  In PyDDM, it defaults to a constant of 1.0.
+- :class:`.Bound` specifies the shape of the boundaries which terminate the
+  decision process.  In traditional DDMs, this will be a constant, often fit to
+  the data.  However, in GDDMs, it may also increase or decrease in time.  It
+  defaults to a constant value of 1.0.
+- :class:`.InitialCondition`, also known as starting point, may be a single
+  point or a distribution of starting points.  In PyDDM, it defaults to a single
+  point centered between the bounds.
+- :class:`.Overlay` allows specifying many things, such as the non-decision
+  time.  It also allows specifying mixture models when performing likelihood
+  fitting.  In general, it allows the distribution of RTs to be modified after
+  the end of the simulation.  It defaults to no no overlay, i.e., no
+  non-decision time and no mixture model.
 
 Each of these model components may take "parameters" which are
 (usually) unique to that specific model component.  For instance, the

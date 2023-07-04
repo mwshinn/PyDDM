@@ -91,7 +91,7 @@ class Model(object):
                  overlay=OverlayNone(), name="",
                  dx=param.dx, dt=param.dt,
                  T_dur=param.T_dur, fitresult=None,
-                 choice_names=("correct", "error")):
+                 choice_names=param.choice_names):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
@@ -1155,6 +1155,11 @@ class Model(object):
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
         return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=None))
+    # def fit(self, sample, fitparams=None, fitting_method="differential_evolution",
+    #         lossfunction=LossLikelihood, verify=False, method=None, verbose=True):
+    #     functions.fit_adjust_model.__doc__
+    #     pyddm.fit_adjust_model(sample=sample, model=self, fitparams=fitparams, fitting_method=fitting_method,
+    #                            lossfunction=lossfunction, verify=verify, method=method, verbose=verbose)
 
 
 @paranoidclass

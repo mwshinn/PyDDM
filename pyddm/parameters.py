@@ -11,6 +11,7 @@
 dx = .005 #0.008 # grid size
 T_dur = 2. # [s] Duration of simulation
 dt = .005 #0.005 # [s] Time-step.
+choice_names = ("correct", "error") # Default upper and lower boundary
 
 # Display warnings
 renorm_warnings = True

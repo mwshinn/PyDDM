@@ -63,12 +63,12 @@ I instead want bounds which:
 - Something else :doc:`(Write your own, using these as a guide) <bounds>`
 
 
-Initial conditions
-~~~~~~~~~~~~~~~~~~
+Starting point (Initial conditions)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-I don't want my initial conditions to be :class:`A single point
+I don't want my starting point to be :class:`A single point
 positioned in the middle of the bounds <.ICPointSourceCenter>` (the
-default).  Instead, I want my initial conditions to be:
+default).  Instead, I want my it to be:
 
 - A single point
 
