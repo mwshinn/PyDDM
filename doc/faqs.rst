@@ -181,35 +181,59 @@ Oscillations occur in the Crank-Nicolson method when your dt is too
 large.  Try decreasing dt.  You should almost never use a dt larger
 than .01, but smaller values are ideal.
 
+Why is PyDDM so fast?
+~~~~~~~~~~~~~~~~~~~~~
+
+First, the core routines of PyDDM are written in optimized C.  We are
+continuously tuning and refining our code to maximize performance.
+
+Second, PyDDM by default does not (convieniently) support drift rate
+variability.  This is a major performance bottleneck on all major DDM packages,
+since it is hard to use mathematical derivations to optimize it.  Instead, a
+model must be solved many times with different drift rates each time, slowing
+down solving by about one order of magnitude.
+
+Third, PyDDM automatically selects the appropriate solver for your model, based
+on whether different aspects of your model depend on time.  For many complicated
+models, PyDDM is able to find a strategy which uses an analytic solver.
+
+Fourth, parallelization is easy, using the :func:`.set_N_cpus` function.  This
+makes models with many conditions execute independently on different CPUs.
+
 Why is PyDDM so slow?
 ---------------------
 
 Your model may be slow for a number of different reasons.
 
-- **You have a lot of conditions** -- Each time you solve the model
-  (e.g. by calling :meth:`.Model.solve`), PyDDM internally needs to
-  simulate one pdf per potential combination of conditions.  For
-  example, if you are using 200 different coherence values, then PyDDM
-  will need to simulate 200 different pdfs for each call you make to
-  :meth:`.Model.solve`.  This also compounds multiplicativly: if you
-  have 200 coherence conditions and 10 reward conditions, you will get
-  :math:`200 \times 10=2000` pdf simulations per call to
-  :meth:`.Model.solve`.  During fitting, :meth:`.Model.solve` is
-  called hundreds of times.  As you can imagine, having too many
-  conditions slows things down quite a bit.  Minimizing the number of
+- **You have a lot of conditions** -- Each time you solve the model (e.g. by
+  calling :meth:`.Model.solve`), PyDDM internally needs to simulate one pdf per
+  potential combination of conditions.  For example, if you are using 200
+  different conditions values, then PyDDM will need to simulate 200 different
+  pdfs for each call you make to :meth:`.Model.solve`.  Minimizing the number of
   conditions will thus lead to substantial speedups.
-- **Your numerics (dx and dt) are too small** -- Larger values of dx
-  and dt can lead to imprecise estimations of the response time
-  distribution.  Therefore, be cautious when adjusting dx and dt.  As
-  a rule of thumb, dx and dt should almost always be smaller than 0.01
-  and larger than 0.0001.  Setting them to 0.001 is a good place to
-  start.  If dx and dt are larger than 0.01, your estimated response
-  time distribution will be inaccurate, and if dx and dt are smaller
-  than 0.0001, solving the model will be extremely slow.
+- **Your numerics (dx and dt) are too small** -- Larger values of dx and dt can
+  lead to imprecise estimations of the response time distribution.  Therefore,
+  be cautious when adjusting dx and dt.  As a rule of thumb, dx and dt should
+  almost always be smaller than 0.01 and larger than 0.0001.  Setting them to
+  0.005 is a good place to start.  If dx and dt are larger than 0.01, your
+  estimated response time distribution will be inaccurate, and if dx and dt are
+  smaller than 0.0001, solving the model will be extremely slow.  Usually, as a
+  heuristic, PyDDM works best if dx and dt are approximately equal.
 - **The C solver is not working properly** -- You can confirm that the C solver
   is operating by ensuring the variable ``pyddm.model.HAS_CSOLVE`` is True.  If
   there was an error installing the C solver when installing PyDDM, PyDDM will
   still run, but it will be 10-100x slower.
+
+While simulations in PyDDM are fast, fitting models in PyDDM may be slower than
+other packages.  This is because PyDDM uses differential evolution as a fitting
+algorithm.  This algorithm rarely fails to maximize likelihood; however, it
+requires more iterations than a gradient-based approach.  For simple models, it
+*may* be possible to use the "simplex" method, but if you do, **please check to
+make sure your models converge to a consistent global minimum**.  You can do
+this by running several models using both the "simplex" method and
+"differential_evolution" and confirming the results are the same, or by running
+parameter recovery experiments on your model.  Since all GDDMs are different,
+there can be no general guidance for how to ensure model convergence.
 
 How many trials do I need to fit a GDDM to data?
 ------------------------------------------------
@@ -246,6 +270,9 @@ Yes, see :ref:`howto-stimulus-coding`.
 
 Does PyDDM allow non-discrete conditions?
 -----------------------------------------
+
+Yes.  Conditions can be any Python object, including a number, a list, an array,
+or a string.  This allows, for example, attention DDMs.
 
 PyDDM runs fastest when there are a smaller number of conditions.  However,
 PyDDM is frequently used for models where there is a separate condition for each
