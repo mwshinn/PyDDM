@@ -497,6 +497,7 @@ def model_gui(model,
     
     # Draw the buttons and the real-time checkbox
     real_time = tk.IntVar()
+    real_time.set(1)
     c = tk.Checkbutton(master=frame, text="Real-time", variable=real_time)
     c.pack(expand=True, fill="both")
     b = tk.Button(master=frame, text="Update", command=update)

@@ -766,7 +766,8 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
     instance, each trial may have a motion coherence or signal strength.
     Conditions must be defined when loading the data.  The `conditions` argument
     should be a list of the names of the relevant conditions in the Sample used
-    for fitting.
+    for fitting.  Conditions do not need to be floats or even numbers: they can
+    be strings, arrays, lists, or any other Python object.
 
     To specify model form, there are five model components available in
     auto_model: drift rate, noise level (standard deviation of noise), bound
@@ -821,6 +822,11 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
     - choice_names: The names of the upper and lower bound, as a tuple.  Default is ("correct", "error").
     - name: The name of this model.  Defaults to "".
 
+    Note on functions which depend on x (the position in space): For performance
+    reasons, this variable is always passed as a numpy array of x values.  So,
+    make sure your function can accept a vector of x.  Parameters and "t" (the
+    current time) are passed as floats.
+
     """
     for c in conditions:
         assert c not in parameters.keys(), "Condition and parameter cannot have the same name"
@@ -828,7 +834,7 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
 
     for name,p in parameters.items():
         assert name not in ["x", "t", "dx"], "Parameters cannot be named 'x', 't', or 'dx'"
-        assert isinstance(p, float) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float, int)) and isinstance(p[1], (float, int))), "Parameters must be a single number or a tuple of numbers"
+        assert isinstance(p, (int,float,np.float_,np.int_)) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float,int,np.int_,np.float_)) and isinstance(p[1], (float,int,np.int_,np.float_))), "Parameters must be a single number or a tuple of numbers"
 
     # Either the fittable or the constant value
     _fittables = {pn : Fittable(minval=pv[0], maxval=pv[1]) if isinstance(pv, tuple) else pv for pn,pv in parameters.items()}
@@ -873,18 +879,23 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         driftobj = DriftConstant(drift=drift)
     # If it is a function
     elif typ == "func":
-        _required_parameters,_required_conditions,_required_xt = parsed
+        _required_parameters_drift,_required_conditions_drift,_required_xt_drift = parsed
         class DriftEasy(Drift):
             name = "easy_drift"
-            required_parameters = _required_parameters
-            required_conditions = _required_conditions
-            def get_drift(self, conditions, **kwargs):
-                return drift(**{v: getattr(self, v) for v in _required_parameters}, **{v: conditions[v] for v in _required_conditions})
+            required_parameters = _required_parameters_drift
+            required_conditions = _required_conditions_drift
+            def get_drift(self, x, t, conditions, **kwargs):
+                extras = {}
+                if "t" in _required_xt_drift:
+                    extras["t"] = t
+                if "x" in _required_xt_drift:
+                    extras["x"] = x
+                return drift(**{v: getattr(self, v) for v in _required_parameters_drift}, **{v: conditions[v] for v in _required_conditions_drift}, **extras)
             def _uses_t(self):
-                return "t" in _required_xt
+                return "t" in _required_xt_drift
             def _uses_x(self):
-                return "x" in _required_xt
-        driftobj = DriftEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters})
+                return "x" in _required_xt_drift
+        driftobj = DriftEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_drift})
 
     typ, parsed = _parse_dep(noise, "noise")
     # If noise is a parameter
@@ -895,18 +906,23 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         noiseobj = NoiseConstant(noise=noise)
     # If it is a function
     elif typ == "func":
-        _required_parameters,_required_conditions,_required_xt = parsed
+        _required_parameters_noise,_required_conditions_noise,_required_xt_noise = parsed
         class NoiseEasy(Noise):
             name = "easy_noise"
-            required_parameters = _required_parameters
-            required_conditions = _required_conditions
-            def get_noise(self, conditions, **kwargs):
-                return noise(**{v: getattr(self, v) for v in _required_parameters}, **{v: conditions[v] for v in _required_conditions})
+            required_parameters = _required_parameters_noise
+            required_conditions = _required_conditions_noise
+            def get_noise(self, x, t, conditions, **kwargs):
+                extras = {}
+                if "t" in _required_xt_noise:
+                    extras["t"] = t
+                if "x" in _required_xt_noise:
+                    extras["x"] = x
+                return noise(**{v: getattr(self, v) for v in _required_parameters_noise}, **{v: conditions[v] for v in _required_conditions_noise}, **extras)
             def _uses_t(self):
-                return "t" in _required_xt
+                return "t" in _required_xt_noise
             def _uses_x(self):
-                return "x" in _required_xt
-        noiseobj = NoiseEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters})
+                return "x" in _required_xt_noise
+        noiseobj = NoiseEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_noise})
 
     typ, parsed = _parse_dep(bound, "bound", "t")
     # If bound is a parameter
@@ -917,40 +933,41 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         boundobj = BoundConstant(B=bound)
     # If it is a function
     elif typ == "func":
-        _required_parameters,_required_conditions,_required_t = parsed
+        _required_parameters_bound,_required_conditions_bound,_required_t_bound = parsed
         class BoundEasy(Bound):
             name = "easy_bound"
-            required_parameters = _required_parameters
-            required_conditions = _required_conditions
-            def get_bound(self, conditions, **kwargs):
-                return bound(**{v: getattr(self, v) for v in _required_parameters}, **{v: conditions[v] for v in _required_conditions})
+            required_parameters = _required_parameters_bound
+            required_conditions = _required_conditions_bound
+            def get_bound(self, t, conditions, **kwargs):
+                extras = {"t": t} if "t" in _required_t_bound else {}
+                return bound(**{v: getattr(self, v) for v in _required_parameters_bound}, **{v: conditions[v] for v in _required_conditions_bound}, **extras)
             def _uses_t(self):
-                return "t" in _required_t
-        boundobj = BoundEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters})
+                return "t" in _required_t_bound
+        boundobj = BoundEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_bound})
 
-    typ, parsed = _parse_dep(bound, "starting_position", "x")
+    typ, parsed = _parse_dep(starting_position, "starting_position", "x")
     # If starting_position is a parameter
     if typ == "param":
-        icobj = ICPointRatio(x0=_fittables[bound])
+        icobj = ICPointRatio(x0=_fittables[starting_position])
     # If it is a value
     elif typ == "val":
         icobj = ICPointRatio(x0=starting_position)
     # If it is a function
     elif typ == "func":
-        _required_parameters,_required_conditions,_required_t = parsed
+        _required_parameters_x0,_required_conditions_x0,_required_t_x0 = parsed
         class ICPointRatioEasy(InitialCondition):
             name = "easy_starting_point"
-            required_parameters = _required_parameters
-            required_conditions = _required_conditions
+            required_parameters = _required_parameters_x0
+            required_conditions = _required_conditions_x0
             def get_IC(self, x, dx, conditions):
-                base_x0 = starting_position(**{v: getattr(self, v) for v in _required_parameters}, **{v: conditions[v] for v in _required_conditions})
+                base_x0 = starting_position(**{v: getattr(self, v) for v in _required_parameters_x0}, **{v: conditions[v] for v in _required_conditions_x0})
                 x0 = base_x0/2 + .5 #rescale to between 0 and 1
                 shift_i = int((len(x)-1)*x0)
                 assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
                 pdf = np.zeros(len(x))
                 pdf[shift_i] = 1.
                 return pdf
-        icobj = ICPointRatioEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters})
+        icobj = ICPointRatioEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_x0})
 
     overlayobjs = []
     typ, parsed = _parse_dep(nondecision, "nondecision", "")
@@ -962,14 +979,14 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         overlayobjs.append(OverlayNonDecision(nondectime=nondecision))
     # If it is a function
     elif typ == "func":
-        _required_parameters,_required_conditions,_ = parsed
+        _required_parameters_nd,_required_conditions_nd,_ = parsed
         class OverlayNonDecisionEasy(OverlayNonDecision):
             name = "easy_nondecision"
-            required_parameters = _required_parameters
-            required_conditions = _required_conditions
+            required_parameters = _required_parameters_nd
+            required_conditions = _required_conditions_nd
             def get_nondecision_time(self, conditions):
-                return nondecision(**{v: getattr(self, v) for v in _required_parameters}, **{v: conditions[v] for v in _required_conditions})
-        overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters}))
+                return nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd})
+        overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
 
     typ, parsed = _parse_dep(mixture_coef, "mixture_coef", "")
     # If mixture coefficient is a parameter
