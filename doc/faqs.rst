@@ -207,10 +207,11 @@ Your model may be slow for a number of different reasons.
 
 - **You have a lot of conditions** -- Each time you solve the model (e.g. by
   calling :meth:`.Model.solve`), PyDDM internally needs to simulate one pdf per
-  potential combination of conditions.  For example, if you are using 200
-  different conditions values, then PyDDM will need to simulate 200 different
-  pdfs for each call you make to :meth:`.Model.solve`.  Minimizing the number of
-  conditions will thus lead to substantial speedups.
+  potential combination of conditions.  For example, if each trial has a
+  different value for a condition, then PyDDM will need to simulate a separate
+  pdf for each trial for each call you make to :meth:`.Model.solve`.  Minimizing
+  the number of conditions will thus minimize the number of simulations PyDDM
+  has to perform internally, leading to substantial speedups.
 - **Your numerics (dx and dt) are too small** -- Larger values of dx and dt can
   lead to imprecise estimations of the response time distribution.  Therefore,
   be cautious when adjusting dx and dt.  As a rule of thumb, dx and dt should

@@ -1202,14 +1202,23 @@ class Fittable(float):
         yield Fitted(0)
         yield Fitted(1)
         yield Fitted(4, minval=0, maxval=10)
-    def __new__(cls, val=np.nan, **kwargs):
-        if not np.isnan(val):
+    def __new__(cls, *args, **kwargs):
+        if len(args) == 1 or 'val' in kwargs.keys():
+            val = args[0] if len(args) == 1 else kwargs['val']
             raise ValueError("No positional arguments for Fittables. Received argument: %s." % str(val))
         return float.__new__(cls, np.nan)
-    def __init__(self, **kwargs):
-        minval = kwargs['minval'] if "minval" in kwargs else -np.inf
-        maxval = kwargs['maxval'] if "maxval" in kwargs else np.inf
-        default_value = kwargs['default'] if 'default' in kwargs else None
+    def __init__(self, *args, **kwargs):
+        if len(args) == 2:
+            minval,maxval = args
+            default_value = kwargs['default'] if 'default' in kwargs else None
+        elif len(args) == 3:
+            minval,maxval,default_value = args
+        elif len(args) == 1 or len(args) > 3:
+            raise ValueError(f"Invalid number of positional arguments to Fittable: {args}")
+        else:
+            minval = kwargs['minval'] if "minval" in kwargs else -np.inf
+            maxval = kwargs['maxval'] if "maxval" in kwargs else np.inf
+            default_value = kwargs['default'] if 'default' in kwargs else None
         object.__setattr__(self, 'minval', minval)
         object.__setattr__(self, 'maxval', maxval)
         object.__setattr__(self, 'default_value', default_value)

@@ -771,6 +771,12 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
+    def test_fittable_kwargs(self):
+        assert repr(ddm.Fittable(0,1)) == repr(ddm.Fittable(maxval=1, minval=0))
+        assert repr(ddm.Fittable(0,1,.5)) == repr(ddm.Fittable(maxval=1, minval=0, default=.5))
+        assert repr(ddm.Fittable(-np.inf, np.inf)) == repr(ddm.Fittable())
+        fails(lambda : ddm.Fittable(3))
+        fails(lambda : ddm.Fittable(3,4,5,6))
     def test_model_stuff(self):
         m = ddm.Model(choice_names=("Aaa", "b b"), dx=.002, dt=.002, T_dur=5, drift=ddm.DriftConstant(drift=3), name='xxx')
         s = m.solve()
