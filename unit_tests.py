@@ -7,6 +7,7 @@ from math import fsum
 import pandas
 import copy
 import scipy.stats
+import copy
 
 from numpy import asarray as aa
 
@@ -775,6 +776,12 @@ class TestMisc(TestCase):
         assert repr(ddm.Fittable(0,1)) == repr(ddm.Fittable(maxval=1, minval=0))
         assert repr(ddm.Fittable(0,1,.5)) == repr(ddm.Fittable(maxval=1, minval=0, default=.5))
         assert repr(ddm.Fittable(-np.inf, np.inf)) == repr(ddm.Fittable())
+        f = ddm.Fittable(0,1,.5)
+        assert repr(f) == repr(copy.copy(f))
+        assert repr(f) == repr(copy.deepcopy(f))
+        f = ddm.Fitted(0,minval=1,maxval=.5)
+        assert repr(f) == repr(copy.copy(f))
+        assert repr(f) == repr(copy.deepcopy(f))
         fails(lambda : ddm.Fittable(3))
         fails(lambda : ddm.Fittable(3,4,5,6))
     def test_model_stuff(self):

@@ -7,7 +7,8 @@
 __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',
            'hit_boundary', 'dependence_hit_boundary', 'display_model',
-           'get_model_loss', 'set_N_cpus', 'solve_all_conditions']
+           'get_model_loss', 'set_N_cpus', 'solve_all_conditions',
+           'auto_model']
 
 import copy
 import logging

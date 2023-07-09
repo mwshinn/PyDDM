@@ -1205,8 +1205,10 @@ class Fittable(float):
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 or 'val' in kwargs.keys():
             val = args[0] if len(args) == 1 else kwargs['val']
-            raise ValueError("No positional arguments for Fittables. Received argument: %s." % str(val))
+            raise ValueError("No positional arguments for Fittables. Received argument: %s, kwargs: %s." % (str(val), str(kwargs)))
         return float.__new__(cls, np.nan)
+    def __getnewargs_ex__(self):
+        return ((), {"minval": self.minval, "maxval": self.maxval, "default": self.default_value})
     def __init__(self, *args, **kwargs):
         if len(args) == 2:
             minval,maxval = args
@@ -1279,6 +1281,8 @@ class Fitted(Fittable):
         return float.__new__(cls, val)
     def __init__(self, val, **kwargs):
         Fittable.__init__(self, **kwargs)
+    def __getnewargs_ex__(self):
+        return ((float(self),), {"minval": self.minval, "maxval": self.maxval, "default": self.default_value})
     def default(self):
         return float(self)
 
