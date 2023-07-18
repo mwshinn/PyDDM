@@ -4,7 +4,7 @@
 # This file is part of PyDDM, and is available under the MIT license.
 # Please see LICENSE.txt in the root directory for more information.
 
-__all__ = ["Bound", "BoundConstant", "BoundCollapsingLinear", "BoundCollapsingExponential"]
+__all__ = ["Bound", "BoundConstant", "BoundCollapsingLinear", "BoundCollapsingExponential", "BoundCollapsingHyperbolic"]
 
 import numpy as np
 
@@ -135,4 +135,33 @@ class BoundCollapsingExponential(Bound):
     @returns(Positive0)
     def get_bound(self, t, *args, **kwargs):
         return self.B * np.exp(-self.tau*t)
+        
+@paranoidclass
+Class BoundCollapsingHyperbolic
+    """Bound dependence: bound collapses exponentially over time.
 
+    Takes two parameters: 
+
+    - `B` - the bound at time t = 0.
+    - `tau` - one divided by the time constant for the collapse.
+      0 gives constant bounds.
+
+    Example usage:
+
+      | bound = BoundCollapsingExponential(B=1, tau=2.1) # Collapsing with time constant 1/2.1
+    """
+    name = "collapsing_exponential"
+    required_parameters = ["B", "tau"]
+    @staticmethod
+    def _test(v):
+        assert v.B in Positive()
+        assert v.tau in Positive()
+    @staticmethod
+    def _generate():
+        yield BoundCollapsingExponential(B=1, tau=1)
+        yield BoundCollapsingExponential(B=.1, tau=.001)
+        yield BoundCollapsingExponential(B=100, tau=100)
+    @accepts(Self, Positive0)
+    @returns(Positive0)
+    def get_bound(self, t, *args, **kwargs):
+        return self.B - 1/(self.tau*t)
