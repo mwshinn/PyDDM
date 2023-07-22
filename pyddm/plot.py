@@ -24,7 +24,12 @@ else:
         matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
-import tkinter as tk
+
+try:
+    import tkinter as tk
+except:
+    print("Tk unavailable, model_gui will not work, but model_gui_jupyter may still work.")
+
 import copy
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
