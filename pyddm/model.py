@@ -199,6 +199,80 @@ class Model(object):
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
+    def show(self, print_output=True):
+        """Show information about the model"""
+        from .functions import display_model
+        return display_model(self, print_output=print_output)
+    def fit(self, sample, fitparams=None, fitting_method="differential_evolution",
+            lossfunction=None, verify=False, method=None, verbose=True):
+        """Fit a model to data.
+
+        The data `sample` should be a Sample object of the reaction times
+        to fit in seconds (NOT milliseconds).  At least one of the
+        parameters for one of the components in the model should be a
+        "Fitted()" instance, as these will be the parameters to fit.
+
+        `fitting_method` specifies how the model should be fit.
+        "differential_evolution" is the default, which accurately locates
+        the global maximum without using a derivative.  "simple" uses a
+        derivative-based method to minimize, and just uses randomly
+        initialized parameters and gradient descent.  "simplex" is the
+        Nelder-Mead method, and is a gradient-free local search.  "basin"
+        uses "scipy.optimize.basinhopping" to find an optimal solution,
+        which is much slower but also gives better results than "simple".
+        It does not appear to give better or faster results than
+        "differential_evolution" in most cases.  Alternatively, a custom
+        objective function may be used by setting `fitting_method` to be a
+        function which accepts the "x_0" parameter (for starting position)
+        and "constraints" (for min and max values).  In general, it is
+        recommended you almost always use differential evolution, unless
+        you have a model which is highly-constrained (e.g. only one or two
+        parameters to estimate with low covariance) or you already know
+        the approximate parameter values.  In practice, besides these two
+        special cases, changing the method is unlikely to give faster or
+        more reliable estimation.
+
+        `fitparams` is a dictionary of kwargs to be passed directly to the
+        minimization routine for fine-grained low-level control over the
+        optimization.  Normally this should not be needed.
+
+        `lossfunction` is a subclass of LossFunction representing the
+        method to use when calculating the goodness-of-fit.  Pass the
+        subclass itself, NOT an instance of the subclass.
+
+        If `verify` is False (the default), checking for programming
+        errors is disabled during the fit. This can decrease runtime and
+        may prevent crashes.  If verification is already disabled, this
+        does not re-enable it.
+
+        `method` gives the method used to solve the model, and can be
+        "analytical", "numerical", "cn", "implicit", or "explicit".
+
+        `verbose` enables out-of-boundaries warnings and prints the model
+        information at each evaluation of the fitness function.
+
+        Returns the same model object that was passed to it as an
+        argument.  However, the parameters will be modified.  The model is
+        modified in place, so a reference is returned to it for
+        convenience only.
+
+        After running this function, the model will be modified to include
+        a "FitResult" object, accessed as m.fitresult.  This can be used
+        to get the value of the objective function, as well as to access
+        diagnostic information about the fit.
+
+        This function will automatically parallelize if set_N_cpus() has
+        been called.
+
+        """
+        from .functions import fit_adjust_model
+        from .models.loss import LossLikelihood
+        if lossfunction is None:
+            lossfunction = LossLikelihood
+        return fit_adjust_model(sample=sample, model=self, fitparams=fitparams,
+                                fitting_method=fitting_method,
+                                lossfunction=lossfunction, verify=verify,
+                                method=method, verbose=verbose)
     def parameters(self):
         """Return all parameters in the model
 
