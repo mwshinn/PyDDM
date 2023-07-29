@@ -35,7 +35,7 @@ the argument list.
 
 
 What arguments do :func:`~pyddm.models.drift.Drift.get_drift`, :func:`~pyddm.models.noise.Noise.get_noise`, etc. take?
-------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
 
 The most appropriate solver is selected by PyDDM by examining the
 variables on which different model components depend.  For models
@@ -182,7 +182,7 @@ large.  Try decreasing dt.  You should almost never use a dt larger
 than .01, but smaller values are ideal.
 
 Why is PyDDM so fast?
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 First, the core routines of PyDDM are written in optimized C.  We are
 continuously tuning and refining our code to maximize performance.
@@ -197,7 +197,7 @@ Third, PyDDM automatically selects the appropriate solver for your model, based
 on whether different aspects of your model depend on time.  For many complicated
 models, PyDDM is able to find a strategy which uses an analytic solver.
 
-Fourth, parallelization is easy, using the :func:`.set_N_cpus` function.  This
+Fourth, parallelization is easy, using the :func:`~.set_N_cpus` function.  This
 makes models with many conditions execute independently on different CPUs.
 
 Why is PyDDM so slow?
@@ -313,3 +313,54 @@ keep in mind that you are actually comparing the mixture model.  This is
 necessary for likelihood estimation and therefore occurs in other packages as
 well, which refer to it as the probability of "contaminant RTs" (fast-dm) or
 "outliers" (HDDM).
+
+.. _help_model_gui:
+
+What can I do if the model GUI doesn't work?
+--------------------------------------------
+
+There are two versions of the model GUI: pyddm.plot.model_gui and
+pyddm.plot.model_gui_jupyter.  The former opens a pop-up window, and the latter
+embeds itself in a jupyter notebook.  If one doesn't work, you can always try
+the other.  The following may be useful in getting either the normal version or
+the Jupyter version to work.
+
+**I get the error "AttributeError: module 'pyddm' has no attribute 'plot'"**
+
+Add "import pyddm.plot" to your imports
+
+**I received an error about importing pyddm.plot before matplotlib**
+
+On Mac computers, model_gui does not work unless you import pyddm.plot before
+importing matplotlib.  Put "import pyddm.plot" at the top of your script or in
+the first cell of your Jupyter notebook, and restart Python or restart your
+Jupyter kernel.
+
+**When I run model_gui_jupyter, I get a plot, but no controls**
+
+This has been reported to occur in IDEs such as Spyder or VSCode.  Running the
+Jupyter notebook through the web browser should show the controls.
+Alternatively, try running "model_gui" instead of "model_gui_jupyter", which
+will open a pop-up window instead of a cell in your Jupyter notebook.
+
+**When I run model_gui_jupyter, I get controls but no plot**
+
+This has been reported to occur in IDEs such as Spyder or VSCode.  Running the
+Jupyter notebook through the web browser should show the controls.
+Alternatively, try running "model_gui" instead of "model_gui_jupyter", which
+will open a pop-up window instead of a cell in your Jupyter notebook.
+
+**When I import pyddm.plot, I receive an error about importing "tk" or
+"_tkinter", or PyDDM says "tkinter not available"**
+
+While tk/tkinter is included by default when you install Python, some Python
+installations do not include it, or include a broken version of it.  On
+Ubuntu-based Linux distributions, you can install the python3-tk (or
+python3.XXX-tk for some XXX) package.  On Mac, make sure you are using "true"
+CPython instead of the built-in version of Python.  For all systems, you can try
+reinstalling Python or installing Anaconda.
+
+**What can I do if I can't figure out how to use the model GUI but I want to see
+my model?**
+
+You can run your model in a Google Colab notebook and run model_gui_jupyter.

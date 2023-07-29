@@ -1,6 +1,10 @@
 Models
 ======
 
+Auto-model
+----------
+
+.. autofunction:: pyddm.functions.auto_model
 
 Model object
 ------------
