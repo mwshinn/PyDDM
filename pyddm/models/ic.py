@@ -84,7 +84,7 @@ class ICPoint(InitialCondition):
     @ensures('np.isclose(np.sum(return), 1)')
     @ensures('len(set(return)) == 2')
     def get_IC(self, x, dx, *args, **kwargs):
-        start = np.round(self.x0/dx)
+        start = np.round(self.get_starting_point()/dx)
         # Positive bias for high reward conditions, negative for low reward
         shift_i = int(start + (len(x)-1)/2)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions: " \
@@ -92,6 +92,8 @@ class ICPoint(InitialCondition):
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=self.x0.
         return pdf
+    def get_starting_point(self):
+        return self.x0
 
 @paranoidclass
 class ICPointRatio(InitialCondition):
@@ -115,12 +117,14 @@ class ICPointRatio(InitialCondition):
         yield ICPointRatio(x0=.2)
         yield ICPointRatio(x0=-.8)
     def get_IC(self, x, dx, conditions):
-        x0 = self.x0/2 + .5 #rescale to between 0 and 1
+        x0 = self.get_starting_point()/2 + .5 #rescale to between 0 and 1
         shift_i = int((len(x)-1)*x0)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1.
         return pdf
+    def get_starting_point(self):
+        return self.x0
 
 @paranoidclass
 class ICUniform(InitialCondition):

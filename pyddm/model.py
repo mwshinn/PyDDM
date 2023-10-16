@@ -14,7 +14,7 @@ from . import parameters as param
 from .analytic import analytic_ddm
 from .models.drift import DriftConstant, Drift
 from .models.noise import NoiseConstant, Noise
-from .models.ic import ICPointSourceCenter, ICPoint, InitialCondition
+from .models.ic import ICPointSourceCenter, ICPoint, ICPointRatio, InitialCondition
 from .models.bound import BoundConstant, BoundCollapsingLinear, Bound
 from .models.overlay import OverlayNone, Overlay
 from .models.paranoid_types import Conditions
@@ -571,7 +571,7 @@ class Model(object):
         if self.get_dependence("bound")._uses_t() and self.get_dependence("bound").__class__ != BoundCollapsingLinear:
             return False
         # Make sure initial condition is a single point
-        if not issubclass(self.get_dependence("IC").__class__,(ICPointSourceCenter,ICPoint)):
+        if not issubclass(self.get_dependence("IC").__class__,(ICPointSourceCenter,ICPoint,ICPointRatio)):
             return False
         # Assuming none of these is the case, return True.
         return True
@@ -642,7 +642,7 @@ class Model(object):
         self.check_conditions_satisfied(conditions)
         
         #calculate shift in initial conditions if present
-        if isinstance(self.get_dependence('IC'),ICPoint):
+        if isinstance(self.get_dependence('IC'),(ICPoint, ICPointRatio)):
             ic = self.IC(conditions=conditions)
             assert np.count_nonzero(ic)==1, "Cannot solve analytically for models with non-point initial conditions"
             shift = np.flatnonzero(ic) / (len(ic) - 1) #rescale to proprotion of total bound height

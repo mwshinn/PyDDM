@@ -155,6 +155,29 @@ class TestSimulation(TestCase):
               choice_names=("1", "2"))
         _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
         _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
+    def test_ICPointRatio(self):
+        """Arbitrary pointwise initial condition between -1 and 1"""
+        m = ddm.Model(name='ICPointRatio_test',
+              drift=ddm.DriftConstant(drift=2),
+              noise=ddm.NoiseConstant(noise=1.5),
+              bound=ddm.BoundConstant(B=1.4),
+              IC=ddm.ICPointRatio(x0=-.55),
+              choice_names=("1", "2"))
+        _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+        _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
+    def test_ICPointRatioCustom(self):
+        """Custom pointwise initial condition between -1 and 1"""
+        class CustomICPointRatio(ddm.ICPointRatio):
+            required_parameters = ["param"]
+            def get_starting_point(self):
+                return self.param*2
+        m = ddm.Model(name='ICPointRatioCustom_test',
+              drift=ddm.DriftConstant(drift=1.3),
+              noise=ddm.NoiseConstant(noise=.5),
+              bound=ddm.BoundConstant(B=1.4),
+                      IC=CustomICPointRatio(param=.3), dx=.001, dt=.001)
+        _modeltest_numerical_vs_analytical(m, method="implicit", max_diff=.3, mean_diff=.2, prob_diff=.05)
+        _modeltest_numerical_vs_analytical(m, method="c", max_diff=.3, mean_diff=.2, prob_diff=.05)
     def test_ICPoint_collapsing_bounds(self):
         m = ddm.Model(name='ICPoint_BCollapsingLin_test',
               drift=ddm.DriftConstant(drift=2),
