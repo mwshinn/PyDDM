@@ -169,7 +169,7 @@ class TestSimulation(TestCase):
         """Custom pointwise initial condition between -1 and 1"""
         class CustomICPointRatio(ddm.ICPointRatio):
             required_parameters = ["param"]
-            def get_starting_point(self):
+            def get_starting_point(self, conditions={}):
                 return self.param*2
         m = ddm.Model(name='ICPointRatioCustom_test',
               drift=ddm.DriftConstant(drift=1.3),

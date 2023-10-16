@@ -10,7 +10,7 @@ import numpy as np
 
 from .base import Dependence
 from paranoid import accepts, returns, requires, ensures, paranoidclass
-from paranoid.types import NDArray, Number, Positive, Range
+from paranoid.types import NDArray, Number, Positive, Range, Unchecked
 from paranoid.types import Self
 import scipy.stats
 
@@ -79,12 +79,12 @@ class ICPoint(InitialCondition):
     def _generate():
         yield ICPoint(x0=.2)
         yield ICPoint(x0=-.111)
-    @accepts(Self, NDArray(d=1), Positive)
+    @accepts(Self, NDArray(d=1), Positive, Unchecked)
     @returns(NDArray(t=Number, d=1))
     @ensures('np.isclose(np.sum(return), 1)')
     @ensures('len(set(return)) == 2')
-    def get_IC(self, x, dx, *args, **kwargs):
-        start = np.round(self.get_starting_point()/dx)
+    def get_IC(self, x, dx, conditions):
+        start = np.round(self.get_starting_point(conditions=conditions)/dx)
         # Positive bias for high reward conditions, negative for low reward
         shift_i = int(start + (len(x)-1)/2)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions: " \
@@ -92,7 +92,7 @@ class ICPoint(InitialCondition):
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1. # Initial condition at x=self.x0.
         return pdf
-    def get_starting_point(self):
+    def get_starting_point(self, conditions):
         return self.x0
 
 @paranoidclass
@@ -117,13 +117,13 @@ class ICPointRatio(InitialCondition):
         yield ICPointRatio(x0=.2)
         yield ICPointRatio(x0=-.8)
     def get_IC(self, x, dx, conditions):
-        x0 = self.get_starting_point()/2 + .5 #rescale to between 0 and 1
+        x0 = self.get_starting_point(conditions=conditions)/2 + .5 #rescale to between 0 and 1
         shift_i = int((len(x)-1)*x0)
         assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
         pdf = np.zeros(len(x))
         pdf[shift_i] = 1.
         return pdf
-    def get_starting_point(self):
+    def get_starting_point(self, conditions):
         return self.x0
 
 @paranoidclass
