@@ -47,7 +47,7 @@ def plot_solution_pdf(sol, ax=None, choice=None, correct=True):
     """
     if correct is not None:
         assert choice is None, "Either choice or correct argument must be None"
-        assert self.choice_names == ("correct", "error")
+        assert sol.choice_names == ("correct", "error")
         choice = sol.choice_names[0] if correct else sol.choice_names[1]
     else:
         assert choice is not None, "Choice and correct arguments cannot both be None"
