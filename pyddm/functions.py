@@ -843,7 +843,7 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         """Determine whether `val` can be turned into a PyDDM model, and if so, parse relevant information.
 
         `name` is the dependence name for error message outputs.
-        `special` is either "", "x", "t", or "xt", describing what the dependence supports.
+        `special` is either "", "x", "t", "T", or "xt", describing what the dependence supports.
         """
         if val in parameters.keys():
             return "param",None
@@ -864,7 +864,7 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
                     _required_parameters.append(arg)
                 if arg in conditions:
                     _required_conditions.append(arg)
-                if arg in ["x", "t"]:
+                if arg in ["x", "t", "T"]:
                     assert arg in special, f"{arg} is not a valid value for function argument for {name}"
                     _required_xt.append(arg)
             return "func", (_required_parameters,_required_conditions,_required_xt)
@@ -955,23 +955,26 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         icobj = ICPointRatio(x0=starting_position)
     # If it is a function
     elif typ == "func":
-        _required_parameters_x0,_required_conditions_x0,_required_t_x0 = parsed
-        class ICPointRatioEasy(InitialCondition):
-            name = "easy_starting_point"
-            required_parameters = _required_parameters_x0
-            required_conditions = _required_conditions_x0
-            def get_IC(self, x, dx, conditions):
-                base_x0 = starting_position(**{v: getattr(self, v) for v in _required_parameters_x0}, **{v: conditions[v] for v in _required_conditions_x0})
-                x0 = base_x0/2 + .5 #rescale to between 0 and 1
-                shift_i = int((len(x)-1)*x0)
-                assert shift_i >= 0 and shift_i < len(x), "Invalid initial conditions"
-                pdf = np.zeros(len(x))
-                pdf[shift_i] = 1.
-                return pdf
-        icobj = ICPointRatioEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_x0})
+        _required_parameters_x0,_required_conditions_x0,_required_x_x0 = parsed
+        if "x" in _required_x_x0:
+            class ICDistributionEasy(InitialCondition):
+                name = "easy_distribution_initial_conditions"
+                required_parameters = _required_parameters_x0
+                required_conditions = _required_conditions_x0
+                def get_IC(self, x, dx, conditions):
+                    return starting_position(**{v: getattr(self, v) for v in _required_parameters_x0}, **{v: conditions[v] for v in _required_conditions_x0}, x=x)
+            icobj = ICDistributionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_x0})
+        else:
+            class ICPointRatioEasy(ICPointRatio):
+                name = "easy_starting_point"
+                required_parameters = _required_parameters_x0
+                required_conditions = _required_conditions_x0
+                def get_starting_point(self, conditions):
+                    return starting_position(**{v: getattr(self, v) for v in _required_parameters_x0}, **{v: conditions[v] for v in _required_conditions_x0})
+            icobj = ICPointRatioEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_x0})
 
     overlayobjs = []
-    typ, parsed = _parse_dep(nondecision, "nondecision", "")
+    typ, parsed = _parse_dep(nondecision, "nondecision", "T")
     # If nondecision is a parameter
     if typ == "param":
         overlayobjs.append(OverlayNonDecision(nondectime=_fittables[nondecision]))
@@ -980,14 +983,36 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         overlayobjs.append(OverlayNonDecision(nondectime=nondecision))
     # If it is a function
     elif typ == "func":
-        _required_parameters_nd,_required_conditions_nd,_ = parsed
-        class OverlayNonDecisionEasy(OverlayNonDecision):
-            name = "easy_nondecision"
-            required_parameters = _required_parameters_nd
-            required_conditions = _required_conditions_nd
-            def get_nondecision_time(self, conditions):
-                return nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd})
-        overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
+        _required_parameters_nd,_required_conditions_nd,_required_T_overlay = parsed
+        if "T" in _required_T_overlay: # Distribution
+            class OverlayNonDecisionDistributionEasy(OverlayNonDecision):
+                name = "easy_distribution_nondecision"
+                required_parameters = _required_parameters_nd
+                required_conditions = _required_conditions_nd
+                def apply(self, solution):        # Make sure params are within range
+                    # Extract components of the solution object for convenience
+                    choice_upper = solution.choice_upper
+                    choice_lower = solution.choice_lower
+                    conditions = solution.conditions
+                    dt = solution.dt
+                    # Create the weights for different timepoints
+                    times = np.asarray(list(range(-len(choice_upper), len(choice_upper))))*dt
+                    weights = nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd}, T=times)
+                    assert len(weights) == len(times), "Invalid distribution of starting points, must be the same length as the argument T."
+                    if np.sum(weights) > 0:
+                        weights /= np.sum(weights) # Ensure it integrates to 1
+                    newchoice_upper = np.convolve(weights, choice_upper, mode="full")[len(choice_upper):(2*len(choice_upper))]
+                    newchoice_lower = np.convolve(weights, choice_lower, mode="full")[len(choice_upper):(2*len(choice_upper))]
+                    return Solution(newchoice_upper, newchoice_lower, solution.model, solution.conditions, solution.undec)
+            overlayobjs.append(OverlayNonDecisionDistributionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
+        else: # Single point
+            class OverlayNonDecisionEasy(OverlayNonDecision):
+                name = "easy_nondecision"
+                required_parameters = _required_parameters_nd
+                required_conditions = _required_conditions_nd
+                def get_nondecision_time(self, conditions):
+                    return nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd})
+            overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
 
     typ, parsed = _parse_dep(mixture_coef, "mixture_coef", "")
     # If mixture coefficient is a parameter

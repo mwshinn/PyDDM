@@ -38,8 +38,11 @@ To fit data to a simple DDM:
 
 ```python
 import pyddm, pandas
-model = pyddm.auto_model(drift="driftrate", bound="B", starting_position="x0", nondecision="ndtime",
-                         parameters={"driftrate": (-1, 1), "B": (.5, 2), "x0": (-.5, .5), "ndtime": (0, .5)})
+model = pyddm.auto_model(drift="driftrate", noise=1, bound="B", starting_position="x0", nondecision="ndt",
+                         parameters={"driftrate": (-1, 1), 
+                                     "B": (.5, 2),
+                                     "x0": (-.5, .5),
+                                     "ndt": (0, .5)})
 data = pandas.from_csv("your_data_here.csv")
 sample = pyddm.Sample.from_pandas_dataframe(df, rt_column_name="rt", choice_column_name="correct")
 model.fit(sample)
@@ -66,6 +69,9 @@ pyddm.plot.model_gui(model) # If not using a Jupyter notebook, or...
 pyddm.plot.model_gui_jupyter(model) # If using a Jupyter notebook
 ```
 
+![PyDDM Model GUI]()
+
+[![PyDDM Model GUI](https://https://github.com/mwshinn/PyDDM/blob/master/doc/images/model-gui-animation.gif?raw=true)](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb)
 
 ## Installation
 
@@ -91,7 +97,8 @@ If installing from source, [download the source code](https://github.com/mwshinn
 - [Paranoid Scientist](<https://github.com/mwshinn/paranoidscientist>)
 - Pathos (optional, for multiprocessing support)
 - To install from source, you will need a C compiler (If you don't already have
-  one, the easiest way to install one may be by installing Cython.)
+  one, the easiest way to install one may be by installing Cython.)  This is
+  not necessary if installing from pip.
 
 
 ## Contact

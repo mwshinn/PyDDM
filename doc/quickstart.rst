@@ -332,8 +332,10 @@ equivalent:
    :start-after: # Start ModelFittableAlt2Def
    :end-before: # End ModelFittableAlt2Def
 
+
 Functions can be useful because they allow us to specify more complex
-relationships among parameters.  Next, we will see additional ways that
+relationships among parameters.  While here we have used very simple functions,
+any valid Python function can be used.  Next, we will see additional ways that
 functions can be used to specify simple or complex models.
 
 

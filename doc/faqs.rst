@@ -224,17 +224,20 @@ Your model may be slow for a number of different reasons.
   is operating by ensuring the variable ``pyddm.model.HAS_CSOLVE`` is True.  If
   there was an error installing the C solver when installing PyDDM, PyDDM will
   still run, but it will be 10-100x slower.
+- **Your parameter ranges may be too wide** -- Models will converge faster with
+  more narrow parameter ranges.  The speedup from this, however, will be modest
+  (think ~25%).
 
 While simulations in PyDDM are fast, fitting models in PyDDM may be slower than
 other packages.  This is because PyDDM uses differential evolution as a fitting
 algorithm.  This algorithm rarely fails to maximize likelihood; however, it
 requires more iterations than a gradient-based approach.  For simple models, it
-*may* be possible to use the "simplex" method, but if you do, **please check to
-make sure your models converge to a consistent global minimum**.  You can do
-this by running several models using both the "simplex" method and
-"differential_evolution" and confirming the results are the same, or by running
-parameter recovery experiments on your model.  Since all GDDMs are different,
-there can be no general guidance for how to ensure model convergence.
+*may* be possible to use the "simplex" method for faster fitting, but if you do,
+**please check to make sure your models converge to a consistent global
+minimum**.  You can do this by running several models using both the "simplex"
+method and "differential_evolution" and confirming the results are the same, or
+by running parameter recovery experiments on your model.  Since all GDDMs are
+different, there can be no general guidance for how to ensure model convergence.
 
 How many trials do I need to fit a GDDM to data?
 ------------------------------------------------

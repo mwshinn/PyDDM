@@ -251,10 +251,7 @@ class Model(object):
         `verbose` enables out-of-boundaries warnings and prints the model
         information at each evaluation of the fitness function.
 
-        Returns the same model object that was passed to it as an
-        argument.  However, the parameters will be modified.  The model is
-        modified in place, so a reference is returned to it for
-        convenience only.
+        No return value.
 
         After running this function, the model will be modified to include
         a "FitResult" object, accessed as m.fitresult.  This can be used
@@ -269,10 +266,10 @@ class Model(object):
         from .models.loss import LossLikelihood
         if lossfunction is None:
             lossfunction = LossLikelihood
-        return fit_adjust_model(sample=sample, model=self, fitparams=fitparams,
-                                fitting_method=fitting_method,
-                                lossfunction=lossfunction, verify=verify,
-                                method=method, verbose=verbose)
+        fit_adjust_model(sample=sample, model=self, fitparams=fitparams,
+                         fitting_method=fitting_method,
+                         lossfunction=lossfunction, verify=verify,
+                         method=method, verbose=verbose)
     def parameters(self):
         """Return all parameters in the model
 
@@ -294,7 +291,6 @@ class Model(object):
         return ret
 
     def get_model_parameters(self):
-
         """Get an ordered list of all model parameters.
         
         Returns a list of each model parameter which can be varied

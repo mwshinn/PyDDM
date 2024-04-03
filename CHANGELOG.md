@@ -1,3 +1,36 @@
+# Version 0.8.0
+
+## New features
+
+- New interface ("auto_model") for easier model specification
+
+  PyDDM has a new recommended and default way of constructing models.
+  Previously PyDDM used an object-oriented interface.  While this was flexible,
+  in practice, it required a lot of code to make even very simple models.  Now,
+  models can be specified very simply using the "auto_model" function.  See
+  documentation for more information.  (The object-oriented interface will
+  always be a part of PyDDM, so backward compatibility is maintained.)
+  
+- Clearer interface for fitting models
+
+  Supports scikit-learn--style "fit" interface for models is now included and
+  recommended by default.
+
+- Analytical solutions with variable starting position
+
+  Models with variable starting positions will now be automatically solved
+  analytically instead of numerically.
+
+
+## Other
+
+- Increased compatility for building C extensions on different compilers
+- Rewritten documentation for auto_model
+- The `minval`/`maxval` arguments of Fittable objects are now the default first and
+  second argument in the object-oriented interface
+- Better compatibility of `model_gui_jupyter` in new environments
+
+
 # Version 0.7.0
 
 Released July 2, 2023
