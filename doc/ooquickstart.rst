@@ -2,15 +2,12 @@ Object-oriented interface tutorial
 ==================================
 
 There are two ways of interacting with PyDDM: auto_model, and the Object
-Oriented API.  auto_model is much simpler, but is not compatible with all types
-of models.  The object oriented API allows you to access the full power of
-PyDDM.
+Oriented API.  auto_model is much simpler, but is not compatible with some
+specialized models.  The object oriented API allows you to access the full power
+of PyDDM in these edge cases.
 
 Please read the :doc:`quickstart` before this tutorial.
 
-
-
-TODO
 
 Hello, world!
 -------------

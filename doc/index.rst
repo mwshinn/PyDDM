@@ -77,7 +77,6 @@ position::
 
    installing
    quickstart
-   ooquickstart
    cookbook/index
    modelgui
    apidoc/index

@@ -455,11 +455,11 @@ def model_gui(model,
         b = tk.Radiobutton(master=lframe, text="All", variable=thisvar, value="All", command=value_changed)
         b.pack(anchor=tk.W)
         for cv in sample_condition_values[cond]:
-            b = tk.Radiobutton(master=lframe, text=str(cv), variable=thisvar, value=cv, command=value_changed)
+            b = tk.Radiobutton(master=lframe, text=str(cv), variable=thisvar, value=str(cv), command=value_changed)
             b.pack(anchor=tk.W)
         condition_vars_values.append({str(cv) : cv for cv in sample_condition_values[cond]})
         thisvar.set("All")
-    
+    print(condition_vars_values)
     # And now create the sliders.  While we're at it, get rid of the
     # Fittables, replacing them with the default values.
     if params: # Make sure there is at least one parameter
