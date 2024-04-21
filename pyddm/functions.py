@@ -14,6 +14,7 @@ import copy
 import logging
 import inspect
 import numpy as np
+import pandas
 from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
 
 from . import parameters as param
@@ -583,6 +584,26 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
         # If a sample is passed, include only the parts of the sample
         # that satisfy the passed conditions.
         samp = sample.subset(**conditions)
+        # Specially handle the case where one parameter value from conditions is
+        # not in the sample.  This was implemented specifically for the
+        # psychometric curve calculations.  In theory this could be made more
+        # general so that it can still succeed if more than one parameter value
+        # is missing.
+        if len(samp) == 0:
+            for cond in conditions.keys():
+                samp = sample.subset(**{c : conditions[c] for c in conditions.keys() if c != cond})
+                if len(samp) != 0:
+                    break
+            else:
+                raise ValueError("More than one condition not found in the sample")
+            df = samp.to_pandas_dataframe()
+            cvals = conditions[cond] if isinstance(conditions[cond], (list, np.ndarray)) else [conditions[cond]]
+            dfs = []
+            for cv in cvals:
+                new_df = df.copy()
+                new_df[cond] = cv
+                dfs.append(new_df)
+            samp = Sample.from_pandas_dataframe(pandas.concat(dfs), 'RT', 'choice')
     else:
         # If no sample is passed, create a dummy sample.  For this, we
         # need all of the conditions to be specified in the

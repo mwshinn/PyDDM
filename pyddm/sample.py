@@ -469,9 +469,9 @@ class Sample(object):
             return 1
         if choice in [0, 2, self.choice_names[1]]:
             return 2
-        if choice == "_top":
+        if choice in ["_top", "top", "top_bound", "upper_bound", "upper"]:
             return 1
-        if choice == "_bottom":
+        if choice in ["_bottom", "bottom_bound", "lower_bound", "lower", "bottom"]:
             return 2
         raise NotImplementedError("\"choice\" needs to be '"+self.choice_names[0]+"' or '"+self.choice_names[1]+"' to use this function, not '"+choice+"'")
 

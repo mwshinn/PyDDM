@@ -10,6 +10,11 @@
   models can be specified very simply using the "auto_model" function.  See
   documentation for more information.  (The object-oriented interface will
   always be a part of PyDDM, so backward compatibility is maintained.)
+
+- Complete documentation rewrite
+
+  All of the documentation has been rewritten to accommodate for auto_model.  It
+  has also been modified to make it more accessible and easier to follow.
   
 - Clearer interface for fitting models
 
@@ -25,7 +30,6 @@
 ## Other
 
 - Increased compatility for building C extensions on different compilers
-- Rewritten documentation for auto_model
 - The `minval`/`maxval` arguments of Fittable objects are now the default first and
   second argument in the object-oriented interface
 - Better compatibility of `model_gui_jupyter` in new environments
