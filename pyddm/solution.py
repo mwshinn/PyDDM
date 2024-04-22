@@ -464,8 +464,14 @@ class Solution(object):
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         if self.choice_names != ("correct", "error"):
-            raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.")
-        return np.sum(self.corr*self.t_domain) / self.prob_correct()
+            raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  See mean_rt function.")
+        return np.sum(self.choice_upper*self.t_domain) / self.prob_correct()
+
+    @accepts(Self)
+    @returns(Positive0)
+    def mean_rt(self):
+        """The mean decision time (excluding undecided trials)."""
+        return np.sum((self.choice_upper+self.choice_lower)*self.t_domain) / (self.prob("upper")+self.prob("lower"))
 
     @accepts(Self, Natural1, seed=Maybe(Natural0))
     @returns(Sample)

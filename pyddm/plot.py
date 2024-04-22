@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import traceback
 import time
+import scipy.stats
 from paranoid.settings import Settings as paranoid_settings
 from .logger import logger as _logger
 
@@ -638,9 +639,17 @@ def model_gui_jupyter(model,
     out = widgets.interactive_output(draw_update, allargs)
     return display(layout, out)
 
+def _binom_ci(sample, alpha=.05):
+    """Confidence interval using Gaussian approximation for binomial RVs"""
+    corr = len(sample.choice_upper)
+    err = len(sample.choice_lower)
+    z = scipy.stats.norm.ppf(1-alpha/2)
+    p = corr/(corr+err)
+    return z*np.sqrt(p*(1-p)/(corr+err))
+
 def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
     def _plot_psychometric(model=None, sample=None, fig=None, conditions={}, data_dt=None, method=None):
-        colour_cycle = sns.color_palette() if split_by_condition is not None else ['k']
+        colour_cycle = [plt.cm.Set1(i) for i in range(0, 8)]*10
         # Create a figure if one is not given
         if fig is None:
             fig = plt.gcf()
@@ -673,18 +682,90 @@ def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
                 matchingconds[condition_across] = coh
                 if model:
                     x_sim.append(coh)
-                    s = pyddm.solve_partial_conditions(model, sample=sample, conditions=matchingconds, method=method)
+                    s = solve_partial_conditions(model, sample=sample, conditions=matchingconds, method=method)
                     y_sim.append(s.prob("upper"))
             if model:
                 label = {"label": f"{split_by_condition}={split_cond}"} if split_by_condition is not None else {}
                 ax.plot(x_sim, y_sim, c=colour_cycle[i], clip_on=False, linestyle='-', linewidth=1, **label)
             if sample:
                 ax.errorbar(x_data, y_data, yerr=ci_data, c=colour_cycle[i], clip_on=False, linestyle=' ', marker='o', markersize=3)
-        sns.despine(ax=ax)
-        ax.set_xlabel("Color coherence")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_xlabel(condition_across)
         ax.set_yticks([0, .5, 1])
         #ax.set_yticklabels(["", "0.25", "0.5", "0.75", ""])
         ax.set_ylabel(f"P({model.choice_names[0]})")
         if split_by_condition is not None:
             ax.legend()
     return _plot_psychometric
+
+def plot_chronometric(condition_across, split_by_condition=None, resolution=11):
+    # This code is largely copied from plot_psychometric
+    def _plot_chronometric(model=None, sample=None, fig=None, conditions={}, data_dt=None, method=None):
+        colour_cycle = [plt.cm.Set1(i) for i in range(0, 8)]*10
+        # Create a figure if one is not given
+        if fig is None:
+            fig = plt.gcf()
+        ax = fig.add_subplot(111)
+        for i,split_cond in (enumerate(sorted(set(sample.condition_values(split_by_condition)))) if split_by_condition is not None else [(0,None)]):
+            x_sim = []
+            x_data = []
+            y_sim = []
+            y_data = []
+            ci_data = []
+            cohs = sorted(set(sample.condition_values(condition_across)))
+            for coh in cohs:
+                if sample:
+                    if split_by_condition is not None:
+                        matchingconds = {split_by_condition: split_cond, condition_across: coh}
+                    else:
+                        matchingconds = {condition_across: coh}
+                    matchingsample = sample.subset(**matchingconds)
+                    if len(conditions) > 0:
+                        matchingsample = matchingsample.subset(**conditions)
+                    if len(matchingsample) == 0: continue
+                    x_data.append(coh)
+                    y_data.append(matchingsample.mean_rt())
+                    ci_data.append(_binom_ci(matchingsample))
+            model_cohs = np.linspace(np.min(cohs), np.max(cohs), resolution)
+            for coh in model_cohs:
+                matchingconds = conditions.copy()
+                if split_by_condition is not None:
+                    matchingconds[split_by_condition] = split_cond
+                matchingconds[condition_across] = coh
+                if model:
+                    x_sim.append(coh)
+                    s = solve_partial_conditions(model, sample=sample, conditions=matchingconds, method=method)
+                    y_sim.append(s.mean_rt())
+            if model:
+                label = {"label": f"{split_by_condition}={split_cond}"} if split_by_condition is not None else {}
+                ax.plot(x_sim, y_sim, c=colour_cycle[i], clip_on=False, linestyle='-', linewidth=1, **label)
+            if sample:
+                ax.errorbar(x_data, y_data, yerr=ci_data, c=colour_cycle[i], clip_on=False, linestyle=' ', marker='o', markersize=3)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_xlabel(condition_across)
+        ax.set_ylabel("Mean RT (s)")
+        if split_by_condition is not None:
+            ax.legend()
+    return _plot_chronometric
+
+def plot_bound_shape(model, sample=None, fig=None, conditions=None, data_dt=None, method=None):
+    # We will ignore most of these arguments
+    if fig is None:
+        fig = plt.gcf()
+    b = model.get_dependence("bound").get_bound(model.t_domain(), conditions=conditions)
+    if isinstance(b, (float, int)):
+        b = model.t_domain()*0+b
+    ax1 = fig.add_axes([.12, .56, .85, .43])
+    ax2 = fig.add_axes([.12, .13, .85, .43], sharex=ax1)
+    ax2.invert_yaxis()
+    ax1.plot(model.t_domain(), b, color='k', lw=2)
+    ax2.plot(model.t_domain(), b, color='k', lw=2)
+    ax1.set_ylim(0, None)
+    ax2.set_ylim(None, 0)
+    for ax in [ax1, ax2]:
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
