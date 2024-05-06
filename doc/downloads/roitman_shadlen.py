@@ -64,11 +64,11 @@ assert roitman_sample == roitman_sample2
 
 # Start Model
 m = pyddm.gddm(drift=lambda coh, driftcoh : driftcoh*coh,
-                     noise=1,
-                     bound="b",
-                     nondecision="ndtime",
-                     parameters={"driftcoh": (-20,20), "b": (.4, 3), "ndtime": (0, .5)},
-                     conditions=["coh"])
+               noise=1,
+               bound="b",
+               nondecision="ndtime",
+               parameters={"driftcoh": (-20,20), "b": (.4, 3), "ndtime": (0, .5)},
+               conditions=["coh"])
 # pyddm.plot.model_gui(m) # ...or...
 pyddm.plot.model_gui_jupyter(m, sample=roitman_sample)
 # End Model
@@ -97,6 +97,13 @@ plt.show()
 pyddm.plot.model_gui_jupyter(m, sample=roitman_sample)
 # End Gui
 
+# Start GuiPsychoChrono
+# pyddm.plot.model_gui(m, sample=roitman_sample, plot=pyddm.plot_psychometric('coh'))
+# pyddm.plot.model_gui(m, sample=roitman_sample, plot=pyddm.plot_chronometric('coh'))
+# ...or...
+pyddm.plot.model_gui_jupyter(m, sample=roitman_sample, plot=pyddm.plot.plot_psychometric('coh'))
+pyddm.plot.model_gui_jupyter(m, sample=roitman_sample, plot=pyddm.plot.plot_chronometric('coh'))
+# End GuiPsychoChrono
 
 # Start leak model
 model_leak = pyddm.gddm(

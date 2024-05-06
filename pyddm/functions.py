@@ -40,7 +40,9 @@ from .fitresult import FitResult, FitResultEmpty
 _parallel_pool = None # Note: do not change this directly.  Call set_N_cpus() instead.
 #@accepts(Natural1)
 #@paranoidconfig(enabled=False)
+
 def set_N_cpus(N):
+    """Enable parallelization with N threads."""
     global _parallel_pool
     if _parallel_pool is not None:
         _parallel_pool.close()

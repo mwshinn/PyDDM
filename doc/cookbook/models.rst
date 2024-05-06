@@ -14,28 +14,10 @@ implement this in PyDDM with::
                    parameters={"a": (1,2), "aprime": (0,1), "lam": (0,2), "k": (0,5)})
     pyddm.plot.model_gui(m)
 
-We can visualize the shape of the bounds using a custom function for the model GUI::
+We can visualize the shape of the bounds using a special view function for the
+model GUI::
 
-    import matplotlib.pyplot as plt
-    def plot_bound_shape(model, sample=None, fig=None, conditions=None, data_dt=None, method=None):
-        # We will ignore most of these arguments
-        if fig is None:
-            fig = plt.gcf()
-        b = model.get_dependence("bound").get_bound(model.t_domain(), conditions=conditions)
-        ax1 = fig.add_axes([.12, .56, .85, .43])
-        ax2 = fig.add_axes([.12, .13, .85, .43], sharex=ax1)
-        ax2.invert_yaxis()
-        ax1.plot(model.t_domain(), b, color='k', lw=2)
-        ax2.plot(model.t_domain(), b, color='k', lw=2)
-        ax1.set_ylim(0, None)
-        ax2.set_ylim(None, 0)
-        for ax in [ax1, ax2]:
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_visible(False)
-
-    pyddm.plot.model_gui(m, plot=plot_bound_shape)
+    pyddm.plot.model_gui(m, plot=pyddm.plot.plot_bound_shape)
        
     
 .. _rlddm:

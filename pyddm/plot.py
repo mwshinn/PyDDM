@@ -639,15 +639,24 @@ def model_gui_jupyter(model,
     out = widgets.interactive_output(draw_update, allargs)
     return display(layout, out)
 
-def _binom_ci(sample, alpha=.05):
-    """Confidence interval using Gaussian approximation for binomial RVs"""
-    corr = len(sample.choice_upper)
-    err = len(sample.choice_lower)
-    z = scipy.stats.norm.ppf(1-alpha/2)
-    p = corr/(corr+err)
-    return z*np.sqrt(p*(1-p)/(corr+err))
+def plot_psychometric(condition_across, split_by_condition=None, resolution=11, forced_choice=True):
+    """Create a psychometric function plot for use in the model GUI.
 
-def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
+    `condition_across` specifies the x axis for the psychometric function.
+
+    `split_by_condition` is (optionally) the name of a condition to split the
+    psychometric curve.  For instance, if there are two types of trials in your
+    dataset and you would like to compare them, you can set this to the name of
+    the condition which denotes the different trial type.
+
+    `resolution` specifies how finely spaced points to plot when computing the
+    model's psychometric function.  Larger numbers will look smoother but be
+    slower.
+
+    `forced_choice` determines how to handle undecided trials.  When True,
+    choices which run out of time are made randomly, with 50% probability of
+    either choice.
+    """
     def _plot_psychometric(model=None, sample=None, fig=None, conditions={}, data_dt=None, method=None):
         colour_cycle = [plt.cm.Set1(i) for i in range(0, 8)]*10
         # Create a figure if one is not given
@@ -672,7 +681,10 @@ def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
                         matchingsample = matchingsample.subset(**conditions)
                     if len(matchingsample) == 0: continue
                     x_data.append(coh)
-                    y_data.append(matchingsample.prob("upper"))
+                    if forced_choice:
+                        y_data.append(matchingsample.prob_forced("upper"))
+                    else:
+                        y_data.append(matchingsample.prob("upper"))
                     ci_data.append(_binom_ci(matchingsample))
             model_cohs = np.linspace(np.min(cohs), np.max(cohs), resolution)
             for coh in model_cohs:
@@ -683,7 +695,10 @@ def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
                 if model:
                     x_sim.append(coh)
                     s = solve_partial_conditions(model, sample=sample, conditions=matchingconds, method=method)
-                    y_sim.append(s.prob("upper"))
+                    if forced_choice:
+                        y_sim.append(s.prob_forced("upper"))
+                    else:
+                        y_sim.append(s.prob("upper"))
             if model:
                 label = {"label": f"{split_by_condition}={split_cond}"} if split_by_condition is not None else {}
                 ax.plot(x_sim, y_sim, c=colour_cycle[i], clip_on=False, linestyle='-', linewidth=1, **label)
@@ -700,6 +715,19 @@ def plot_psychometric(condition_across, split_by_condition=None, resolution=11):
     return _plot_psychometric
 
 def plot_chronometric(condition_across, split_by_condition=None, resolution=11):
+    """Create a chronometric function plot for use in the model GUI.
+
+    `condition_across` specifies the x axis for the psychometric function.
+
+    `split_by_condition` is (optionally) the name of a condition to split the
+    psychometric curve.  For instance, if there are two types of trials in your
+    dataset and you would like to compare them, you can set this to the name of
+    the condition which denotes the different trial type.
+
+    `resolution` specifies how finely spaced points to plot when computing the
+    model's psychometric function.  Larger numbers will look smoother but be
+    slower.
+    """
     # This code is largely copied from plot_psychometric
     def _plot_chronometric(model=None, sample=None, fig=None, conditions={}, data_dt=None, method=None):
         colour_cycle = [plt.cm.Set1(i) for i in range(0, 8)]*10
@@ -751,6 +779,9 @@ def plot_chronometric(condition_across, split_by_condition=None, resolution=11):
     return _plot_chronometric
 
 def plot_bound_shape(model, sample=None, fig=None, conditions=None, data_dt=None, method=None):
+    """Plot the shape of the bound.
+
+    Indended for use in the model GUI."""
     # We will ignore most of these arguments
     if fig is None:
         fig = plt.gcf()
@@ -769,3 +800,11 @@ def plot_bound_shape(model, sample=None, fig=None, conditions=None, data_dt=None
         ax.spines['top'].set_visible(False)
         ax.spines['left'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
+
+def _binom_ci(sample, alpha=.05):
+    """Confidence interval using Gaussian approximation for binomial RVs"""
+    corr = len(sample.choice_upper)
+    err = len(sample.choice_lower)
+    z = scipy.stats.norm.ppf(1-alpha/2)
+    p = corr/(corr+err)
+    return z*np.sqrt(p*(1-p)/(corr+err))

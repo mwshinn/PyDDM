@@ -36,9 +36,11 @@ A model with fixed parameters
 -----------------------------
 
 First, let's see how we can modify the pieces of the model given above.  For
-consistency, we will refer to these (drift, noise, bound, starting position,
-non-decision time, and mixture coefficient) as Components. :func:`.gddm` allows
-us to pass values for different parameters.  The most important parameters are:
+consistency, we will refer to these pieces (drift, noise, bound, starting
+position, non-decision time, and mixture coefficient) as
+"components". :func:`.gddm` allows us to pass different values to components.
+Here, we will pass fixed values.  The components available in the :func:`.gddm`
+function are:
 
 - **drift**: the drift rate, i.e., the amount of evidence that would be
   accumulated in 1 sec if there was no noise.
@@ -54,8 +56,8 @@ us to pass values for different parameters.  The most important parameters are:
 - **nondecision**: the non-decision time, in units of seconds.  Both positive
   and negative values are valid.
 - **mixture_coef**: By default, PyDDM returns an RT distribution which is a
-  mixture model of the DDM RT distribution and the uniform distribution.  This
-  parameter defines the ratio of uniform distribution to DDM RT distribution.
+  mixture model of the GDDM RT distribution and the uniform distribution.  This
+  parameter defines the ratio of uniform distribution to GDDM RT distribution.
   Set to 0 to disable the mixture model.  By default, this is 0.02.  (Mixture
   models assist with model fitting when using maximum likelihood, which we will
   discuss later in this tutorial.)
@@ -69,7 +71,7 @@ non-decision time of 0.2 sec, the model would be:
    :start-after: # Start ModelDef
    :end-before: # End ModelDef
 
-We can show information about our model using the show() function:
+We can show information about our model using the :meth:`~.Model.show` function:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -246,8 +248,8 @@ to the values from the model that generated the data.
 
   You will learn more about these in the upcomming section :ref:`other_params`.
 
-If we want to use these programmatically, we can use the
-:meth:`~.Model.parameters` function, like:
+If we want to use these fitted values programmatically, we can use
+:meth:`~.Model.parameters` to obtain the fitted parameters, like:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -324,8 +326,8 @@ Note that "lambda" is a Python feature which allows us to define short
 "anonymous" functions.  The important thing here is that the names of the
 argument is the same as the name of the parameters.  We can define functions in
 several different ways in Python, and any of these ways will work as long as the
-argument is the name of the parameter.  So, for example, the following is also
-equivalent:
+argument is the name of the parameter.  This means that **the name of the
+function argument matters**.  So, for example, the following is also equivalent:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -625,10 +627,17 @@ We can alternatively explore this with the PyDDM's model GUI:
 
 .. image:: images/model-gui.png
 
+In addition to viewing the PDFs, we can also use the model GUI to view the
+psychometric and chronometric functions.
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :start-after: # Start GuiPsychoChrono
+   :end-before: # End GuiPsychoChrono
+
 See :doc:`modelgui` for more info.
 
 :download:`Download this full example <downloads/roitman_shadlen.py>`
-
 
 Improving the fit
 -----------------
