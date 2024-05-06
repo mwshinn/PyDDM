@@ -1,20 +1,21 @@
 Object-oriented interface tutorial
 ==================================
 
-There are two ways of interacting with PyDDM: auto_model, and the Object
-Oriented API.  auto_model is much simpler, but is not compatible with some
-specialized models.  The object oriented API allows you to access the full power
-of PyDDM in these edge cases.
+There are two ways of interacting with PyDDM: the :func:`.gddm` function, and
+the Object Oriented API.  :func:`.gddm` is much simpler, but is not compatible
+with some specialized models.  The object oriented API allows you to access the
+full power of PyDDM in these edge cases.
 
-Please read the :doc:`quickstart` before this tutorial.
+Please read the :doc:`quickstart`, for building models with :func:`.gddm`,
+before this tutorial.
 
 
 Hello, world!
 -------------
 
-The object-oriented "Hello World" is almost the same as that for auto_model.
-The only difference is the use of Model() instead of auto_model.  Model() will
-be used extensively in the rest of this tutorial.
+The object-oriented "Hello World" is almost the same as that for :func:`.gddm`.
+The only difference is the use of :class:`.Model` instead of :func:`.gddm`.
+:class:`.Model` will be used extensively in the rest of this tutorial.
 
 .. literalinclude:: downloads/oohelloworld.py
    :language: python
@@ -54,8 +55,8 @@ mixed and matched.
   time.  It also allows specifying mixture models when performing likelihood
   fitting.  In general, it allows the distribution of RTs to be modified after
   the end of the simulation.  It defaults to no no overlay, i.e., no
-  non-decision time and no mixture model.  This encapsulates both
-  "nondecision" and "mixture_coef" from auto_model.
+  non-decision time and no mixture model.  This encapsulates both "nondecision"
+  and "mixture_coef" from :func:`.gddm`.
 
 Each of these model components may take parameters which are (usually) unique to
 that specific model component.  These are specified by the model component.  For
@@ -149,7 +150,7 @@ values may vary slightly::
 Note that :class:`~.model.Fittable` objects are a subclass of
 :class:`~.model.Fitted` objects, except they don't have a value.
 
-These models function the same way as those created by auto_model.  The only
+These models function the same way as those created by :func:`.gddm`.  The only
 difference between these two interfaces is the way the models are
 constructed. Everything you do with the model after creating it, including the
 use of Sample and Solution objects, is identical.  Therefore, we will focus on
@@ -348,4 +349,4 @@ To define models in the object-oriented API:
    PyDDM <apidoc/dependences>` or ones you created in step 1.  Parameters for
    the model components must either be specified expicitly or else set to a
    :class:`.Fittable` instance, for example "Fittable(minval=0, maxval=1)".
-3. Simulate and fit the model, as with auto_model.
+3. Simulate and fit the model, as with :func:`.gddm`.

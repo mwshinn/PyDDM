@@ -1,8 +1,8 @@
-# Some example GDDMs from the PyDDM tutorial, specified through auto_model
+# Some example GDDMs from the PyDDM tutorial, specified through the gddm function
 
 # Start condition model
 import pyddm
-m = pyddm.auto_model(
+m = pyddm.gddm(
     drift=lambda drift_rate_scale,coh : drift_rate_scale*coh,
     parameters={"drift_rate_scale": (-2,2)},
     conditions=["coh"])
@@ -28,7 +28,7 @@ pyddm.plot.model_gui_jupyter(m, sample)
 
 # Start drift bounds gddm
 import pyddm
-m = pyddm.auto_model(
+m = pyddm.gddm(
     drift=lambda drift_rate,t : drift_rate*np.exp(t),
     bound=lambda bound_height,t : np.max(bound_height-t, 0),
     parameters={"drift_rate": (-2,2), "bound_height": (.5, 2)})
@@ -38,7 +38,7 @@ pyddm.plot.model_gui_jupyter(m)
 
 # Start leaky gddm
 import pyddm
-m = pyddm.auto_model(
+m = pyddm.gddm(
     drift=lambda drift_rate,leak,x : drift_rate - x*leak,
     parameters={"drift_rate": (-2,2), "bound_height": (.5, 2)})
 # pyddm.plot.model_gui(m) # ...or...

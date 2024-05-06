@@ -1201,7 +1201,7 @@ class Model(object):
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower)))
         if minval < 0:
-            sum_negative_strength = np.sum(pdf_choice_upper[pdf_corr<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
+            sum_negative_strength = np.sum(pdf_choice_upper[pdf_choice_upper<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
             # For small errors, don't bother alerting the user
             if sum_negative_strength < -.01 and param.renorm_warnings:
                 _logger.warning(("Probability density included values less than zero (minimum=%f, "

@@ -2,18 +2,24 @@
 
 ## New features
 
-- New interface ("auto_model") for easier model specification
+- New interface (the "gddm" function) for easier model specification
 
   PyDDM has a new recommended and default way of constructing models.
   Previously PyDDM used an object-oriented interface.  While this was flexible,
   in practice, it required a lot of code to make even very simple models.  Now,
-  models can be specified very simply using the "auto_model" function.  See
+  nearly all models can be specified very simply using the "gddm" function.  See
   documentation for more information.  (The object-oriented interface will
   always be a part of PyDDM, so backward compatibility is maintained.)
 
+- Additional views for the model GUI
+
+  Previously, the model GUI showed the probability densities for the response
+  time.  Now it also can show the psychometric function, chronometric function,
+  and the shape of the bound.
+
 - Complete documentation rewrite
 
-  All of the documentation has been rewritten to accommodate for auto_model.  It
+  All of the documentation has been rewritten to use the gddm() function.  It
   has also been modified to make it more accessible and easier to follow.
   
 - Clearer interface for fitting models

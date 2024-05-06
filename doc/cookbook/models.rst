@@ -10,8 +10,8 @@ A popular choice for collapsing bounds is the Weibull function.  You can
 implement this in PyDDM with::
 
     import numpy as np
-    m = pyddm.auto_model(bound=lambda t,a,aprime,lam,k : a - (1 - np.exp(-(t/lam)**k)) * (a - aprime),
-                         parameters={"a": (1,2), "aprime": (0,1), "lam": (0,2), "k": (0,5)})
+    m = pyddm.gddm(bound=lambda t,a,aprime,lam,k : a - (1 - np.exp(-(t/lam)**k)) * (a - aprime),
+                   parameters={"a": (1,2), "aprime": (0,1), "lam": (0,2), "k": (0,5)})
     pyddm.plot.model_gui(m)
 
 We can visualize the shape of the bounds using a custom function for the model GUI::
@@ -170,13 +170,28 @@ The model is then::
             return d * (value - price * theta)
         else:
             return d * (price - value * theta)
-    m = pyddm.auto_model(drift=drift_func, noise=.1, bound="b", nondecision="tnd", mixture_coef=.02,
-                         parameters={"d": (0, 2), "theta": (0, 1), "b": (.5, 2), "tnd": (0, .5)},
-                         conditions=["value", "price", "fixation"])
+    m = pyddm.gddm(drift=drift_func, noise=.1, bound="b", nondecision="tnd", mixture_coef=.02,
+                   parameters={"d": (0, 2), "theta": (0, 1), "b": (.5, 2), "tnd": (0, .5)},
+                   conditions=["value", "price", "fixation"])
     pyddm.plot.model_gui(m, sample=samp)
 
 Note that there will be many conditions shown in the left hand side of the model
 GUI if used on data with more trials.
+
+
+.. _multisensory-drift:
+
+Multi-sensory integration
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Drift rate can be determined by multiple signals.  For instance, if we have
+vestibular and tactile evidence which add linearly, the model would be::
+
+    m = pyddm.gddm(drift=lambda tact,tact_scale,vest,vest_scale : tact*tact_scale + vest*vest_scale,
+                   parameters={"tact_scale": (0, 3), "vest_scale": (0, 3)},
+                   conditions=["vest", "tact"])
+    pyddm.plot.model_gui(m, conditions={"vest": [-1, 0, 1], "tact": [-1, -.5, 0, .5, 1]})
+
 
 .. _full-ddm:
 
@@ -193,17 +208,17 @@ The first three of these four extensions to the DDM are simple to implement in
 PyDDM, and can be accomplished using the following model::
 
     import scipy.stats
-    m = pyddm.auto_model(drift="drift",
-                         noise=0.1,
-                         bound="bound",
-                         starting_position=lambda x0,x0_width,x : scipy.stats.uniform(x0-x0_width/2, x0_width).pdf(x),
-                         nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width),
-                         parameters={"drift": (-2, 2),
-                                     "bound": (.3, 3),
-                                     "x0": (-.7, .7),
-                                     "x0_width": (.01, .29),
-                                     "tnd": (.1, .5),
-                                     "tnd_width": (.01, .1)})
+    m = pyddm.gddm(drift="drift",
+                   noise=0.1,
+                   bound="bound",
+                   starting_position=lambda x0,x0_width,x : scipy.stats.uniform(x0-x0_width/2, x0_width).pdf(x),
+                   nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width),
+                   parameters={"drift": (-2, 2),
+                               "bound": (.3, 3),
+                               "x0": (-.7, .7),
+                               "x0_width": (.01, .29),
+                               "tnd": (.1, .5),
+                               "tnd_width": (.01, .1)})
 
 However, drift rate variability is difficult in PyDDM and is really not
 recommended.  If you absolutely must, you can use the following, but make sure
@@ -241,14 +256,14 @@ Then, once you have prepared your sample, you can use the following model::
         stepsize = width/(RESOLUTION-1)
         mindrift = drift - width/2
         return mindrift + stepsize*driftnum
-    m = pyddm.auto_model(drift=drift_uniform_distribution,
-                         noise=0.1,
-                         bound="bound",
-                         starting_position=lambda x0,x0_width,x : scipy.stats.uniform(x0-x0_width/2, x0_width).pdf(x),
-                         nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width),
-                         parameters={"drift": (-2, 2),
-                                     "bound": (.3, 3),
-                                     "x0": (-.7, .7),
-                                     "x0_width": (.01, .59),
-                                     "tnd": (.1, .5),
-                                     "tnd_width": (.01, .2)})
+    m = pyddm.gddm(drift=drift_uniform_distribution,
+                   noise=0.1,
+                   bound="bound",
+                   starting_position=lambda x0,x0_width,x : scipy.stats.uniform(x0-x0_width/2, x0_width).pdf(x),
+                   nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width),
+                   parameters={"drift": (-2, 2),
+                               "bound": (.3, 3),
+                               "x0": (-.7, .7),
+                               "x0_width": (.01, .59),
+                               "tnd": (.1, .5),
+                               "tnd_width": (.01, .2)})

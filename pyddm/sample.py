@@ -264,6 +264,7 @@ class Sample(object):
             assert choice_names == ("correct", "error")
             choice_column_name = correct_column_name
             deprecation_warning("the choice_column_name argument")
+        assert np.all(np.isin(df[choice_column_name], [0, 1, True, False])), "Choice must be specified as True/False or 0/1"
         c = df[choice_column_name].astype(bool)
         nc = (1-df[choice_column_name]).astype(bool)
         def pt(x): # Pythonic types

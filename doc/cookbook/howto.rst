@@ -112,7 +112,7 @@ name of the two boundaries as an argument to the Model and the Sample.  For
 example, if "High value" is represented by the upper boundary and "Low value" by
 the lower boundary, we can write::
 
-    model = pyddm.auto_model(..., choice_names=("High value", "Low value"))
+    model = pyddm.gddm(..., choice_names=("High value", "Low value"))
     sample = Sample.from_pandas_dataframe(..., choice_names=("High value", "Low value"))
 
 Then, these names can be used to access properties of sample or solution from
@@ -243,9 +243,9 @@ considerations <ic-biased>`.
 Shared parameters in the object-oriented interface
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When using auto_model, it is easy to use the same parameter for multiple
-different components.  For instance, a "gain" variable can scale both the drift
-rate and the noise by simply using the same variable name.
+When using the :func:`.gddm` function, it is easy to use the same parameter for
+multiple different components.  For instance, a "gain" variable can scale both
+the drift rate and the noise by simply using the same variable name.
 
 In the object-oriented interface, this is more difficult.  In order to use the
 same parameter for multiple different components of the model, pass the same

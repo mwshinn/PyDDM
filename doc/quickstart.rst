@@ -22,10 +22,10 @@ Let's dig in a bit so that we can define more useful models.
 .. note::
 
    There are two ways to build models with PyDDM: the classic object-oriented
-   interface, and "auto_model".  Here, we will discuss auto_model: it supports
-   almost all of the features of the classic interface, but is much easier to
-   use.  We will discuss the differences in detail later in this tutorial.
-
+   interface, and the :func:`.gddm` function.  Here, we will discuss the :func:`.gddm`
+   function: it supports almost all of the features of the object-oriented
+   interface, but is much easier to use.  We will discuss the differences in
+   detail later in this tutorial.
 
 For the rest of this tutorial, we will slowly build a generalized drift
 diffusion model (GDDM), validate the model, and then fit the model to an open
@@ -37,9 +37,8 @@ A model with fixed parameters
 
 First, let's see how we can modify the pieces of the model given above.  For
 consistency, we will refer to these (drift, noise, bound, starting position,
-non-decision time, and mixture coefficient) as Components. The auto_model
-function allows us to pass values for different parameters.  The most important
-parameters are:
+non-decision time, and mixture coefficient) as Components. :func:`.gddm` allows
+us to pass values for different parameters.  The most important parameters are:
 
 - **drift**: the drift rate, i.e., the amount of evidence that would be
   accumulated in 1 sec if there was no noise.
@@ -430,10 +429,8 @@ Similar notation can be used for a dependence of noise on position.
 .. note::
 
   Variability in parameters, namely distributions of starting position and
-  non-decision time, is possible to implement in PyDDM, but cannot be
-  implemented with auto_model.  Use the object-oriented interface for this.
-  Variability in drift rate is possible but difficult and not recommended.  See
-  the :doc:`ooquickstart` for more information.`
+  non-decision time, is also possible.  Variability in drift rate is problematic
+  and not recommended.  See the :doc:`cookbook/index` for more information.
 
 .. _other_params:
 
@@ -720,8 +717,8 @@ each.
 
 To simulate models and generate artificial data:
 
-1. Define a model using "auto_model" or the object-oriented API.  Here, we
-   focused on "auto_model".  Models may depend on parameters, conditions, time,
+1. Define a model using :func:`.gddm` or the object-oriented API.  Here, we
+   focused on :func:`.gddm`.  Models may depend on parameters, conditions, time,
    and space.
 2. Simulate the model using the :meth:`.Model.solve()` method to generate a
    :class:`.Solution` object.  If you have multiple conditions, you must run
@@ -736,9 +733,9 @@ To simulate models and generate artificial data:
 
 To fit a model to data:
 
-1. Define a model with at least one free parameter, using "auto_model" or the
-   object-oriented API.  Here, we focused on "auto_model".  Models may depend on
-   parameters, conditions, time, and space.
+1. Define a model with at least one free parameter, using :func:`.gddm` or the
+   object-oriented API.  Here, we focused on :func:`.gddm`.  Models may depend
+   on parameters, conditions, time, and space.
 2. Create a :class:`.Sample` object, either using "from_pandas_dataframe" or
    "from_numpy_array".  Ensure that the conditions used in the model are present
    in the data.

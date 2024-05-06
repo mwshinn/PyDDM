@@ -8,13 +8,14 @@ __all__ = ['models_close', 'fit_model', 'fit_adjust_model',
            'evolution_strategy', 'solve_partial_conditions',
            'hit_boundary', 'dependence_hit_boundary', 'display_model',
            'get_model_loss', 'set_N_cpus', 'solve_all_conditions',
-           'auto_model']
+           'gddm']
 
 import copy
 import logging
 import inspect
 import numpy as np
 import pandas
+import keyword
 from scipy.optimize import minimize, basinhopping, differential_evolution, OptimizeResult
 
 from . import parameters as param
@@ -46,6 +47,9 @@ def set_N_cpus(N):
     if N != 1:
         try:
             import pathos
+            from packaging import version
+            import dill
+            assert version.parse(dill.__version__) > version.parse('0.3.4'), "Please update the package 'dill' to 3.5.0 or later to use multiprocessing"
         except ImportError:
             raise ImportError("Parallel support requires pathos.  Please install pathos.")
         #_parallel_pool = pathos.multiprocessing.Pool(N)
@@ -763,18 +767,18 @@ def display_model(model, print_output=True):
     else:
         print(OUT)
 
-def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_coef=.02, name="", parameters={}, conditions=[], dx=param.dx, dt=param.dt, T_dur=param.T_dur, choice_names=param.choice_names):
+def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_coef=.02, name="", parameters={}, conditions=[], dx=param.dx, dt=param.dt, T_dur=param.T_dur, choice_names=param.choice_names):
     """Return a model without the use of PyDDM's object-oriented interface.
 
-    PyDDM has two interfaces: this one (auto_model), and the object-oriented
-    interface.  This auto_model interface does not support all of the features
-    of PyDDM, but it is much simpler to specify models.  Models created either
-    way can be used interchangably.
+    PyDDM has two interfaces: this one (the gddm function), and the
+    object-oriented interface.  This interface supports almost all of the
+    features of PyDDM, and makes it much simpler to specify models.  Models
+    created either way can be used interchangably.
 
-    To create a model with auto_model, there are three essential pieces of
-    information that must be specified: the model parameters (values which are
-    fit to data), the data conditions (e.g. extra properties of each trial), and
-    the model form.
+    To create a model with the gddm function, there are three essential pieces
+    of information that must be specified: the model parameters (values which
+    are fit to data), the data conditions (e.g. extra properties of each trial),
+    and the model form.
 
     Parameters are values in the model which are left free, allowing them to be
     fit to data.  Parameters are specified in the `parameters` argument and is a
@@ -791,51 +795,60 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
     for fitting.  Conditions do not need to be floats or even numbers: they can
     be strings, arrays, lists, or any other Python object.
 
-    To specify model form, there are five model components available in
-    auto_model: drift rate, noise level (standard deviation of noise), bound
-    height, starting position, and non-decision time.  Each may be a single
-    fixed constant, a parameter, or a Python function.  Functions can be any
-    valid Python function, and may involve parameters or conditions.  The name
-    of the function arguments should share the same name as the relevant
-    parameter or condition.  For example, to scale the drift rate by a parameter
-    named "drift" and a condition named "coherence", set
+    To specify model form, there are six model components available to this
+    function: drift rate, noise level (standard deviation of noise), bound
+    height, starting position, non-decision time, and uniform mixture model
+    coefficient.  Each may be a single fixed constant, a parameter, a condition,
+    or a Python function.  Functions can be any valid Python function, and may
+    involve parameters or conditions.  The name of the function arguments should
+    share the same name as the relevant parameter or condition.  For example, to
+    scale the drift rate by a parameter named "drift" and a condition named
+    "coherence", set
 
         drift = lambda drift, coherence : drift*coherence
 
-    There are six model components that can be specified this way:
+    In more detail, the six model components that can be specified this way:
 
     - `drift`: The drift rate. In addition to parameters and conditions, you can
       also use "t" to specify the current point in time, and "x" to specify the
       current position in space.  (These can be used time-dependent drift rate
       and leaky/unstable integration, respectively.)  All drift rate functions
-      supported by PyDDM are supported by auto_model.
+      supported by PyDDM are supported by this function.
 
     - `noise`: The standard deviation of the noise. In addition to parameters and
       conditions, you can also use "t" to specify the current point in time, and
       "x" to specify the current position in space.  All noise functions
-      supported by PyDDM are supported by auto_model.
+      supported by PyDDM are supported by this function.
 
     - `bound`: The bound height as distance from the center.  Therefore, total
       bound height is twice this value. In addition to parameters and
       conditions, you can also use "t" to specify the current point in time
       (This can be used for collapsing or expanding bounds.)  Default value is a
       constant bound of height 1 (hence, total separation between the bounds is
-      2).  All bound heights supported by PyDDM are supported by auto_model.
+      2).  All bound heights supported by PyDDM are supported by this function.
 
     - `starting_point`: Starting point bias.  Positive values are a bias towards
       the upper bound, and negative values are biased towards the lower bound.
       Can be specified by parameters and conditions.  Default value is 0 (no
-      bias).  Distributions of starting points are not supported by auto_model,
-      and require the object-oriented interface.
+      bias), and the maximum and minimum values are +1 (top bound) and -1 (lower
+      bound), respectively.  In addition to accepting parameters and conditions,
+      the starting point function can also accept the argument "x", the vector
+      of all positions in space.  To use a distribution of starting points,
+      return a vector the same size as "x".  Otherwise, if a single value is
+      returned, it will be assumed to be a single point.
 
     - `nondecision`: The non-decision time.  Can be specified by parameters and
-      conditions.  Default value is 0.  Distributions of non-decision times are
-      not supported by auto_model, and require the object-oriented interface.
+      conditions.  Default value is 0.  Non-decision time may be negative.  In
+      addition to parameters and conditions, the function for non-decision time
+      may also accept the argument "T", which is a vector of times from -T_dur
+      to +T_dur, spaced by dx.  To return a distribution of non-decision times,
+      return a vector of the same size as "T".  Otherwise, non-decision time
+      will be assumed to be a single point.
 
     - `mixturecoef`: The uniform distribution mixture model, used to allow
       likelihood fitting.  Can not be given by a function, and must be either a
-      constant or a parameter.  The uniform mixture model cannot be disabled or
-      changed in auto_model.
+      constant or a parameter.  The uniform mixture model can be disabled by
+      setting this to 0.
 
     Other parameters:
 
@@ -846,17 +859,20 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
 
     Note on functions which depend on x (the position in space): For performance
     reasons, this variable is always passed as a numpy array of x values.  So,
-    make sure your function can accept a vector of x.  Parameters and "t" (the
-    current time) are passed as floats.
+    make sure your function can accept a vector of x.  Parameters, conditions,
+    and "t" (the current time) are passed as floats.
 
     """
+    assert isinstance(parameters, dict), "Parameters must be a dictionary, with keys containing the parameter name and values containing the value of the parameter or the range of valid parameter values for fitting."
     for c in conditions:
-        assert c not in parameters.keys(), "Condition and parameter cannot have the same name"
-        assert c not in ["x", "t", "dx"], "Condition cannot be named 'x', 't', or 'dx'"
+        assert c not in parameters.keys(), f"Condition and parameter cannot have the same name.  Invalid name '{c}'."
+        assert c not in ["x", "t", "T", "dx"], f"Condition cannot be named 'x', 't', 'T', or 'dx'.  Invalid name '{c}'."
+        assert c.isidentifier() and not keyword.iskeyword(c), f"Condition names must be valid names for variables in Python.  Invalid name '{c}'."
 
     for name,p in parameters.items():
-        assert name not in ["x", "t", "dx"], "Parameters cannot be named 'x', 't', or 'dx'"
-        assert isinstance(p, (int,float,np.float_,np.int_)) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float,int,np.int_,np.float_)) and isinstance(p[1], (float,int,np.int_,np.float_))), "Parameters must be a single number or a tuple of numbers"
+        assert name not in ["x", "t", "T", "dx"], f"Parameters cannot be named 'x', 't', 'T', or 'dx'.  Invalid name '{name}'."
+        assert isinstance(p, (int,float,np.float_,np.int_)) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float,int,np.int_,np.float_)) and isinstance(p[1], (float,int,np.int_,np.float_))), f"Parameters must be a single number or a tuple of numbers (representing a range for fitting).  Invalid parameter '{name}'."
+        assert name.isidentifier() and not keyword.iskeyword(name), f"Parameter names must be valid names for variables in Python.  Invalid parameter name '{name}'."
 
     # Either the fittable or the constant value
     _fittables = {pn : Fittable(minval=pv[0], maxval=pv[1]) if isinstance(pv, tuple) else pv for pn,pv in parameters.items()}
@@ -866,10 +882,12 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
         `name` is the dependence name for error message outputs.
         `special` is either "", "x", "t", "T", or "xt", describing what the dependence supports.
         """
+        if val in conditions:
+            val = eval(f"lambda {val}: {val}")
         if val in parameters.keys():
-            return "param",None
+            return "val",None,_fittables[val]
         elif isinstance(val, (int,float,np.float_,np.int_)):
-            return "val",None
+            return "val",None,val
         elif hasattr(val, "__call__"):
             sig = inspect.getfullargspec(val)
             assert len(sig.kwonlyargs) == 0, f"Keyword only args not supported for {name}"
@@ -880,24 +898,26 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
             _required_parameters = []
             _required_xt = []
             for arg in sig.args:
-                assert arg != "dx", f"{name} cannot depend on x, t, or dx"
+                assert arg != "dx", f"{name} cannot depend on dx"
                 if arg in parameters.keys():
                     _required_parameters.append(arg)
-                if arg in conditions:
+                elif arg in conditions:
                     _required_conditions.append(arg)
-                if arg in ["x", "t", "T"]:
-                    assert arg in special, f"{arg} is not a valid value for function argument for {name}"
+                elif arg in ["x", "t", "T"]:
+                    _descr = {"x": "the vector of particle positions",
+                              "t": "the current time in the simulation",
+                              "T": "the vector of all time points in the simulation"}
+                    assert arg in special, f"In PyDDM, the '{arg}' argument usually indicates {_descr[arg]}, but this argument cannot be used in the {name} function."
                     _required_xt.append(arg)
-            return "func", (_required_parameters,_required_conditions,_required_xt)
+                else:
+                    raise ValueError(f"Invalid argument '{arg}' to the {name} function.  All arguments to {name} must be parameters, conditions, or the special value{'s' if len(special)>1 else ''} {' or '.join(list(special))}.  Did you forget to add '{arg}' to the list of parameters or conditions passed to the model?")
+            return "func", (_required_parameters,_required_conditions,_required_xt), val
         else:
-            raise ValueError(f"Invalid choice for {name}, please provide a number, parameter (as a string), or function")
+            raise ValueError(f"Invalid value for {name}, please provide a number, parameter (as a string), or function")
 
-    typ, parsed = _parse_dep(drift, "drift")
-    # If drift is a parameter
-    if typ == "param":
-        driftobj = DriftConstant(drift=_fittables[drift])
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, drift = _parse_dep(drift, "drift")
+    # If drift is a parameter or value
+    if typ == "val":
         driftobj = DriftConstant(drift=drift)
     # If it is a function
     elif typ == "func":
@@ -919,12 +939,9 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
                 return "x" in _required_xt_drift
         driftobj = DriftEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_drift})
 
-    typ, parsed = _parse_dep(noise, "noise")
-    # If noise is a parameter
-    if typ == "param":
-        noiseobj = NoiseConstant(noise=_fittables[noise])
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, noise = _parse_dep(noise, "noise")
+    # If noise is a parameter or value
+    if typ == "val":
         noiseobj = NoiseConstant(noise=noise)
     # If it is a function
     elif typ == "func":
@@ -946,12 +963,9 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
                 return "x" in _required_xt_noise
         noiseobj = NoiseEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_noise})
 
-    typ, parsed = _parse_dep(bound, "bound", "t")
-    # If bound is a parameter
-    if typ == "param":
-        boundobj = BoundConstant(B=_fittables[bound])
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, bound = _parse_dep(bound, "bound", "t")
+    # If it is a parameter or value
+    if typ == "val":
         boundobj = BoundConstant(B=bound)
     # If it is a function
     elif typ == "func":
@@ -967,12 +981,9 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
                 return "t" in _required_t_bound
         boundobj = BoundEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_bound})
 
-    typ, parsed = _parse_dep(starting_position, "starting_position", "x")
-    # If starting_position is a parameter
-    if typ == "param":
-        icobj = ICPointRatio(x0=_fittables[starting_position])
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, starting_position = _parse_dep(starting_position, "starting_position", "x")
+    # If starting_position is a parameter or value
+    if typ == "val":
         icobj = ICPointRatio(x0=starting_position)
     # If it is a function
     elif typ == "func":
@@ -995,12 +1006,9 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
             icobj = ICPointRatioEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_x0})
 
     overlayobjs = []
-    typ, parsed = _parse_dep(nondecision, "nondecision", "T")
-    # If nondecision is a parameter
-    if typ == "param":
-        overlayobjs.append(OverlayNonDecision(nondectime=_fittables[nondecision]))
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, nondecision = _parse_dep(nondecision, "nondecision", "T")
+    # If nondecision is a parameter or value
+    if typ == "val":
         overlayobjs.append(OverlayNonDecision(nondectime=nondecision))
     # If it is a function
     elif typ == "func":
@@ -1035,12 +1043,9 @@ def auto_model(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mi
                     return nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd})
             overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
 
-    typ, parsed = _parse_dep(mixture_coef, "mixture_coef", "")
-    # If mixture coefficient is a parameter
-    if typ == "param":
-        overlayobjs.append(OverlayUniformMixture(umixturecoef=_fittables[mixture_coef]))
-    # If it is a value
-    elif typ == "val":
+    typ, parsed, mixture_coef = _parse_dep(mixture_coef, "mixture_coef", "")
+    # If mixture coefficient is a parameter or value
+    if typ == "val":
         overlayobjs.append(OverlayUniformMixture(umixturecoef=mixture_coef))
     # If it is a function
     elif typ == "func":

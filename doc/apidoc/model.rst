@@ -1,10 +1,10 @@
 Models
 ======
 
-Auto-model
-----------
+GDDM function for creating models
+---------------------------------
 
-.. autofunction:: pyddm.functions.auto_model
+.. autofunction:: pyddm.functions.gddm
 
 Model object
 ------------

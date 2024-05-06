@@ -28,18 +28,18 @@ roitman_sample = Sample.from_pandas_dataframe(df_rt, rt_column_name="rt", choice
 
 
 # Define a model which uses our new DriftCoherence defined above.
-from pyddm import auto_model
+from pyddm import gddm
 from pyddm.models import NoiseConstant, BoundConstant, OverlayChain, OverlayNonDecision, OverlayPoissonMixture
-model_rs = auto_model(name='Roitman data, drift varies with coherence',
-                      drift=lambda driftcoh,coh: driftcoh*coh,
-                      noise=1,
-                      bound="B",
-                      nondecision_time="nondectime",
-                      uniform_mixture_coef=.02,
-                      choice_names=("target 1", "target 2"),
-                      dx=.001, dt=.01, T_dur=2,
-                      parameters={"driftcoh": (-20, 20), "B": (.1, 1.5), "nondectime": (0, .4)},
-                      conditions=["coh"])
+model_rs = gddm(name='Roitman data, drift varies with coherence',
+                drift=lambda driftcoh,coh: driftcoh*coh,
+                noise=1,
+                bound="B",
+                nondecision_time="nondectime",
+                uniform_mixture_coef=.02,
+                choice_names=("target 1", "target 2"),
+                dx=.001, dt=.01, T_dur=2,
+                parameters={"driftcoh": (-20, 20), "B": (.1, 1.5), "nondectime": (0, .4)},
+                conditions=["coh"])
 
 # Fitting this will also be fast because PyDDM can automatically
 # determine that DriftCoherence will allow an analytical solution.

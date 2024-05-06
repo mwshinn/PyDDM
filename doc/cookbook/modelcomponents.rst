@@ -10,9 +10,9 @@ Suppose the strength of the signal starts out at zero and then switches to some
 fixed value at t=500 ms, and each trial in the Sample has a "coherence"
 condition, specifying the signal strength.  Then we can write::
 
-    m = pyddm.auto_model(drift=lambda t,coherence,drift_multiplier : 0 if t<.5 else coherence*drift_multiplier,
-                         parameters={"drift_multiplier": (0, 4)},
-                         conditions=["coherence"])
+    m = pyddm.gddm(drift=lambda t,coherence,drift_multiplier : 0 if t<.5 else coherence*drift_multiplier,
+                   parameters={"drift_multiplier": (0, 4)},
+                   conditions=["coherence"])
     pyddm.plot.model_gui(m, conditions={"coherence": [0, .25, .5]})
 
 Alternatively, suppose the stimulus strength switches once after t1 seconds and
@@ -28,9 +28,9 @@ write::
             return coh2*drift_multiplier
         else:
             return coh3*drift_multiplier
-    m = pyddm.auto_model(drift=coherence_changes,
-                         parameters={"drift_multiplier": (-3,3)},
-                         conditions=["coh1", "coh2", "coh3", "t1", "t2"])
+    m = pyddm.gddm(drift=coherence_changes,
+                   parameters={"drift_multiplier": (-3,3)},
+                   conditions=["coh1", "coh2", "coh3", "t1", "t2"])
     pyddm.plot.model_gui(m, conditions={"coh1": [0, .5, 1], "coh2": [0, .5, 1], "coh3": [0, .5, 1], "t1": [.2, .4, .6], "t2": [.2, .4, .6]})
 
 Note that for each of these, to fit the model, conditions would be specified in
@@ -49,10 +49,10 @@ example, the drift rate is scaled by signal strength.  We can do that with::
 
     def urgency(gain, lmbda, t):
         return gain*np.exp(lmbda*t)
-    m = pyddm.auto_model(drift=lambda t,g,l,signal_strength,drift_scale: urgency(g, l, t)*signal_strength*drift_scale,
-                         noise=lambda g,l,t : urgency(g, l, t),
-                         parameters={"l": (.1, 10), "g": (.1, 1), "drift_scale": (.01, 5)},
-                         conditions=["signal_strength"])
+    m = pyddm.gddm(drift=lambda t,g,l,signal_strength,drift_scale: urgency(g, l, t)*signal_strength*drift_scale,
+                   noise=lambda g,l,t : urgency(g, l, t),
+                   parameters={"l": (.1, 10), "g": (.1, 1), "drift_scale": (.01, 5)},
+                   conditions=["signal_strength"])
     pyddm.plot.model_gui(m, conditions={"signal_strength": [0, .4, .8]})
 
 Of course, the urgency signal can be as simple as a linear function, and can
@@ -67,23 +67,28 @@ The relationship between drift rate and coherence (signal strength) can be any
 arbitrarily complicated non-linear relationship.  For instance, to fit a
 quadratic function::
 
-    m = pyddm.auto_model(drift=lambda coh,b1,b2 : coh*b1 + coh**2*b2,
-                         parameters={"b1": (-3, 3), "b2": (-3, 3)},
-                         conditions=["coh"])
+    m = pyddm.gddm(drift=lambda coh,b1,b2 : coh*b1 + coh**2*b2,
+                   parameters={"b1": (-3, 3), "b2": (-3, 3)},
+                   conditions=["coh"])
     pyddm.plot.model_gui(m, conditions={"coh": [0, .4, .8]})
-                         
-.. _multisensory-drift:
 
-Multi-sensory integration
-~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _attractors:
 
-Drift rate can be determined by multiple signals.  For instance, if we have
-vestibular and tactile evidence which add linearly, the model would be::
+Attractor states
+~~~~~~~~~~~~~~~~
 
-    m = pyddm.auto_model(drift=lambda tact,tact_scale,vest,vest_scale : tact*tact_scale + vest*vest_scale,
-                         parameters={"tact_scale": (0, 3), "vest_scale": (0, 3)},
-                         conditions=["vest", "tact"])
-    pyddm.plot.model_gui(m, conditions={"vest": [-1, 0, 1], "tact": [-1, -.5, 0, .5, 1]})
+PyDDM can simulate attractor state dynamics.  This is accomplished using the "x"
+argument to drift, as with leaky or unstable integration.  For instance, to put
+a stable fixed point at each bound and an unstable fixed point at the origin::
+
+    m = pyddm.gddm(drift=lambda x,driftscale,b : -driftscale*(x-b)*(x+b)*x,
+                   bound="b",
+                   parameters={"driftscale": (-5, 5),  "b": (.5, 3)})
+    pyddm.plot.model_gui(m, sample=samp)
+
+In this case, when the parameter "dirftscale" goes negative, the fixed points at
+the bounds will change from stable to unstable, and vice versa for the fixed
+point at the origin.
 
 .. _drift-moment-to-moment:
 
@@ -120,9 +125,9 @@ We can use this in a PyDDM model with the following::
         t_bin = int(t // .2) # 200 ms binning
         t_bin = min(len(arousal_vec)-1, t_bin) # Never go past the final arousal bin
         return arousal_vec[t_bin]
-    m = pyddm.auto_model(drift=lambda t,arousal_scale,arousal : find_drift(t, arousal)*arousal_scale,
-                         parameters={"arousal_scale": (0, 2)},
-                         conditions=["arousal"])
+    m = pyddm.gddm(drift=lambda t,arousal_scale,arousal : find_drift(t, arousal)*arousal_scale,
+                   parameters={"arousal_scale": (0, 2)},
+                   conditions=["arousal"])
     pyddm.plot.model_gui(m, samp, data_dt=.2)
 
 (Here, data_dt indicates the bin size for the data.  Since we only have three
@@ -144,10 +149,10 @@ option with the higher reward), then the bias is always in the same direction.
 The signal strength may then be positive or negative, and it may change trial to
 trial (e.g., motion coherence).  Thus, a model could be::
 
-    m = pyddm.auto_model(drift=lambda coh,driftmultiplier,bias : coh*driftmultiplier + bias,
-                         parameters={"driftmultiplier": (0, 2), "bias": (0, 2)},
-                         conditions=["coh"],
-                         choice_names=("High reward probability", "Low reward probability"))
+    m = pyddm.gddm(drift=lambda coh,driftmultiplier,bias : coh*driftmultiplier + bias,
+                   parameters={"driftmultiplier": (0, 2), "bias": (0, 2)},
+                   conditions=["coh"],
+                   choice_names=("High reward probability", "Low reward probability"))
     pyddm.plot.model_gui(m, conditions={"coh": [-2, -1, 0, 1, 2]})
                         
 
@@ -156,10 +161,10 @@ boundary is the incorrect choice, we need to flip the bias depending on whether
 the biased choice is correct or incorrect.  However, in this case, the motion
 coherence should always be positive.  Thus, a model could be::
 
-    m = pyddm.auto_model(drift=lambda coh,driftmultiplier,bias,biascorrect : coh*driftmultiplier + bias*(1 if biascorrect else -1),
-                         parameters={"driftmultiplier": (0, 2), "bias": (0, 2)},
-                         conditions=["coh", "biascorrect"],
-                         choice_names=("Correct", "Error"))
+    m = pyddm.gddm(drift=lambda coh,driftmultiplier,bias,biascorrect : coh*driftmultiplier + bias*(1 if biascorrect else -1),
+                   parameters={"driftmultiplier": (0, 2), "bias": (0, 2)},
+                   conditions=["coh", "biascorrect"],
+                   choice_names=("Correct", "Error"))
     pyddm.plot.model_gui(m, conditions={"coh": [0, 1, 2], "biascorrect": [0, 1]})
 
 
@@ -173,18 +178,18 @@ implement this slightly differently for stimulus vs accuracy coding.
 
 For stimulus coding, where the bias is towards one of the two stimuli, it is easy::
 
-    m = pyddm.auto_model(starting_position="bias",
-                         parameters={"bias": (-1, 1)},
-                         choice_names=("High reward probability", "Low reward probability"))
+    m = pyddm.gddm(starting_position="bias",
+                   parameters={"bias": (-1, 1)},
+                   choice_names=("High reward probability", "Low reward probability"))
     pyddm.plot.model_gui(m)
 
 For accuracy coding, we need to switch the direction of the bias based on
 whether the choice with the bias was correct on the given trial::
 
-    m = pyddm.auto_model(starting_position=lambda bias,biascorrect: bias if biascorrect else -bias,
-                         parameters={"bias": (-1, 1)},
-                         conditions=["biascorrect"],
-                         choice_names=("Correct", "Error"))
+    m = pyddm.gddm(starting_position=lambda bias,biascorrect: bias if biascorrect else -bias,
+                   parameters={"bias": (-1, 1)},
+                   conditions=["biascorrect"],
+                   choice_names=("Correct", "Error"))
     pyddm.plot.model_gui(m, conditions={"biascorrect": [0, 1]})
 
 .. _starting-point-variability:
@@ -193,7 +198,7 @@ Starting point variability
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Instead of starting point coming from a fixed point, it can also come from a
-distribution.  To do this, the "starting_point" in auto_model can accept the
+distribution.  To do this, the "starting_point" in :func:`.gddm` can accept the
 variable "x", which is the domain of the distribution, i.e., all of the
 potential starting points over which the distribution is defined.  Then it must
 output a vector of the same length as x describing the probability density at
@@ -205,22 +210,22 @@ Or the normal distribution::
 
     import scipy.stats
     import numpy as np
-    m = pyddm.auto_model(starting_position=lambda mu,sigma,x: scipy.stats.norm(mu,sigma).pdf(x),
-                         parameters={"mu": (-.5, .5), "sigma": (.01, .3)})
+    m = pyddm.gddm(starting_position=lambda mu,sigma,x: scipy.stats.norm(mu,sigma).pdf(x),
+                   parameters={"mu": (-.5, .5), "sigma": (.01, .3)})
     pyddm.plot.model_gui(m)
 
 Or the uniform distribution::
 
     import numpy as np
-    m = pyddm.auto_model(starting_position=lambda x: np.ones(len(x))/len(x))
+    m = pyddm.gddm(starting_position=lambda x: np.ones(len(x))/len(x))
     pyddm.plot.model_gui(m)
 
 Or the beta distribution::
 
     import scipy.stats
     import numpy as np
-    m = pyddm.auto_model(starting_position=lambda a,b,x: scipy.stats.beta(a,b).pdf((x-np.min(x))/(np.max(x)-np.min(x))),
-                         parameters={"a": (.001, 10), "b": (.001, 10)})
+    m = pyddm.gddm(starting_position=lambda a,b,x: scipy.stats.beta(a,b).pdf((x-np.min(x))/(np.max(x)-np.min(x))),
+                   parameters={"a": (.001, 10), "b": (.001, 10)})
     pyddm.plot.model_gui(m)
 
 Note that the parameters of these distributions also offer a way to implement a
@@ -245,16 +250,16 @@ For instance, the following is a non-decision time which follows a normal
 distribution::
 
     import scipy.stats
-    m = pyddm.auto_model(noise=2,
-                         nondecision=lambda T,mu,sigma : scipy.stats.norm(mu, sigma).pdf(T),
-                         parameters={"sigma": (.01, .1), "mu": (0, 1)})
+    m = pyddm.gddm(noise=2,
+                   nondecision=lambda T,mu,sigma : scipy.stats.norm(mu, sigma).pdf(T),
+                   parameters={"sigma": (.01, .1), "mu": (0, 1)})
     pyddm.plot.model_gui(m)
 
 For instance, the following is a non-decision time which follows a gamma
 distribution::
 
     import scipy.stats
-    m = pyddm.auto_model(noise=2,
-                         nondecision=lambda T,min_t,shape,scale : scipy.stats.gamma(shape, min_t, scale).pdf(T),
-                         parameters={"shape": (1, 5), "scale": (.01, 1), "min_t": (0, 1)})
+    m = pyddm.gddm(noise=2,
+                   nondecision=lambda T,min_t,shape,scale : scipy.stats.gamma(shape, min_t, scale).pdf(T),
+                   parameters={"shape": (1, 5), "scale": (.01, 1), "min_t": (0, 1)})
     pyddm.plot.model_gui(m)

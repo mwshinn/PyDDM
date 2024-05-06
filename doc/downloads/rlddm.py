@@ -5,12 +5,12 @@ import pandas
 import numpy as np
 
 # BEGIN SIMULATION_CODE
-m_sim = pyddm.auto_model(drift=lambda deltaq, driftscale : driftscale * deltaq,
-                         noise=1,
-                         bound=1,
-                         nondecision=0,
-                         parameters={"driftscale": 1},
-                         conditions=["deltaq"], T_dur=10)
+m_sim = pyddm.gddm(drift=lambda deltaq, driftscale : driftscale * deltaq,
+                   noise=1,
+                   bound=1,
+                   nondecision=0,
+                   parameters={"driftscale": 1},
+                   conditions=["deltaq"], T_dur=10)
 
 def sim_rlddm(n_trials, n_sessions, reward_probabilities, alpha):
     qvals = np.array([0.5, 0.5])
@@ -109,13 +109,13 @@ class LossRLFast(pyddm.LossFunction):
 # END FASTLOSS
 
 # BEGIN MODEL
-m = pyddm.auto_model(drift=lambda driftscale,deltaq,alpha : driftscale * deltaq, # Hack including alpha
-                     noise=1,
-                     bound=1,
-                     nondecision=0,
-                     T_dur=20, dx=.01, dt=.01,
-                     conditions=["deltaq", "session", "trial", "reward"],
-                     parameters={"driftscale": (0, 8), "alpha": (0, 1)})
+m = pyddm.gddm(drift=lambda driftscale,deltaq,alpha : driftscale * deltaq, # Hack including alpha
+               noise=1,
+               bound=1,
+               nondecision=0,
+               T_dur=20, dx=.01, dt=.01,
+               conditions=["deltaq", "session", "trial", "reward"],
+               parameters={"driftscale": (0, 8), "alpha": (0, 1)})
 
 # Fit the model
 m.fit(sample=samp, lossfunction=LossRLFast)

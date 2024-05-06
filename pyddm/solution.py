@@ -7,7 +7,7 @@
 import copy
 import logging
 import numpy as np
-from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe, Boolean, Or, String, Set
+from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe, Boolean, Or, String, Set, Constant, Numeric
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions, Choice
 from .sample import Sample
@@ -468,9 +468,11 @@ class Solution(object):
         return np.sum(self.choice_upper*self.t_domain) / self.prob_correct()
 
     @accepts(Self)
-    @returns(Positive0)
+    @returns(Numeric)
     def mean_rt(self):
         """The mean decision time (excluding undecided trials)."""
+        if self.prob("upper")+self.prob("lower") == 0:
+            return np.nan
         return np.sum((self.choice_upper+self.choice_lower)*self.t_domain) / (self.prob("upper")+self.prob("lower"))
 
     @accepts(Self, Natural1, seed=Maybe(Natural0))

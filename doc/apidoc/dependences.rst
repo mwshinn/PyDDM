@@ -1,6 +1,8 @@
 Model components
 ================
 
+The following are built-in classes that can be used with the object-oriented API.
+
 Drift rate
 ---------------
 

@@ -63,7 +63,7 @@ assert roitman_sample == roitman_sample2
 
 
 # Start Model
-m = pyddm.auto_model(drift=lambda coh, driftcoh : driftcoh*coh,
+m = pyddm.gddm(drift=lambda coh, driftcoh : driftcoh*coh,
                      noise=1,
                      bound="b",
                      nondecision="ndtime",
@@ -99,7 +99,7 @@ pyddm.plot.model_gui_jupyter(m, sample=roitman_sample)
 
 
 # Start leak model
-model_leak = pyddm.auto_model(
+model_leak = pyddm.gddm(
     drift=lambda driftcoh,leak,coh,x : driftcoh*coh - leak*x,
     bound=lambda bound_base,invtau,t : bound_base * np.exp(-t*invtau),
     nondecision="ndtime",
