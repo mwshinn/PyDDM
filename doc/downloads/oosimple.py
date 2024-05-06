@@ -19,7 +19,7 @@ sol = model.solve()
 
 # Now, sample from the model solution to create a new generated
 # sample.
-samp = sol.resample(1000)
+samp = sol.sample(1000)
 
 # Fit a model identical to the one described above on the newly
 # generated data so show that parameters can be recovered.

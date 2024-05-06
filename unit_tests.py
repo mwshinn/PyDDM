@@ -833,7 +833,7 @@ class TestMisc(TestCase):
         m = ddm.Model(choice_names=("Aaa", "b b"), dx=.002, dt=.002, T_dur=5, drift=ddm.DriftConstant(drift=3), name='xxx')
         s = m.solve()
         assert m.choice_names == s.choice_names
-        samp = s.resample(10)
+        samp = s.sample(10)
         assert s.choice_names == m.choice_names
         str(m)
         from pyddm import Model, DriftConstant, NoiseConstant, BoundConstant, ICPointSourceCenter, OverlayNone
@@ -899,6 +899,6 @@ class TestCSolver(TestCase):
 
 # TODO test if there is no overlay, then corr + err + undecided = 1
 # TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
-# TODO test solution.resample in integration testing
+# TODO test solution.sample in integration testing
 # TODO test loss parallelization?
 # TODO test x and t in former auto_model (gddm)

@@ -81,7 +81,7 @@ runs the simulation.  This model can be described as shown below:
 Solution objects represent the probability distribution functions over time for
 choices associated with upper and lower bound crossings.  By default, this is
 "correct" and "error" responses, respectively. As before, we can generate
-psuedo-data from this solved model with the :meth:`~.Solution.resample`
+psuedo-data from this solved model with the :meth:`~.Solution.sample`
 function:
 
 .. literalinclude:: downloads/oosimple.py

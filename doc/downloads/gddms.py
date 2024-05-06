@@ -9,9 +9,9 @@ m = pyddm.gddm(
 # End condition model
 
 # Start solve multiple conditions
-samp_coh3 = m.solve(conditions={"coh": .3}).resample(1000) # 1000 trials with coh=.3
-samp_coh6 = m.solve(conditions={"coh": .6}).resample(500) # 500 trials with coh=.6
-samp_coh0 = m.solve(conditions={"coh": 0}).resample(100) # 100 trials with coh=.6
+samp_coh3 = m.solve(conditions={"coh": .3}).sample(1000) # 1000 trials with coh=.3
+samp_coh6 = m.solve(conditions={"coh": .6}).sample(500) # 500 trials with coh=.6
+samp_coh0 = m.solve(conditions={"coh": 0}).sample(100) # 100 trials with coh=.6
 sample = samp_coh3 + samp_coh6 + samp_coh0 # This preserves information about the conditions
 # End solve multiple conditions
 

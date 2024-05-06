@@ -475,10 +475,14 @@ class Solution(object):
             return np.nan
         return np.sum((self.choice_upper+self.choice_lower)*self.t_domain) / (self.prob("upper")+self.prob("lower"))
 
+    def resample(self, k=1, seed=None):
+        """Use the "sample()" function instead."""
+        return self.sample(k=k, seed=seed)
+
     @accepts(Self, Natural1, seed=Maybe(Natural0))
     @returns(Sample)
     @ensures("len(return) == k")
-    def resample(self, k=1, seed=None):
+    def sample(self, k=1, seed=None):
         """Generate a list of reaction times sampled from the PDF.
 
         `k` is the number of TRIALS, not the number of samples.  Since

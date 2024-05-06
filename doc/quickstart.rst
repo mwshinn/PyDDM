@@ -123,11 +123,12 @@ Fitting model parameters
 We can also define a model with free parameters - these parameters can be fit to
 data, or tweaked using the PyDDM GUI.  Instead of passing numbers to these
 arguments, we can instead pass the names of parameters to fit.  Then, at the
-end, we use the "parameters" argument to define the parameters.  This argument
-should be a dictionary, where the key of the dictionary is the name of the
-parameter, and the value is a tuple containing the minimum and maximum value of
-the parameter.  For example, to fit the drift rate, the noise level, and the
-non-decision time, but keep the bound fixed at 1.0, we can write:
+end, we use the "parameters" argument to list the parameters and their valid
+ranges.  This argument should be a dictionary, where the key of the dictionary
+is the name of the parameter, and the value is a tuple containing the minimum
+and maximum value of the parameter.  For example, to fit the drift rate, the
+noise level, and the non-decision time, but keep the bound fixed at 1.0, we can
+write:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -374,10 +375,10 @@ must specify to the solve() method what conditions we want to use.  For example:
     m.solve(conditions={"coh": .3})
 
 If we fit the model using a Sample object, the Sample must have the given
-conditions in it.  When we simulate data with the resample() function, we can
-simulate from multiple conditions by solving the model for different sets of
-conditions, calling resample() on each Solution object, and then combining them
-by adding them together.  For example,
+conditions in it.  When we simulate data with the :meth:`~.Solution.sample`
+function, we can simulate from multiple conditions by solving the model for
+different sets of conditions, calling :meth:`~.Solution.sample` on each Solution
+object, and then combining them by adding them together.  For example,
 
 .. literalinclude:: downloads/gddms.py
    :language: python
@@ -724,7 +725,7 @@ To simulate models and generate artificial data:
    :class:`.Solution` object.  If you have multiple conditions, you must run
    :meth:`.Model.solve()` separately for each set of conditions and generate
    separate :class:`.Solution` objects.
-3. Run the :meth:`.Solution.resample()` method of the :class:`.Solution` object
+3. Run the :meth:`.Solution.sample()` method of the :class:`.Solution` object
    to generate a :class:`.Sample`.  If you have multiple :class:`.Solution`
    objects (for multiple task conditions), you will need to generate multiple
    :class:`.Sample` objects as well.  These can be added together with the "+"

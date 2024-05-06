@@ -519,10 +519,10 @@ class Model(object):
         use Model.solve().  To sample from the probability
         distribution (e.g. for finding confidence intervals for
         limited amounts of data), call Model.solve() and then use the
-        Solution.resample() function of the resulting Solution.
+        Solution.sample() function of the resulting Solution.
 
         """
-        _logger.warning("To generate a sample from a model, please use Solution.resample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
+        _logger.warning("To generate a sample from a model, please use Solution.sample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
         choice_upper_times = []
         choice_lower_times = []
         undec_count = 0

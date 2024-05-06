@@ -260,7 +260,7 @@ a gold standard for determining the required sample size.  This allows you to
 determine how many trials you need in order to get the parameter variability
 you're willing to tolerate.  The idea is to build the model you want to fit,
 choose reasonable-ish default parameters, and then simulate several trials from
-that model using the :meth:`.Solution.resample` method.  After you simulate
+that model using the :meth:`.Solution.sample` method.  After you simulate
 these trials for different sample sizes, you fit the same model (but with
 Fittable parameters) to the generated data. Then, you can find how close the
 parameter estimates are to the actual parameters when you have different sample

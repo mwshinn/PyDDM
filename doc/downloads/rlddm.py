@@ -25,7 +25,7 @@ def sim_rlddm(n_trials, n_sessions, reward_probabilities, alpha):
         for t in range(0, n_trials):
             # compute choice probabilities using softmax formula
             sol = m_sim.solve(conditions={"deltaq": qvals[1]-qvals[0]})
-            res = sol.resample(5).to_pandas_dataframe(drop_undecided=True) # We only use the first non-undecided trial
+            res = sol.sample(5).to_pandas_dataframe(drop_undecided=True) # We only use the first non-undecided trial
             r = np.random.randint(0, 5)
             choice.append(res['choice'][r]) # 1 for right and 0 for left
             rt.append(float(res['RT'][r]))
