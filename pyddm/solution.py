@@ -7,7 +7,7 @@
 import copy
 import logging
 import numpy as np
-from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe, Boolean, Or, String, Set
+from paranoid.types import NDArray, Generic, Number, Self, Positive0, Range, Natural1, Natural0, Maybe, Boolean, Or, String, Set, Constant, Numeric
 from paranoid.decorators import accepts, returns, requires, ensures, paranoidclass
 from .models.paranoid_types import Conditions, Choice
 from .sample import Sample
@@ -149,9 +149,9 @@ class Solution(object):
             return 1
         if choice in [0, 2, self.choice_names[1]]:
             return 2
-        if choice == "_top":
+        if choice in ["_top", "top", "top_bound", "upper_bound", "upper"]:
             return 1
-        if choice == "_bottom":
+        if choice in ["_bottom", "bottom_bound", "lower_bound", "lower", "bottom"]:
             return 2
         raise NotImplementedError("\"choice\" needs to be '"+self.choice_names[0]+"' or '"+self.choice_names[1]+"' to use this function, not '"+choice+"'")
 
@@ -464,13 +464,25 @@ class Solution(object):
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         if self.choice_names != ("correct", "error"):
-            raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.")
-        return np.sum(self.corr*self.t_domain) / self.prob_correct()
+            raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  See mean_rt function.")
+        return np.sum(self.choice_upper*self.t_domain) / self.prob_correct()
+
+    @accepts(Self)
+    @returns(Numeric)
+    def mean_rt(self):
+        """The mean decision time (excluding undecided trials)."""
+        if self.prob("upper")+self.prob("lower") == 0:
+            return np.nan
+        return np.sum((self.choice_upper+self.choice_lower)*self.t_domain) / (self.prob("upper")+self.prob("lower"))
+
+    def resample(self, k=1, seed=None):
+        """Use the "sample()" function instead."""
+        return self.sample(k=k, seed=seed)
 
     @accepts(Self, Natural1, seed=Maybe(Natural0))
     @returns(Sample)
     @ensures("len(return) == k")
-    def resample(self, k=1, seed=None):
+    def sample(self, k=1, seed=None):
         """Generate a list of reaction times sampled from the PDF.
 
         `k` is the number of TRIALS, not the number of samples.  Since

@@ -14,9 +14,9 @@ default loss function is likelihood (via
 As an example, to fit the "Simple example" from the quickstart guide,
 do::
 
-  fit_adjust_model(samp, model_fit,
-                   method="differential_evolution",
-                   lossfunction=LossSquaredError)
+  model_fit.(samp,
+             method="differential_evolution",
+             lossfunction=LossSquaredError)
 
 Custom loss functions may be defined by extending
 :class:`~.models.loss.LossFunction`.  The ``loss`` function must be

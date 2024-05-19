@@ -1,61 +1,91 @@
 # Simple demonstration of PyDDM.
 
-# Create a simple model with constant drift, noise, and bounds.
-from pyddm import Model
-from pyddm.models import DriftConstant, NoiseConstant, BoundConstant, OverlayNonDecision, ICPointSourceCenter
-from pyddm.functions import fit_adjust_model, display_model
+import pyddm
 
-model = Model(name='Simple model',
-              drift=DriftConstant(drift=2.2),
-              noise=NoiseConstant(noise=1.5),
-              bound=BoundConstant(B=1.1),
-              overlay=OverlayNonDecision(nondectime=.1),
-              dx=.001, dt=.01, T_dur=2)
+# Construct a model, show it, and then solve it.
 
-# Solve the model, i.e. simulate the differential equations to
-# generate a probability distribution solution.
-display_model(model)
+# Start ModelDef
+model = pyddm.gddm(drift=0.5, noise=1.0, bound=0.6, starting_position=0.3, nondecision=0.2)
+# End ModelDef
+
+# Start ShowModel
+model.show()
+# End ShowModel
+
+# Start ModelSolve
 sol = model.solve()
+# End ModelSolve
 
-# Now, sample from the model solution to create a new generated
-# sample.
-samp = sol.resample(1000)
+# Perform parameter recovery on the same model but with free parameters.  First,
+# construct the model with free parameters, and visualize it with the model GUI.
+# Then, sample some artificial data from our previous model, and then fit the
+# new model to this artificial data.  Then, we can check to make sure that the
+# parameters are similar to the ones used to generate the data.
 
-# Fit a model identical to the one described above on the newly
-# generated data so show that parameters can be recovered.
-from pyddm import Fittable, Fitted
-from pyddm.models import LossRobustBIC
-from pyddm.functions import fit_adjust_model
-model_fit = Model(name='Simple model (fitted)',
-                  drift=DriftConstant(drift=Fittable(minval=0, maxval=4)),
-                  noise=NoiseConstant(noise=Fittable(minval=.5, maxval=4)),
-                  bound=BoundConstant(B=1.1),
-                  overlay=OverlayNonDecision(nondectime=Fittable(minval=0, maxval=1)),
-                  dx=.001, dt=.01, T_dur=2)
 
-fit_adjust_model(samp, model_fit,
-                 fitting_method="differential_evolution",
-                 lossfunction=LossRobustBIC, verbose=False)
+# Start ModelFittableDef
+model_to_fit = pyddm.gddm(drift="d", noise=1.0, bound="B", nondecision=0.2, starting_position="x0",
+                          parameters={"d": (-2,2), "B": (0.3, 2), "x0": (-.8, .8)})
+model_to_fit.show()
+# End ModelFittableDef
 
-display_model(model_fit)
-model_fit.parameters()
-model_fit.get_fit_result().value()
+# Start ModelFittableAltDef
+model_to_fit = pyddm.gddm(drift=lambda d : d,
+                          noise=1.0,
+                          bound=lambda B : B,
+                          nondecision=0.2,
+                          starting_position=lambda x0 : x0,
+                          parameters={"d": (-2,2), "B": (0.3, 2), "x0": (-.8, .8)})
+# End ModelFittableAltDef
 
+# Start ModelFittableAlt2Def
+def drift_function(d):
+    return d
+def another_func(B):
+    return B
+third_function = lambda x0: x0
+model_to_fit = pyddm.gddm(drift=drift_function,
+                          noise=1.0,
+                          bound=another_func,
+                          nondecision=0.2,
+                          starting_position=third_function,
+                          parameters={"d": (-2,2), "B": (0.3, 2), "x0": (-.8, .8)})
+# End ModelFittableAlt2Def
+
+# Start ModelGui
+import pyddm.plot
+pyddm.plot.model_gui_jupyter(model_to_fit) # If using a Jupyter notebook
+pyddm.plot.model_gui(model_to_fit) # If not using a Jupyter notebook
+# End ModelGui
+
+# Start Resample
+samp_simulated = sol.sample(10000)
+# End Resample
+
+# Start Fit
+model_to_fit.fit(samp_simulated, lossfunction=pyddm.LossBIC, verbose=False)
+model_to_fit.show()
+# End Fit
+
+# Start Parameters
+model_to_fit.parameters()
+# End Parameters
+
+# Start Lossval
+model_to_fit.get_fit_result().value()
+# End Lossval
+
+# Start Plot
 # Plot the model fit to the PDFs and save the file.
 import pyddm.plot
 import matplotlib.pyplot as plt
-pyddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
+pyddm.plot.plot_fit_diagnostics(model=model_to_fit, sample=samp_simulated)
 plt.savefig("simple-fit.png")
 plt.show()
+# End Plot
 
+# Start Probs
 print(sol.prob("correct"))
 print(sol.pdf("error"))
+# End Probs
 
-# Save the model
-with open("model.txt", "w") as f:
-    f.write(repr(model_fit))
-
-# Load the model
-from pyddm import FitResult
-with open("model.txt", "r") as f:
-    model_loaded = eval(f.read())

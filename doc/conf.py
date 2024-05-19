@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'PyDDM'
-copyright = '2019-2022, Maxwell Shinn, Norman Lam'
+copyright = '2019-2023, Maxwell Shinn, Norman Lam'
 author = 'Maxwell Shinn, Norman Lam'
 
 exec(open("../pyddm/_version.py", "r").read()) # get __version__ variable

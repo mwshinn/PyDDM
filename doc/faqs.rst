@@ -35,7 +35,7 @@ the argument list.
 
 
 What arguments do :func:`~pyddm.models.drift.Drift.get_drift`, :func:`~pyddm.models.noise.Noise.get_noise`, etc. take?
-------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
 
 The most appropriate solver is selected by PyDDM by examining the
 variables on which different model components depend.  For models
@@ -181,35 +181,63 @@ Oscillations occur in the Crank-Nicolson method when your dt is too
 large.  Try decreasing dt.  You should almost never use a dt larger
 than .01, but smaller values are ideal.
 
+Why is PyDDM so fast?
+---------------------
+
+First, the core routines of PyDDM are written in optimized C.  We are
+continuously tuning and refining our code to maximize performance.
+
+Second, PyDDM by default does not (convieniently) support drift rate
+variability.  This is a major performance bottleneck on all major DDM packages,
+since it is hard to use mathematical derivations to optimize it.  Instead, a
+model must be solved many times with different drift rates each time, slowing
+down solving by about one order of magnitude.
+
+Third, PyDDM automatically selects the appropriate solver for your model, based
+on whether different aspects of your model depend on time.  For many complicated
+models, PyDDM is able to find a strategy which uses an analytic solver.
+
+Fourth, parallelization is easy, using the :func:`~.set_N_cpus` function.  This
+makes models with many conditions execute independently on different CPUs.
+
 Why is PyDDM so slow?
 ---------------------
 
 Your model may be slow for a number of different reasons.
 
-- **You have a lot of conditions** -- Each time you solve the model
-  (e.g. by calling :meth:`.Model.solve`), PyDDM internally needs to
-  simulate one pdf per potential combination of conditions.  For
-  example, if you are using 200 different coherence values, then PyDDM
-  will need to simulate 200 different pdfs for each call you make to
-  :meth:`.Model.solve`.  This also compounds multiplicativly: if you
-  have 200 coherence conditions and 10 reward conditions, you will get
-  :math:`200 \times 10=2000` pdf simulations per call to
-  :meth:`.Model.solve`.  During fitting, :meth:`.Model.solve` is
-  called hundreds of times.  As you can imagine, having too many
-  conditions slows things down quite a bit.  Minimizing the number of
-  conditions will thus lead to substantial speedups.
-- **Your numerics (dx and dt) are too small** -- Larger values of dx
-  and dt can lead to imprecise estimations of the response time
-  distribution.  Therefore, be cautious when adjusting dx and dt.  As
-  a rule of thumb, dx and dt should almost always be smaller than 0.01
-  and larger than 0.0001.  Setting them to 0.001 is a good place to
-  start.  If dx and dt are larger than 0.01, your estimated response
-  time distribution will be inaccurate, and if dx and dt are smaller
-  than 0.0001, solving the model will be extremely slow.
+- **You have a lot of conditions** -- Each time you solve the model (e.g. by
+  calling :meth:`.Model.solve`), PyDDM internally needs to simulate one pdf per
+  potential combination of conditions.  For example, if each trial has a
+  different value for a condition, then PyDDM will need to simulate a separate
+  pdf for each trial for each call you make to :meth:`.Model.solve`.  Minimizing
+  the number of conditions will thus minimize the number of simulations PyDDM
+  has to perform internally, leading to substantial speedups.
+- **Your numerics (dx and dt) are too small** -- Larger values of dx and dt can
+  lead to imprecise estimations of the response time distribution.  Therefore,
+  be cautious when adjusting dx and dt.  As a rule of thumb, dx and dt should
+  almost always be smaller than 0.01 and larger than 0.0001.  Setting them to
+  0.005 is a good place to start.  If dx and dt are larger than 0.01, your
+  estimated response time distribution will be inaccurate, and if dx and dt are
+  smaller than 0.0001, solving the model will be extremely slow.  Usually, as a
+  heuristic, PyDDM works best if dx and dt are approximately equal.
 - **The C solver is not working properly** -- You can confirm that the C solver
   is operating by ensuring the variable ``pyddm.model.HAS_CSOLVE`` is True.  If
   there was an error installing the C solver when installing PyDDM, PyDDM will
   still run, but it will be 10-100x slower.
+- **Your parameter ranges may be too wide** -- Models will converge faster with
+  more narrow parameter ranges.  The speedup from this, however, will be modest
+  (think ~25%).
+
+While simulations in PyDDM are fast, fitting models in PyDDM may be slower than
+other packages.  This is because PyDDM uses differential evolution as a fitting
+algorithm.  This algorithm rarely fails to maximize likelihood; however, it
+requires more iterations than a gradient-based approach.  For simple models, it
+*may* be possible to use the "simplex" method for faster fitting, but if you do,
+**please check to make sure your models converge to a consistent global
+minimum**.  You can do this by running several models using both the "simplex"
+method and "differential_evolution" and confirming the results are the same, or
+by running parameter recovery experiments on your model.  Since all GDDMs are
+different, there can be no general guidance for how to ensure model convergence.
 
 How many trials do I need to fit a GDDM to data?
 ------------------------------------------------
@@ -232,7 +260,7 @@ a gold standard for determining the required sample size.  This allows you to
 determine how many trials you need in order to get the parameter variability
 you're willing to tolerate.  The idea is to build the model you want to fit,
 choose reasonable-ish default parameters, and then simulate several trials from
-that model using the :meth:`.Solution.resample` method.  After you simulate
+that model using the :meth:`.Solution.sample` method.  After you simulate
 these trials for different sample sizes, you fit the same model (but with
 Fittable parameters) to the generated data. Then, you can find how close the
 parameter estimates are to the actual parameters when you have different sample
@@ -246,6 +274,9 @@ Yes, see :ref:`howto-stimulus-coding`.
 
 Does PyDDM allow non-discrete conditions?
 -----------------------------------------
+
+Yes.  Conditions can be any Python object, including a number, a list, an array,
+or a string.  This allows, for example, attention DDMs.
 
 PyDDM runs fastest when there are a smaller number of conditions.  However,
 PyDDM is frequently used for models where there is a separate condition for each
@@ -285,3 +316,54 @@ keep in mind that you are actually comparing the mixture model.  This is
 necessary for likelihood estimation and therefore occurs in other packages as
 well, which refer to it as the probability of "contaminant RTs" (fast-dm) or
 "outliers" (HDDM).
+
+.. _help_model_gui:
+
+What can I do if the model GUI doesn't work?
+--------------------------------------------
+
+There are two versions of the model GUI: pyddm.plot.model_gui and
+pyddm.plot.model_gui_jupyter.  The former opens a pop-up window, and the latter
+embeds itself in a jupyter notebook.  If one doesn't work, you can always try
+the other.  The following may be useful in getting either the normal version or
+the Jupyter version to work.
+
+**I get the error "AttributeError: module 'pyddm' has no attribute 'plot'"**
+
+Add "import pyddm.plot" to your imports
+
+**I received an error about importing pyddm.plot before matplotlib**
+
+On Mac computers, model_gui does not work unless you import pyddm.plot before
+importing matplotlib.  Put "import pyddm.plot" at the top of your script or in
+the first cell of your Jupyter notebook, and restart Python or restart your
+Jupyter kernel.
+
+**When I run model_gui_jupyter, I get a plot, but no controls**
+
+This has been reported to occur in IDEs such as Spyder or VSCode.  Running the
+Jupyter notebook through the web browser should show the controls.
+Alternatively, try running "model_gui" instead of "model_gui_jupyter", which
+will open a pop-up window instead of a cell in your Jupyter notebook.
+
+**When I run model_gui_jupyter, I get controls but no plot**
+
+This has been reported to occur in IDEs such as Spyder or VSCode.  Running the
+Jupyter notebook through the web browser should show the controls.
+Alternatively, try running "model_gui" instead of "model_gui_jupyter", which
+will open a pop-up window instead of a cell in your Jupyter notebook.
+
+**When I import pyddm.plot, I receive an error about importing "tk" or
+"_tkinter", or PyDDM says "tkinter not available"**
+
+While tk/tkinter is included by default when you install Python, some Python
+installations do not include it, or include a broken version of it.  On
+Ubuntu-based Linux distributions, you can install the python3-tk (or
+python3.XXX-tk for some XXX) package.  On Mac, make sure you are using "true"
+CPython instead of the built-in version of Python.  For all systems, you can try
+reinstalling Python or installing Anaconda.
+
+**What can I do if I can't figure out how to use the model GUI but I want to see
+my model?**
+
+You can run your model in a Google Colab notebook and run model_gui_jupyter.

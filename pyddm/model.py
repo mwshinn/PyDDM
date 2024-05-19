@@ -14,7 +14,7 @@ from . import parameters as param
 from .analytic import analytic_ddm
 from .models.drift import DriftConstant, Drift
 from .models.noise import NoiseConstant, Noise
-from .models.ic import ICPointSourceCenter, ICPoint, InitialCondition
+from .models.ic import ICPointSourceCenter, ICPoint, ICPointRatio, InitialCondition
 from .models.bound import BoundConstant, BoundCollapsingLinear, Bound
 from .models.overlay import OverlayNone, Overlay
 from .models.paranoid_types import Conditions
@@ -91,7 +91,7 @@ class Model(object):
                  overlay=OverlayNone(), name="",
                  dx=param.dx, dt=param.dt,
                  T_dur=param.T_dur, fitresult=None,
-                 choice_names=("correct", "error")):
+                 choice_names=param.choice_names):
         """Construct a Model object from the 5 key components.
 
         The five key components of our DDM-style models describe how
@@ -199,6 +199,77 @@ class Model(object):
         return type(self).__name__ + "(" + params + ")"
     def __str__(self):
         return self.__repr__(pretty=True)
+    def show(self, print_output=True):
+        """Show information about the model"""
+        from .functions import display_model
+        return display_model(self, print_output=print_output)
+    def fit(self, sample, fitparams=None, fitting_method="differential_evolution",
+            lossfunction=None, verify=False, method=None, verbose=True):
+        """Fit a model to data.
+
+        The data `sample` should be a Sample object of the reaction times
+        to fit in seconds (NOT milliseconds).  At least one of the
+        parameters for one of the components in the model should be a
+        "Fitted()" instance, as these will be the parameters to fit.
+
+        `fitting_method` specifies how the model should be fit.
+        "differential_evolution" is the default, which accurately locates
+        the global maximum without using a derivative.  "simple" uses a
+        derivative-based method to minimize, and just uses randomly
+        initialized parameters and gradient descent.  "simplex" is the
+        Nelder-Mead method, and is a gradient-free local search.  "basin"
+        uses "scipy.optimize.basinhopping" to find an optimal solution,
+        which is much slower but also gives better results than "simple".
+        It does not appear to give better or faster results than
+        "differential_evolution" in most cases.  Alternatively, a custom
+        objective function may be used by setting `fitting_method` to be a
+        function which accepts the "x_0" parameter (for starting position)
+        and "constraints" (for min and max values).  In general, it is
+        recommended you almost always use differential evolution, unless
+        you have a model which is highly-constrained (e.g. only one or two
+        parameters to estimate with low covariance) or you already know
+        the approximate parameter values.  In practice, besides these two
+        special cases, changing the method is unlikely to give faster or
+        more reliable estimation.
+
+        `fitparams` is a dictionary of kwargs to be passed directly to the
+        minimization routine for fine-grained low-level control over the
+        optimization.  Normally this should not be needed.
+
+        `lossfunction` is a subclass of LossFunction representing the
+        method to use when calculating the goodness-of-fit.  Pass the
+        subclass itself, NOT an instance of the subclass.
+
+        If `verify` is False (the default), checking for programming
+        errors is disabled during the fit. This can decrease runtime and
+        may prevent crashes.  If verification is already disabled, this
+        does not re-enable it.
+
+        `method` gives the method used to solve the model, and can be
+        "analytical", "numerical", "cn", "implicit", or "explicit".
+
+        `verbose` enables out-of-boundaries warnings and prints the model
+        information at each evaluation of the fitness function.
+
+        No return value.
+
+        After running this function, the model will be modified to include
+        a "FitResult" object, accessed as m.fitresult.  This can be used
+        to get the value of the objective function, as well as to access
+        diagnostic information about the fit.
+
+        This function will automatically parallelize if set_N_cpus() has
+        been called.
+
+        """
+        from .functions import fit_adjust_model
+        from .models.loss import LossLikelihood
+        if lossfunction is None:
+            lossfunction = LossLikelihood
+        fit_adjust_model(sample=sample, model=self, fitparams=fitparams,
+                         fitting_method=fitting_method,
+                         lossfunction=lossfunction, verify=verify,
+                         method=method, verbose=verbose)
     def parameters(self):
         """Return all parameters in the model
 
@@ -220,7 +291,6 @@ class Model(object):
         return ret
 
     def get_model_parameters(self):
-
         """Get an ordered list of all model parameters.
         
         Returns a list of each model parameter which can be varied
@@ -449,10 +519,10 @@ class Model(object):
         use Model.solve().  To sample from the probability
         distribution (e.g. for finding confidence intervals for
         limited amounts of data), call Model.solve() and then use the
-        Solution.resample() function of the resulting Solution.
+        Solution.sample() function of the resulting Solution.
 
         """
-        _logger.warning("To generate a sample from a model, please use Solution.resample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
+        _logger.warning("To generate a sample from a model, please use Solution.sample().  The only practical purpose of the simulated_solution function is debugging the simulate_trial function for custom Overlays.")
         choice_upper_times = []
         choice_lower_times = []
         undec_count = 0
@@ -497,7 +567,7 @@ class Model(object):
         if self.get_dependence("bound")._uses_t() and self.get_dependence("bound").__class__ != BoundCollapsingLinear:
             return False
         # Make sure initial condition is a single point
-        if not issubclass(self.get_dependence("IC").__class__,(ICPointSourceCenter,ICPoint)):
+        if not issubclass(self.get_dependence("IC").__class__,(ICPointSourceCenter,ICPoint,ICPointRatio)):
             return False
         # Assuming none of these is the case, return True.
         return True
@@ -568,7 +638,7 @@ class Model(object):
         self.check_conditions_satisfied(conditions)
         
         #calculate shift in initial conditions if present
-        if isinstance(self.get_dependence('IC'),ICPoint):
+        if isinstance(self.get_dependence('IC'),(ICPoint, ICPointRatio)):
             ic = self.IC(conditions=conditions)
             assert np.count_nonzero(ic)==1, "Cannot solve analytically for models with non-point initial conditions"
             shift = np.flatnonzero(ic) / (len(ic) - 1) #rescale to proprotion of total bound height
@@ -1131,7 +1201,7 @@ class Model(object):
         pdf_undec = pdf_curr
         minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower)))
         if minval < 0:
-            sum_negative_strength = np.sum(pdf_choice_upper[pdf_corr<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
+            sum_negative_strength = np.sum(pdf_choice_upper[pdf_choice_upper<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
             # For small errors, don't bother alerting the user
             if sum_negative_strength < -.01 and param.renorm_warnings:
                 _logger.warning(("Probability density included values less than zero (minimum=%f, "
@@ -1155,6 +1225,11 @@ class Model(object):
 
         # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
         return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=None))
+    # def fit(self, sample, fitparams=None, fitting_method="differential_evolution",
+    #         lossfunction=LossLikelihood, verify=False, method=None, verbose=True):
+    #     functions.fit_adjust_model.__doc__
+    #     pyddm.fit_adjust_model(sample=sample, model=self, fitparams=fitparams, fitting_method=fitting_method,
+    #                            lossfunction=lossfunction, verify=verify, method=method, verbose=verbose)
 
 
 @paranoidclass
@@ -1197,14 +1272,25 @@ class Fittable(float):
         yield Fitted(0)
         yield Fitted(1)
         yield Fitted(4, minval=0, maxval=10)
-    def __new__(cls, val=np.nan, **kwargs):
-        if not np.isnan(val):
-            raise ValueError("No positional arguments for Fittables. Received argument: %s." % str(val))
+    def __new__(cls, *args, **kwargs):
+        if len(args) == 1 or 'val' in kwargs.keys():
+            val = args[0] if len(args) == 1 else kwargs['val']
+            raise ValueError("No positional arguments for Fittables. Received argument: %s, kwargs: %s." % (str(val), str(kwargs)))
         return float.__new__(cls, np.nan)
-    def __init__(self, **kwargs):
-        minval = kwargs['minval'] if "minval" in kwargs else -np.inf
-        maxval = kwargs['maxval'] if "maxval" in kwargs else np.inf
-        default_value = kwargs['default'] if 'default' in kwargs else None
+    def __getnewargs_ex__(self):
+        return ((), {"minval": self.minval, "maxval": self.maxval, "default": self.default_value})
+    def __init__(self, *args, **kwargs):
+        if len(args) == 2:
+            minval,maxval = args
+            default_value = kwargs['default'] if 'default' in kwargs else None
+        elif len(args) == 3:
+            minval,maxval,default_value = args
+        elif len(args) == 1 or len(args) > 3:
+            raise ValueError(f"Invalid number of positional arguments to Fittable: {args}")
+        else:
+            minval = kwargs['minval'] if "minval" in kwargs else -np.inf
+            maxval = kwargs['maxval'] if "maxval" in kwargs else np.inf
+            default_value = kwargs['default'] if 'default' in kwargs else None
         object.__setattr__(self, 'minval', minval)
         object.__setattr__(self, 'maxval', maxval)
         object.__setattr__(self, 'default_value', default_value)
@@ -1265,6 +1351,8 @@ class Fitted(Fittable):
         return float.__new__(cls, val)
     def __init__(self, val, **kwargs):
         Fittable.__init__(self, **kwargs)
+    def __getnewargs_ex__(self):
+        return ((float(self),), {"minval": self.minval, "maxval": self.maxval, "default": self.default_value})
     def default(self):
         return float(self)
 

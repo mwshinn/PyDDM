@@ -295,14 +295,6 @@ class OverlayNonDecision(Overlay):
     """
     name = "Add a non-decision by shifting the histogram"
     required_parameters = ["nondectime"]
-    @staticmethod
-    def _test(v):
-        assert v.nondectime in Number(), "Invalid non-decision time"
-    @staticmethod
-    def _generate():
-        yield OverlayNonDecision(nondectime=0)
-        yield OverlayNonDecision(nondectime=.5)
-        yield OverlayNonDecision(nondectime=-.5)
     def get_nondecision_time(self, conditions):
         return self.nondectime
     @accepts(Self, Solution)

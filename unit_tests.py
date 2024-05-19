@@ -7,10 +7,12 @@ from math import fsum
 import pandas
 import copy
 import scipy.stats
+import copy
 
 from numpy import asarray as aa
 
 import pyddm as ddm
+import pyddm
 
 import paranoid
 paranoid.settings.Settings.set(enabled=True)
@@ -749,6 +751,50 @@ class TestTriDiagMatrix(TestCase):
             m -= mo
             assert not m != (mo - 1.4) - mo
 
+class TestAutoModel(TestCase):
+    def test_base(self):
+        model1 = pyddm.Model(drift=pyddm.DriftConstant(drift=2), noise=pyddm.NoiseConstant(noise=1.5), bound=pyddm.BoundConstant(B=1.3),
+                     IC=pyddm.ICPointRatio(x0=.1), 
+                     overlay=pyddm.OverlayChain(overlays=[pyddm.OverlayNonDecision(nondectime=.1), pyddm.OverlayUniformMixture(umixturecoef=.02)]), dx=.001, dt=.001)
+
+        model2 = pyddm.gddm(drift=2, noise=1.5, bound=1.3, starting_position=.1, nondecision=.1, dx=.001, dt=.001)
+        assert np.allclose(model1.solve().pdf("upper_bound"), model2.solve().pdf("upper_bound"))
+
+    def test_starting_point_ratio(self):
+        model1 = pyddm.Model(drift=pyddm.DriftConstant(drift=2), noise=pyddm.NoiseConstant(noise=1.5), bound=pyddm.BoundConstant(B=1.0),
+                             IC=pyddm.ICPoint(x0=.5), 
+                             overlay=pyddm.OverlayChain(overlays=[pyddm.OverlayNonDecision(nondectime=.1), pyddm.OverlayUniformMixture(umixturecoef=.02)]), dx=.001, dt=.001)
+
+        model2 = pyddm.gddm(drift=2, noise=1.5, bound=1.0, starting_position=.5, nondecision=.1, dx=.001, dt=.001)
+        assert np.allclose(model1.solve().pdf("upper_bound"), model2.solve().pdf("upper_bound"))
+
+    def test_starting_point_distribution(self):
+        model1 = pyddm.Model(drift=pyddm.DriftConstant(drift=2), noise=pyddm.NoiseConstant(noise=1.5), bound=pyddm.BoundConstant(B=1.0),
+                             IC=pyddm.ICUniform(), 
+                             overlay=pyddm.OverlayChain(overlays=[pyddm.OverlayNonDecision(nondectime=.1), pyddm.OverlayUniformMixture(umixturecoef=.02)]), dx=.001, dt=.001)
+
+        model2 = pyddm.gddm(drift=2, noise=1.5, bound=1.0, starting_position=lambda x : 0*x+1.0/len(x), nondecision=.1, dx=.001, dt=.001)
+        assert np.allclose(model1.solve().pdf("upper_bound"), model2.solve().pdf("upper_bound"))
+    def test_nondectime_distribution(self):
+        model1 = pyddm.Model(drift=pyddm.DriftConstant(drift=2), noise=pyddm.NoiseConstant(noise=1.5), bound=pyddm.BoundConstant(B=1.3),
+                     IC=pyddm.ICPointRatio(x0=.1), 
+                     overlay=pyddm.OverlayChain(overlays=[pyddm.OverlayNonDecisionGamma(shape=2, scale=.5, nondectime=.1),
+                                                          pyddm.OverlayUniformMixture(umixturecoef=.02)]), dx=.001, dt=.001)
+
+        model2 = pyddm.gddm(drift=2, noise=1.5, bound=1.3, starting_position=.1, nondecision=lambda T : scipy.stats.gamma(a=2, scale=.5, loc=.1).pdf(T), dx=.001, dt=.001)
+        assert np.allclose(model1.solve().pdf("upper_bound"), model2.solve().pdf("upper_bound"))
+    def test_conditions(self):
+        model1 = pyddm.Model(drift=pyddm.DriftConstant(drift=2), noise=pyddm.NoiseConstant(noise=1.5), bound=pyddm.BoundConstant(B=1.3),
+                             IC=pyddm.ICPointRatio(x0=.1), 
+                             overlay=pyddm.OverlayChain(overlays=[pyddm.OverlayNonDecision(nondectime=.1), pyddm.OverlayUniformMixture(umixturecoef=.05)]), dx=.001, dt=.001)
+
+        model2 = pyddm.gddm(drift=lambda d : d, noise=lambda n : n, bound=lambda b : b, starting_position=lambda s : s, nondecision=lambda nd : nd, mixture_coef=.05, conditions=["d", "n", "b", "s", "nd"], dx=.001, dt=.001)
+        params = {"d": 2.0, "n": 1.5, "b": 1.3, "s": .1, "nd": .1}
+        assert np.allclose(model1.solve().pdf("upper_bound"), model2.solve(conditions=params).pdf("upper_bound"))
+
+
+
+
 class TestMisc(TestCase):
     def test_analytic_lin_collapse(self):
         """Make sure linearly collapsing bounds stops at 0"""
@@ -771,11 +817,23 @@ class TestMisc(TestCase):
         assert all(id(a) == id(b) for a,b in zip(m.get_model_parameters(), [p1, p2]))
         m.set_model_parameters([.5, .5])
         assert all(a == b for a,b in zip(m.get_model_parameters(), [.5, .5]))
+    def test_fittable_kwargs(self):
+        assert repr(ddm.Fittable(0,1)) == repr(ddm.Fittable(maxval=1, minval=0))
+        assert repr(ddm.Fittable(0,1,.5)) == repr(ddm.Fittable(maxval=1, minval=0, default=.5))
+        assert repr(ddm.Fittable(-np.inf, np.inf)) == repr(ddm.Fittable())
+        f = ddm.Fittable(0,1,.5)
+        assert repr(f) == repr(copy.copy(f))
+        assert repr(f) == repr(copy.deepcopy(f))
+        f = ddm.Fitted(0,minval=1,maxval=.5)
+        assert repr(f) == repr(copy.copy(f))
+        assert repr(f) == repr(copy.deepcopy(f))
+        fails(lambda : ddm.Fittable(3))
+        fails(lambda : ddm.Fittable(3,4,5,6))
     def test_model_stuff(self):
         m = ddm.Model(choice_names=("Aaa", "b b"), dx=.002, dt=.002, T_dur=5, drift=ddm.DriftConstant(drift=3), name='xxx')
         s = m.solve()
         assert m.choice_names == s.choice_names
-        samp = s.resample(10)
+        samp = s.sample(10)
         assert s.choice_names == m.choice_names
         str(m)
         from pyddm import Model, DriftConstant, NoiseConstant, BoundConstant, ICPointSourceCenter, OverlayNone
@@ -828,6 +886,7 @@ class TestCSolver(TestCase):
             ddm.Model(bound=ddm.BoundCollapsingLinear(B=2.5, t=2)),
             ddm.Model(bound=ddm.BoundCollapsingLinear(B=1.0, t=2)),
             ddm.Model(IC=ddm.ICPoint(x0=.3)),
+            ddm.Model(IC=ddm.ICPointRatio(x0=.6)),
             ddm.Model(IC=ddm.ICPoint(x0=.3), bound=ddm.BoundCollapsingLinear(B=1.0, t=2)),
             ]
         for i,m in enumerate(models):
@@ -840,5 +899,6 @@ class TestCSolver(TestCase):
 
 # TODO test if there is no overlay, then corr + err + undecided = 1
 # TODO test bounds that don't depend on t but do depend on conditions, mus like that, etc.
-# TODO test solution.resample in integration testing
+# TODO test solution.sample in integration testing
 # TODO test loss parallelization?
+# TODO test x and t in former auto_model (gddm)

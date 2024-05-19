@@ -1,69 +1,6 @@
 How-to guides
 =============
 
-.. _howto-shared-params:
-
-Shared parameters
-~~~~~~~~~~~~~~~~~
-
-In order to use the same parameter for multiple different components
-of the model, pass the same :class:`.Fittable` instance to both.  As a
-concrete example, suppose we want both the drift rate and the standard
-deviation to increase by some factor ``boost`` at time ``tboost``.  We
-could make :class:`.Drift` and :class:`.Noise` objects as follows::
-
-  from pyddm.models import Drift, Noise
-  class DriftBoost(Drift):
-      name = "Drift with a time-delayed boost"
-      required_parameters = ["driftbase", "driftboost", "tboost"]
-      required_conditions = []
-      def get_drift(self, t, conditions, **kwargs):
-          if t < self.tboost:
-              return self.driftbase
-          elif t >= self.tboost:
-              return self.driftbase * self.driftboost
-  
-  class NoiseBoost(Noise):
-      name = "Noise with a time-delayed boost"
-      required_parameters = ["noisebase", "noiseboost", "tboost"]
-      required_conditions = []
-      def get_noise(self, t, conditions, **kwargs):
-          if t < self.tboost:
-              return self.noisebase
-          elif t >= self.tboost:
-              return self.noisebase * self.noiseboost
-
-Now, we can define a model to fit with::
-
-  from pyddm import Model, Fittable
-  t_boost = Fittable(minval=0, maxval=1)
-  boost = Fittable(minval=1, maxval=3)
-  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
-                       driftboost=boost,
-                       tboost=t_boost),
-            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
-                       noiseboost=boost,
-                       tboost=t_boost),
-            T_dur=3, dt=.001, dx=.001)
-
-This will ensure that the value of ``driftboost`` is always equal to the
-value of ``noiseboost``, and that the value of ``tboost`` in Drift is always
-equal to the value of ``tboost`` in Noise.
-
-Note that this is **not the same** as::
-
-  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
-                       driftboost=Fittable(minval=1, maxval=3),
-                       tboost=Fittable(minval=0, maxval=1)),
-            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
-                       noiseboost=Fittable(minval=1, maxval=3),
-                       tboost=Fittable(minval=0, maxval=1)),
-            T_dur=3, dt=.001, dx=.001)
-
-In the latter case, ``driftboost`` and ``noiseboost`` will be fit to
-different values, and the two ``tboost`` parameters will not be equal.
-
-
 .. _howto-parallel:
 
 Parallelization
@@ -80,21 +17,20 @@ To use parallelization, first set up the parallel pool::
 Then, PyDDM will automatically parallelize the fitting routines.  For
 example, just call::
 
-  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs)
+  model_rs.fit(roitman_sample)
   
 There are a few caveats with parallelization:
 
 1. It is only possible to run fits in parallel if they are on the same
    computer.  It is not possible to fit across multiple nodes in a
    cluster, for example.
-2. Due to a bug in pathos, all model components must be **defined in a
-   separate file** and then imported.
-3. Only models with many conditions will be sped up by
-   parallelization.  The cardinality of the cartesian product of the
-   conditions is the maximum number of CPUs that will have an effect:
-   for example, if you have four coherence conditions, a right vs left
-   condition, and a high vs low reward condition, then after :math:`4
-   \times 2 \times 2 = 16` CPUs, there will be no benefit to
+2. Due to a bug in pathos, all model components must be **defined in a separate
+   file** and then imported when using the object-oriented interface.
+3. Only models with many conditions will be sped up by parallelization.  The
+   cardinality of the cartesian product of the conditions is the maximum number
+   of CPUs that will have an effect: for example, if you have four coherence
+   conditions, a right vs left condition, and a high vs low reward condition,
+   then after :math:`4 \times 2 \times 2 = 16` CPUs, there will be no benefit to
    increasing the number of CPUs.
 4. It is possible but not recommended to set the number of CPUs to be
    greater than the number of physical CPU cores on the machine.  This
@@ -105,14 +41,15 @@ There are a few caveats with parallelization:
 Fitting models with custom algorithms
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As described in :func:`.fit_adjust_model`, three different algorithms
-can be used to fit models.  The default is differential evolution,
-which we have observed to be robust for models with large numbers of
-parameters.
+As described in :meth:`.Model.fit`, a few different algorithms can be used to
+fit models.  The default is differential evolution, which we have observed to be
+robust for models with large numbers of parameters.  This may sometimes be
+slightly (30-50%) slower than another algorithm, but is the most robust
+algorithm supported by PyDDM.  Unless you know what you are doing and how to
+validate other algorithms, stick with differential evolution.
 
 Other methods can be used by passing the "fitting_method" argument to
-:func:`.fit_adjust_model` or :func:`.fit_model`.  This can take one of
-several values:
+:meth:`~.Model.fit_adjust_model`.  This can take one of several values:
 
 - "simplex": Use the Nelder-Mead simplex method
 - "simple": Gradient descent
@@ -124,7 +61,7 @@ several values:
 For example, to fit the model in the quickstart using the Nelder-Mead
 simplex method, you can do::
 
-  fit_model_rs = fit_adjust_model(sample=roitman_sample, model=model_rs, fitting_method="simplex")
+  model_rs.fit(sample=roitman_sample, fitting_method="simplex")
 
 
 .. _howto-evolution:
@@ -132,28 +69,31 @@ simplex method, you can do::
 Retrieve the evolving pdf of a solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Setting return_evolution=True in solve_numerical() will (with methods "implicit" 
-and "explicit" only) return an M-by-N array (as part of the Solution) whose 
-columns contain the cross-sectional pdf for every time step::
+Setting return_evolution=True in :meth:`.Model.solve` will (with method
+"implicit" only) return an M-by-N array (as part of the Solution) with columns
+that contain the cross-sectional pdf for every time step::
 
-  sol = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
+  sol = model.solve(return_evolution=True)
   sol.pdf_evolution()
+
+It can sometimes be hard to see, so we can transform it and plot it::
+
+  import matplotlib.pyplot as plt
+  plt.imshow(np.log(.01+sol.pdf_evolution()))
+  plt.show()
+
+This feature is currently only supported by the numerical implicit method.
      
 This is equivalent to (but much faster than)::
   
-    sol = np.zeros((len(model.x_domain(conditions)), len(model.t_domain())))          
-    sol[:,0] = model.IC(conditions=conditions)/model.dx
+    res = np.zeros((len(model.x_domain(conditions)), len(model.t_domain())))          
+    res[:,0] = model.IC(conditions=conditions)/model.dx
     for t_ind, t in enumerate(model.t_domain()[1:]):
         T_dur_backup = model.T_dur
         model.T_dur = t
-        ans = model.solve_numerical_implicit(conditions=conditions, return_evolution=False) 
+        ans = model.solve_numerical_implicit(conditions=conditions) 
         model.T_dur = T_dur_backup
-        sol[:,t_ind+1] = ans.pdf_undec()    
-        
-Note that::
-
-    
-    sum(pdf("correct")[0:t]*dt) + sum(pdf("error")[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1
+        res[:,t_ind+1] = ans.pdf_undec()    
 
 
 .. _howto-stimulus-coding:
@@ -172,7 +112,7 @@ name of the two boundaries as an argument to the Model and the Sample.  For
 example, if "High value" is represented by the upper boundary and "Low value" by
 the lower boundary, we can write::
 
-    model = Model(..., choice_names=("High value", "Low value"))
+    model = pyddm.gddm(..., choice_names=("High value", "Low value"))
     sample = Sample.from_pandas_dataframe(..., choice_names=("High value", "Low value"))
 
 Then, these names can be used to access properties of sample or solution from
@@ -244,16 +184,16 @@ And defining and fitting the model looks like:
 
 .. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
-   :lines: 41-65
+   :lines: 30-47
 
 As we see, we recover approximately the same parameters::
 
-    Model Roitman data, drift varies with coherence information:
+    Model information:
     Choices: 'target 1' (upper boundary), 'target 2' (lower boundary)
-    Drift component DriftCoherence:
-        Drift depends linearly on coherence
+    Drift component DriftEasy:
+        easy_drift
         Fitted parameters:
-        - driftcoh: 10.362975
+        - driftcoh: 10.340298
     Noise component NoiseConstant:
         constant
         Fixed parameters:
@@ -261,23 +201,23 @@ As we see, we recover approximately the same parameters::
     Bound component BoundConstant:
         constant
         Fitted parameters:
-        - B: 0.744039
-    IC component ICPointSourceCenter:
-        point_source_center
-        (No parameters)
+        - B: 0.741989
+    IC component ICPointRatio:
+        An arbitrary starting point expressed as a proportion of the distance between the bounds.
+        Fixed parameters:
+        - x0: 0.000000
     Overlay component OverlayChain:
         Overlay component OverlayNonDecision:
             Add a non-decision by shifting the histogram
             Fitted parameters:
-            - nondectime: 0.310893
-        Overlay component OverlayPoissonMixture:
-            Poisson distribution mixture model (lapse rate)
+            - nondectime: 0.312105
+        Overlay component OverlayUniformMixture:
+            Uniform distribution mixture model
             Fixed parameters:
-            - pmixturecoef: 0.020000
-            - rate: 1.000000
+            - umixturecoef: 0.020000
     Fit information:
         Loss function: Negative log likelihood
-        Loss function value: 199.33386049405675
+        Loss function value: 208.084045563983
         Fitting method: differential_evolution
         Solver: auto
         Other properties:
@@ -291,8 +231,76 @@ When displaying in the model GUI, as desired, the two distributions represent
 
 .. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
-   :lines: 70
+   :lines: 53
 
 This coding scheme may impact the interpretation of the other parameters in the
 model, so be careful!  For example, :ref:`starting point biases require special
 considerations <ic-biased>`.
+
+
+.. _howto-shared-params:
+
+Shared parameters in the object-oriented interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When using the :func:`.gddm` function, it is easy to use the same parameter for
+multiple different components.  For instance, a "gain" variable can scale both
+the drift rate and the noise by simply using the same variable name.
+
+In the object-oriented interface, this is more difficult.  In order to use the
+same parameter for multiple different components of the model, pass the same
+:class:`.Fittable` instance to both.  As a concrete example, suppose we want
+both the drift rate and the standard deviation to increase by some factor
+``boost`` at time ``tboost``.  We could make :class:`.Drift` and :class:`.Noise`
+objects as follows::
+
+  from pyddm.models import Drift, Noise
+  class DriftBoost(Drift):
+      name = "Drift with a time-delayed boost"
+      required_parameters = ["driftbase", "driftboost", "tboost"]
+      required_conditions = []
+      def get_drift(self, t, conditions, **kwargs):
+          if t < self.tboost:
+              return self.driftbase
+          elif t >= self.tboost:
+              return self.driftbase * self.driftboost
+  
+  class NoiseBoost(Noise):
+      name = "Noise with a time-delayed boost"
+      required_parameters = ["noisebase", "noiseboost", "tboost"]
+      required_conditions = []
+      def get_noise(self, t, conditions, **kwargs):
+          if t < self.tboost:
+              return self.noisebase
+          elif t >= self.tboost:
+              return self.noisebase * self.noiseboost
+
+Now, we can define a model to fit with::
+
+  from pyddm import Model, Fittable
+  t_boost = Fittable(minval=0, maxval=1)
+  boost = Fittable(minval=1, maxval=3)
+  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
+                       driftboost=boost,
+                       tboost=t_boost),
+            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
+                       noiseboost=boost,
+                       tboost=t_boost),
+            T_dur=3, dt=.001, dx=.001)
+
+This will ensure that the value of ``driftboost`` is always equal to the
+value of ``noiseboost``, and that the value of ``tboost`` in Drift is always
+equal to the value of ``tboost`` in Noise.
+
+Note that this is **not the same** as::
+
+  m = Model(drift=DriftBoost(driftbase=Fittable(minval=.1, maxval=3),
+                       driftboost=Fittable(minval=1, maxval=3),
+                       tboost=Fittable(minval=0, maxval=1)),
+            noise=NoiseBoost(noisebase=Fittable(minval=.2, maxval=1.5),
+                       noiseboost=Fittable(minval=1, maxval=3),
+                       tboost=Fittable(minval=0, maxval=1)),
+            T_dur=3, dt=.001, dx=.001)
+
+In the latter case, ``driftboost`` and ``noiseboost`` will be fit to
+different values, and the two ``tboost`` parameters will not be equal.
