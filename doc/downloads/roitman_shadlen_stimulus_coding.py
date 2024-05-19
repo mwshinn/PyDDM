@@ -34,8 +34,8 @@ model_rs = gddm(name='Roitman data, drift varies with coherence',
                 drift=lambda driftcoh,coh: driftcoh*coh,
                 noise=1,
                 bound="B",
-                nondecision_time="nondectime",
-                uniform_mixture_coef=.02,
+                nondecision="nondectime",
+                mixture_coef=.02,
                 choice_names=("target 1", "target 2"),
                 dx=.001, dt=.01, T_dur=2,
                 parameters={"driftcoh": (-20, 20), "B": (.1, 1.5), "nondectime": (0, .4)},
@@ -44,10 +44,10 @@ model_rs = gddm(name='Roitman data, drift varies with coherence',
 # Fitting this will also be fast because PyDDM can automatically
 # determine that DriftCoherence will allow an analytical solution.
 model_rs.fit(sample=roitman_sample, verbose=False)
-fit_model_rs.show()
-fit_model_rs.parameters()
+model_rs.show()
+model_rs.parameters()
 
 
 # To get an intuition for how parameters affect the fit, play with the
 # parameters and task conditions in a GUI.
-pyddm.plot.model_gui(model=fit_model_rs, sample=roitman_sample)
+pyddm.plot.model_gui(model=model_rs, sample=roitman_sample)

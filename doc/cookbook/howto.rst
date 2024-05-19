@@ -41,16 +41,15 @@ There are a few caveats with parallelization:
 Fitting models with custom algorithms
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As described in :meth:`Model.fit`, three different algorithms can be used to fit
-models.  The default is differential evolution, which we have observed to be
+As described in :meth:`.Model.fit`, a few different algorithms can be used to
+fit models.  The default is differential evolution, which we have observed to be
 robust for models with large numbers of parameters.  This may sometimes be
 slightly (30-50%) slower than another algorithm, but is the most robust
 algorithm supported by PyDDM.  Unless you know what you are doing and how to
 validate other algorithms, stick with differential evolution.
 
 Other methods can be used by passing the "fitting_method" argument to
-:func:`.fit_adjust_model` or :func:`.fit_model`.  This can take one of
-several values:
+:meth:`~.Model.fit_adjust_model`.  This can take one of several values:
 
 - "simplex": Use the Nelder-Mead simplex method
 - "simple": Gradient descent
@@ -70,30 +69,31 @@ simplex method, you can do::
 Retrieve the evolving pdf of a solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Setting return_evolution=True in solve_numerical() will (with methods "implicit" 
-and "explicit" only) return an M-by-N array (as part of the Solution) whose 
-columns contain the cross-sectional pdf for every time step::
+Setting return_evolution=True in :meth:`.Model.solve` will (with method
+"implicit" only) return an M-by-N array (as part of the Solution) with columns
+that contain the cross-sectional pdf for every time step::
 
-  sol = model.solve_numerical_implicit(conditions=conditions, return_evolution=True)
+  sol = model.solve(return_evolution=True)
   sol.pdf_evolution()
+
+It can sometimes be hard to see, so we can transform it and plot it::
+
+  import matplotlib.pyplot as plt
+  plt.imshow(np.log(.01+sol.pdf_evolution()))
+  plt.show()
 
 This feature is currently only supported by the numerical implicit method.
      
 This is equivalent to (but much faster than)::
   
-    sol = np.zeros((len(model.x_domain(conditions)), len(model.t_domain())))          
-    sol[:,0] = model.IC(conditions=conditions)/model.dx
+    res = np.zeros((len(model.x_domain(conditions)), len(model.t_domain())))          
+    res[:,0] = model.IC(conditions=conditions)/model.dx
     for t_ind, t in enumerate(model.t_domain()[1:]):
         T_dur_backup = model.T_dur
         model.T_dur = t
         ans = model.solve_numerical_implicit(conditions=conditions) 
         model.T_dur = T_dur_backup
-        sol[:,t_ind+1] = ans.pdf_undec()    
-        
-Note that::
-
-    
-    sum(pdf("correct")[0:t]*dt) + sum(pdf("error")[0:t]*dt) + sum(pdf_evolution()[:,t]*dx) = 1
+        res[:,t_ind+1] = ans.pdf_undec()    
 
 
 .. _howto-stimulus-coding:
@@ -231,7 +231,7 @@ When displaying in the model GUI, as desired, the two distributions represent
 
 .. literalinclude:: ../downloads/roitman_shadlen_stimulus_coding.py
    :language: python
-   :lines: 52
+   :lines: 53
 
 This coding scheme may impact the interpretation of the other parameters in the
 model, so be careful!  For example, :ref:`starting point biases require special

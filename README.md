@@ -21,7 +21,8 @@ information.  If you want to try it out before installing, visit the
 demo](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb).
 See the [Github Forums](https://github.com/mwshinn/PyDDM/discussions) for help
 from the PyDDM community.  You can also sign up for [release announcements by
-email](https://www.freelists.org/list/pyddm-announce).
+email](https://www.freelists.org/list/pyddm-announce) (a couple emails per
+year).
 
 ## Examples
 
@@ -71,7 +72,7 @@ pyddm.plot.model_gui_jupyter(model) # If using a Jupyter notebook
 
 ![PyDDM Model GUI]()
 
-[![PyDDM Model GUI](https://https://github.com/mwshinn/PyDDM/blob/master/doc/images/model-gui-animation.gif?raw=true)](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb)
+[![PyDDM Model GUI](https://https://github.com/mwshinn/PyDDM/blob/master/doc/images/jupyter-model-gui-animation.gif?raw=true)](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb)
 
 ## Installation
 

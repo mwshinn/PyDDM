@@ -26,11 +26,12 @@ sol = model.solve()
 # Start ModelFittableDef
 model_to_fit = pyddm.gddm(drift="d", noise=1.0, bound="B", nondecision=0.2, starting_position="x0",
                           parameters={"d": (-2,2), "B": (0.3, 2), "x0": (-.8, .8)})
-model.show()
+model_to_fit.show()
 # End ModelFittableDef
 
 # Start ModelFittableAltDef
-model_to_fit = pyddm.gddm(drift=lambda d : d, noise=1.0,
+model_to_fit = pyddm.gddm(drift=lambda d : d,
+                          noise=1.0,
                           bound=lambda B : B,
                           nondecision=0.2,
                           starting_position=lambda x0 : x0,
@@ -78,7 +79,7 @@ model_to_fit.get_fit_result().value()
 # Plot the model fit to the PDFs and save the file.
 import pyddm.plot
 import matplotlib.pyplot as plt
-pyddm.plot.plot_fit_diagnostics(model=model_fit, sample=samp)
+pyddm.plot.plot_fit_diagnostics(model=model_to_fit, sample=samp_simulated)
 plt.savefig("simple-fit.png")
 plt.show()
 # End Plot

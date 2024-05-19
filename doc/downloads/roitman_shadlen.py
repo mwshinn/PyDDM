@@ -2,10 +2,10 @@
 # https://shadlenlab.columbia.edu/resources/RoitmanDataCode.html to
 # download the dataset.
 
-import pyddm
 
 # Start Load
 # Read the dataset into a Pandas DataFrame
+import pyddm
 from pyddm import Sample
 import pandas
 with open("roitman_rts.csv", "r") as f:
@@ -31,6 +31,7 @@ roitman_sample = Sample.from_pandas_dataframe(df_rt, rt_column_name="rt", choice
 
 # Start Numpy Load
 # For demonstration purposes, repeat the above using a numpy matrix.
+import pyddm
 from pyddm import Sample
 import numpy as np
 with open("roitman_rts.csv", "r") as f:
@@ -69,6 +70,7 @@ m = pyddm.gddm(drift=lambda coh, driftcoh : driftcoh*coh,
                nondecision="ndtime",
                parameters={"driftcoh": (-20,20), "b": (.4, 3), "ndtime": (0, .5)},
                conditions=["coh"])
+
 # pyddm.plot.model_gui(m) # ...or...
 pyddm.plot.model_gui_jupyter(m, sample=roitman_sample)
 # End Model

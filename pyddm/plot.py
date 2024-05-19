@@ -235,7 +235,8 @@ def plot_fit_diagnostics(model=None, sample=None, fig=None, conditions=None, dat
             else:
                 return super().__call__(x, pos)
     ax1.yaxis.set_major_formatter(NonZeroScalarFormatter())
-    ax1.set_xticks([])
+    for l in ax1.get_xticklabels():
+        l.set_visible(False)
     ax1.spines['left'].set_position(('outward', 10))
     ax2.spines['left'].set_position(('outward', 10))
     ax2.spines['bottom'].set_position(('outward', 10))

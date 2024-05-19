@@ -7,7 +7,8 @@ Hello, world!
 To get started, let's simulate a basic model and plot it.  For simplicity, we
 will use all of the model defaults: a drift rate of 0, a noise standard
 deviation of 1, a bound of 1, a starting point in the middle of the bounds, a
-non-decision time of 0, no mixture model.  (More on each of these later.)
+non-decision time of 0, and a uniform mixture model.  (More on each of these
+later.)
 
 .. literalinclude:: downloads/helloworld.py
    :language: python
@@ -17,30 +18,30 @@ non-decision time of 0, no mixture model.  (More on each of these later.)
 Congratulations!  You've successfully simulated your first model!
 Let's dig in a bit so that we can define more useful models.
 
-:download:`Download this full example <downloads/helloworld.py>`
-
-.. note::
-
-   There are two ways to build models with PyDDM: the classic object-oriented
-   interface, and the :func:`.gddm` function.  Here, we will discuss the :func:`.gddm`
-   function: it supports almost all of the features of the object-oriented
-   interface, but is much easier to use.  We will discuss the differences in
-   detail later in this tutorial.
-
 For the rest of this tutorial, we will slowly build a generalized drift
 diffusion model (GDDM), validate the model, and then fit the model to an open
 dataset.  As we do, we will illustrate the main concepts of PyDDM to so you can
 start building your own models.
 
+:download:`Download this full example <downloads/helloworld.py>`
+
+.. note::
+
+   There are two ways to build models with PyDDM: the classic object-oriented
+   interface, and the :func:`.gddm` function.  Here, we will discuss the
+   :func:`.gddm` function: it supports almost all of the features of the
+   object-oriented interface, but is much easier to use.  Once you have finished
+   this tutorial, if you are interested in the object-oriented interface, you
+   can access the :doc:`ooquickstart`.
+
 A model with fixed parameters
 -----------------------------
 
-First, let's see how we can modify the pieces of the model given above.  For
-consistency, we will refer to these pieces (drift, noise, bound, starting
-position, non-decision time, and mixture coefficient) as
-"components". :func:`.gddm` allows us to pass different values to components.
-Here, we will pass fixed values.  The components available in the :func:`.gddm`
-function are:
+First, let's see how we can modify the different pieces of the model given
+above.  For consistency, we will refer to these pieces (drift, noise, bound,
+starting position, non-decision time, and mixture coefficient) as
+"components". All components will be defined within the :func:`.gddm` function.
+The components available in the :func:`.gddm` function are:
 
 - **drift**: the drift rate, i.e., the amount of evidence that would be
   accumulated in 1 sec if there was no noise.
@@ -54,7 +55,8 @@ function are:
   boundary, and 0 in between.  (This differs from some other packages, which
   define 0 as the lower boundary and 1 as the upper boundary.)
 - **nondecision**: the non-decision time, in units of seconds.  Both positive
-  and negative values are valid.
+  and negative values are valid (though usually you will want it to be
+  positive).
 - **mixture_coef**: By default, PyDDM returns an RT distribution which is a
   mixture model of the GDDM RT distribution and the uniform distribution.  This
   parameter defines the ratio of uniform distribution to GDDM RT distribution.
@@ -62,9 +64,9 @@ function are:
   models assist with model fitting when using maximum likelihood, which we will
   discuss later in this tutorial.)
 
-So, for a model with a drift rate of 0.5, a noise level of 1.0, a bound of 0.6,
-a starting position of 0.3 (slightly biased towards the upper bound), and a
-non-decision time of 0.2 sec, the model would be:
+So, for a model with a drift rate of 0.5, a noise level of 1.0, a bound height
+of 0.6, a starting position of 0.3 (slightly biased towards the upper bound),
+and a non-decision time of 0.2 sec, the model would be:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -78,7 +80,7 @@ We can show information about our model using the :meth:`~.Model.show` function:
    :start-after: # Start ShowModel
    :end-before: # End ShowModel
 
-This shows::
+which displays::
 
     Model information:
     Choices: 'correct' (upper boundary), 'error' (lower boundary)
@@ -123,19 +125,50 @@ Fitting model parameters
 ------------------------
 
 We can also define a model with free parameters - these parameters can be fit to
-data, or tweaked using the PyDDM GUI.  Instead of passing numbers to these
-arguments, we can instead pass the names of parameters to fit.  Then, at the
+data, or tweaked using a GUI built into PyDDM for visualizing and modifying
+models.  Instead of passing numbers as arguments for the different model
+components, we can instead pass the names of parameters to fit.  Then, at the
 end, we use the "parameters" argument to list the parameters and their valid
 ranges.  This argument should be a dictionary, where the key of the dictionary
 is the name of the parameter, and the value is a tuple containing the minimum
-and maximum value of the parameter.  For example, to fit the drift rate, the
-noise level, and the non-decision time, but keep the bound fixed at 1.0, we can
-write:
+and maximum value of the parameter.  For example, if we want to fit the drift
+rate, the bound, and the non-decision time, but keep the noise level fixed at
+1.0, we can write:
 
 .. literalinclude:: downloads/simple.py
    :language: python
    :start-after: # Start ModelFittableDef
    :end-before: # End ModelFittableDef
+
+This gives::
+
+    Model information:
+    Choices: 'correct' (upper boundary), 'error' (lower boundary)
+    Drift component DriftConstant:
+        constant
+        Fittable parameters:
+        - drift: Fittable (default 0.196055)
+    Noise component NoiseConstant:
+        constant
+        Fixed parameters:
+        - noise: 1.000000
+    Bound component BoundConstant:
+        constant
+        Fittable parameters:
+        - B: Fittable (default 0.677593)
+    IC component ICPointRatio:
+        An arbitrary starting point expressed as a proportion of the distance between the bounds.
+        Fittable parameters:
+        - x0: Fittable (default -0.694904)
+    Overlay component OverlayChain:
+        Overlay component OverlayNonDecision:
+            Add a non-decision by shifting the histogram
+            Fixed parameters:
+            - nondectime: 0.200000
+        Overlay component OverlayUniformMixture:
+            Uniform distribution mixture model
+            Fixed parameters:
+            - umixturecoef: 0.020000
 
 .. note::
 
@@ -143,9 +176,9 @@ write:
   arbitrarily.  You may have to adjust the ranges to something that works for
   your model and data.  Usually it is better to have a range that is too large
   than too small, but an extremely large range will slow down fitting.  Once you
-  perform the fitting, make sure to check your fitted parameters are not close
-  to the minimum or maximum values you set.  If they are, you may need a bigger
-  range.
+  perform the fitting, make sure to check that your fitted parameters are not
+  close to the minimum or maximum values you set.  If they are, you may need a
+  bigger range.
 
 Before fitting the model, we can visualize this model using the model GUI to
 make sure it behaves in the way we expect.  This is usually a good sanity check
@@ -172,7 +205,7 @@ Remember the "sol" solution object we created?  We will use this to simulate
 data.  Since this contains the "solved" probability distributions from the
 model, we can sample from this distribution to create simulated data.  Simulated
 data and experimental data are both captured by a "Sample" object.  Later in
-this tutorial, we will also see how to fit free parameetrs to experimental data
+this tutorial, we will also see how to fit free parameters to experimental data
 rather than simulated data.
 
 .. literalinclude:: downloads/simple.py
@@ -230,7 +263,9 @@ The result of model.show() is::
             - mess: ''
 
 As we can see, the parameters for drift, noise, and non-decision time are close
-to the values from the model that generated the data.
+to the values from the model that generated the data.  Your fitted parameters
+may be slightly different than the ones shown above, since there is randomness
+in the fitting procedure.
 
 .. note::
 
@@ -240,13 +275,13 @@ to the values from the model that generated the data.
 
   - Ensure the simulation is long enough to capture the mass of the
     distribution.  You can do this by increasing T_dur.
-  - Ensure that the simulation accuracy is suffirient for your model.  In
+  - Ensure that the simulation accuracy is sufficient for your model.  In
     practice, this means checking that dx and dt are small enough.
   - Ensure you are not fitting multiple redundant parameters.  For example, in
     the classic DDM, noise and boundary are redundant, so at least one of these
     parameters must be fixed.
 
-  You will learn more about these in the upcomming section :ref:`other_params`.
+  You will learn more about these in the upcoming section :ref:`other_params`.
 
 If we want to use these fitted values programmatically, we can use
 :meth:`~.Model.parameters` to obtain the fitted parameters, like:
@@ -262,7 +297,7 @@ can be used anywhere in Python as if they are normal numbers/floats.  (Actually,
 
 We can also examine different properties of the fitting process in the
 :class:`~.fitresult.FitResult` object.  For instance, to get the value of the
-loss function, we can do:
+loss function (BIC), we can do:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -295,17 +330,20 @@ errors.
 See :class:`the Solution object documentation <.Solution>` for more
 such functions.
 
-We could also named the upper and lower boundary as something else (e.g. "left"
-and "right" response), sometimes called "stimulus coding".  To do this, we need
-to pass the "choice_names" parameter to the Sample and the Model object.  See
-:ref:`the section on stimulus coding <howto-stimulus-coding>`
+By default, the upper boundary represents correct responses and the lower
+boundary is error responses.  We could also name the upper and lower boundary
+something else (e.g. "left" and "right" response), sometimes called "stimulus
+coding".  To do this, we need to pass the "choice_names" parameter to the Sample
+and the Model object.  See :ref:`the section on stimulus coding
+<howto-stimulus-coding>`
 
 Using functions as parameters
 -----------------------------
 
 In the last section, we saw how components in PyDDM can be specified by a
-parameter.  We did this by assigning the name of the parameter (as a string) to
-the component.   Specifically, we wrote
+specific value (e.g. 0.6) or by a parameter.  We did this by assigning either
+the value or the name of the parameter (as a string) to the component.
+Specifically, we wrote
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -314,7 +352,7 @@ the component.   Specifically, we wrote
 
 More generally, **components can be defined by functions**.  To do this, the
 name of the parameter should be an argument of the function.  Then, the function
-can be used interchangably anywhere you would pass the name of a parameter.  So,
+can be used interchangeably anywhere you would pass the name of a parameter.  So,
 our definition is equivalent to the following definition.
 
 .. literalinclude:: downloads/simple.py
@@ -324,10 +362,11 @@ our definition is equivalent to the following definition.
 
 Note that "lambda" is a Python feature which allows us to define short
 "anonymous" functions.  The important thing here is that the names of the
-argument is the same as the name of the parameters.  We can define functions in
-several different ways in Python, and any of these ways will work as long as the
-argument is the name of the parameter.  This means that **the name of the
-function argument matters**.  So, for example, the following is also equivalent:
+arguments are the same as the names of the parameters.  We can define functions
+in several different ways in Python, and any of these ways will work as long as
+the argument is the name of the parameter.  This means that **the name of the
+function argument matters**.  So, for example, the following is also equivalent
+to the above:
 
 .. literalinclude:: downloads/simple.py
    :language: python
@@ -370,37 +409,69 @@ model:
    :start-after: # Start condition model
    :end-before: # End condition model
 
-Now, the model can only be solved if we tell the model what values for the
-conditions we want to use.  If solving the model using the solve() method, we
-must specify to the solve() method what conditions we want to use.  For example::
-
-    m.solve(conditions={"coh": .3})
-
-If we fit the model using a Sample object, the Sample must have the given
-conditions in it.  When we simulate data with the :meth:`~.Solution.sample`
-function, we can simulate from multiple conditions by solving the model for
-different sets of conditions, calling :meth:`~.Solution.sample` on each Solution
-object, and then combining them by adding them together.  For example,
-
-.. literalinclude:: downloads/gddms.py
-   :language: python
-   :start-after: # Start solve multiple conditions
-   :end-before: # End solve multiple conditions
-
-If we want to use the model GUI, we must tell it what conditions to use, by
-passing in the "conditions" variable as a dictionary, where keys are the names
-of the conditions which index lists of possible values for that condition.
-Alternatively, we can pass a sample object to determine the appropriate
-conditions automatically.  For example,
+Now, the model can only be solved if we tell the model what values to use for
+the conditions.  When we have experimental data, conditions are loaded in with
+the dataset.  If we want to use the model GUI without a Sample, we must tell it
+what conditions to use by passing in the "conditions" variable as a dictionary,
+where keys are the names of the conditions and values are lists of possible
+values for that condition.  For example,
 
 .. literalinclude:: downloads/gddms.py
    :language: python
    :start-after: # Start conditions model gui
    :end-before: # End conditions model gui
 
-Lastly, when we fit the model, we must pass a sample object which has the
-appropriate conditions.  If it does not, it will raise an error.
+If we fit the model using a Sample, the Sample must have the given conditions in
+it.  Recall that we can generate a Sample by simulating data from a Solution
+using the :meth:`~.Solution.sample` function.  We can't simulate from the above
+model, because some parameters are not specified.  So, let's make a model where
+the parameter "drift_rate_scale" is fixed to 3.8 that we can use to simulate
+data.
 
+.. literalinclude:: downloads/gddms.py
+   :language: python
+   :start-after: # Start condition_noparams model
+   :end-before: # End condition_noparams model
+
+This model can be solved only if we specify the conditions, for example::
+
+    m_to_sim.solve(conditions={"coh": .3})
+
+When we simulated artificial data before, our model did not depend on any
+conditions.  If we want to add conditions to our simulated data, we must solve
+the model separately for each set of conditions, generate data for each
+separately, and then combine them together.  For example,
+
+.. literalinclude:: downloads/gddms.py
+   :language: python
+   :start-after: # Start solve multiple conditions
+   :end-before: # End solve multiple conditions
+
+When we fit the model, we must pass a sample object which has the appropriate
+conditions.  If it does not, it will raise an error.  Our artificial dataset now
+includes the "coh" condition, so we can visualize it in the model GUI without
+specifying the conditions if we pass the sample::
+
+    pyddm.plot.model_gui(m, sample)
+    pyddm.plot.model_gui_jupyter(m, sample)
+
+Fitting will give us a value for the "drift_rate_scale" parameter, which
+linearly scales the condition "coh" on each trial.  We can perform the fitting
+as before:
+
+.. literalinclude:: downloads/gddms.py
+   :language: python
+   :start-after: # Start fit condition model
+   :end-before: # End fit condition model
+
+Which gives a value of drift_rate_scale very similar to our simulated value of
+3.8::
+
+    {'drift': {'drift_rate_scale': Fitted(3.793034367830698, minval=-6, maxval=6)},
+     'noise': {'noise': 1},
+     'bound': {'B': 1},
+     'IC': {'x0': 0},
+     'overlay': {'nondectime': 0, 'umixturecoef': 0.02}}
 
 Generalized drift diffusion models
 ----------------------------------
@@ -451,14 +522,14 @@ conditions, time, or position.
   two strings.  By default, this is ("correct", "error") for tasks with a ground
   truth, but can also be changed to any desired value.  For instance, ("left",
   "right"), ("high value", "low value"), or ("green", "blue").  This is often
-  called "accuracy coding" and "stimulus coding".  See See :ref:`the section on
+  called "accuracy coding" and "stimulus coding".  See :ref:`the section on
   stimulus coding <howto-stimulus-coding>` for more information.
 - **Model name**: The name of the model is given by the "name" argument.  This
   can be helpful when displaying or saving model output, especially if you are
   fitting multiple models.
 - **Numerical precision**: The "dt" argument is the timestep for solving the
   model.  By default, it is set to 0.005.  Likewise, the "dx" argument is the
-  discritized accuracy of the integrator when solving the model.  If your model
+  discretized accuracy of the integrator when solving the model.  If your model
   gives strange results, consider making dt and dx smaller.  As a rule of thumb
   for most models, dx and dt should have similar values for optimal performance.
 
@@ -469,8 +540,9 @@ conditions, time, or position.
 Loading data from a CSV file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this example, we load data from the open dataset by Roitman and Shadlen
-(2002).  This dataset can be `downloaded here
+In this example, we load data from the open dataset by `Roitman and Shadlen
+(2002) <https://www.jneurosci.org/content/22/21/9475>`_.  This dataset can be
+`downloaded here
 <https://shadlenlab.columbia.edu/resources/RoitmanDataCode.html>`_ and the
 relevant data extracted :download:`with our script
 <downloads/extract_roitman.py>`.  The processed CSV file can be
@@ -545,6 +617,13 @@ the data.
    :start-after: # Start Model
    :end-before: # End Model
 
+Now we fit the model and plot the result:
+
+.. literalinclude:: downloads/roitman_shadlen.py
+   :language: python
+   :start-after: # Start display model
+   :end-before: # End display model
+
 .. note::
 
   If you see "Warning: renormalizing model solution from X to 1." for some X,
@@ -552,13 +631,6 @@ the data.
   as this is seen early in the fitting procedure.  If it is larger or seen
   towards the end of the fitting procedure, consider using smaller dx or dt in
   the simulation.  This indicates numerical imprecision in the simulation.
-
-Now we fit the model and plot the result:
-
-.. literalinclude:: downloads/roitman_shadlen.py
-   :language: python
-   :start-after: # Start display model
-   :end-before: # End display model
 
 This gives the following output (which may vary slightly, since the
 fitting algorithm is stochastic)::
@@ -627,8 +699,8 @@ We can alternatively explore this with the PyDDM's model GUI:
 
 .. image:: images/model-gui.png
 
-In addition to viewing the PDFs, we can also use the model GUI to view the
-psychometric and chronometric functions.
+In addition to viewing the RT distributions, we can also use the model GUI to
+view the psychometric and chronometric functions.
 
 .. literalinclude:: downloads/roitman_shadlen.py
    :language: python
@@ -654,8 +726,7 @@ we did above.
 
 Before fitting this model, let's look at it in the model GUI::
 
-  from pyddm.plot import model_gui
-  model_gui(model_leak, sample=roitman_sample)
+    pyddm.plot.model_gui(model_leak, sample=roitman_sample)
 
 We can fit this and save it as an image using the following.  Note that this may
 take a while (several minutes) due to the increased number of parameters and
@@ -710,35 +781,39 @@ This gives the following model::
 
 .. image:: images/leak-collapse-fit.png
 
+Like before, we can still use the model GUI to visualize the RT distribution or
+the psychometrics/chronometric function.  
+
 Going further
 -------------
 
 In this tutorial, we have only just scratched the surface of what is possible in
-PyDDM.  See the :doc:`cookbook/index` for more examples.  Also see the
-:doc:`ooquickstart` or :doc:`apidoc/index` to learn about the object oriented
-API for constructing models in PyDDM.
+PyDDM.  See the :doc:`cookbook/index` for more examples, or the
+:doc:`apidoc/index` to for more details on the functions and classes used in
+this tutorial.
 
 Summary
 -------
 
-PyDDM can simulate models and generate artificial data, or it can fit
-them to data.  Below are high-level overviews for how to accomplish
-each.
+PyDDM can simulate models and generate artificial data, or it can fit models to
+data.  Below are high-level overviews for how to accomplish each.
 
 To simulate models and generate artificial data:
 
 1. Define a model using :func:`.gddm` or the object-oriented API.  Here, we
    focused on :func:`.gddm`.  Models may depend on parameters, conditions, time,
    and space.
-2. Simulate the model using the :meth:`.Model.solve()` method to generate a
-   :class:`.Solution` object.  If you have multiple conditions, you must run
+2. View your model in the :doc:`model GUI <modelgui>` to make sure it behaves
+   the way you expect.
+3. Simulate the model using :meth:`.Model.solve()` to generate a
+   :class:`.Solution`.  If you have multiple conditions, you must run
    :meth:`.Model.solve()` separately for each set of conditions and generate
-   separate :class:`.Solution` objects.
-3. Run the :meth:`.Solution.sample()` method of the :class:`.Solution` object
-   to generate a :class:`.Sample`.  If you have multiple :class:`.Solution`
-   objects (for multiple task conditions), you will need to generate multiple
-   :class:`.Sample` objects as well.  These can be added together with the "+"
-   operator to form one single :class:`.Sample` object.
+   a separate :class:`.Solution` for each.
+4. Run :meth:`.Solution.sample()` for the :class:`.Solution` to generate a
+   :class:`.Sample`.  If you have more than one :class:`.Solution` (for multiple
+   task conditions), you will need to generate a :class:`.Sample` for each.
+   These can be added together with the "+" operator to form one single
+   :class:`.Sample`.
 
 
 To fit a model to data:
@@ -746,16 +821,16 @@ To fit a model to data:
 1. Define a model with at least one free parameter, using :func:`.gddm` or the
    object-oriented API.  Here, we focused on :func:`.gddm`.  Models may depend
    on parameters, conditions, time, and space.
-2. Create a :class:`.Sample` object, either using "from_pandas_dataframe" or
-   "from_numpy_array".  Ensure that the conditions used in the model are present
-   in the data.
-3. Visualize your model using the model GUI to ensure it has the behavior you
-   expect.  You may need to pass the sample you plan to fit, or else the
-   "conditions" variable, to the model GUI function.
-4. Run :meth:`.Model.fit` on the model and the sample.  Optionally
-   specify a :class:`loss function <.LossFunction>` other than the default
-   (which uses BIC).  After fitting, the the model will contain :class:`.Fitted`
-   objects, that contain the fitted values.
+2. Create a :class:`.Sample`, either using
+   :meth:`~.Sample.from_pandas_dataframe` or :meth:`~.Sample.from_numpy_array`.
+   Ensure that the conditions used in the model are present in the data.
+3. Visualize your model using the :doc:`model GUI <modelgui>` to ensure it has
+   the behavior you expect.  You may need to pass the Sample you plan to fit, or
+   else the "conditions" variable, to the model GUI function.
+4. Run :meth:`.Model.fit` on the model and the sample.  Optionally specify a
+   :class:`loss function <.LossFunction>` other than the default (negative log
+   likelihood).  After fitting, the the model will have all of its parameters
+   specified as the fitted values.
 5. View the output by calling :meth:`.Model.show` and the model GUI on the
    model.  The value of the loss function is accessible via
    :meth:`.Model.get_fit_result` and the parameters via

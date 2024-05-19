@@ -44,8 +44,8 @@ determine response time.  The simulation with alpha=.1 and drift rate
 
 .. literalinclude:: ../downloads/rlddm.py
    :language: python
-   :start-after: # BEGIN SIMULATION CODE
-   :end-before: # END SIMULATION CODE
+   :start-after: # BEGIN SIMULATION_CODE
+   :end-before: # END SIMULATION_CODE
 
 And some example data::
 
@@ -56,8 +56,8 @@ And some example data::
     1995       0  0.949016    995        1       1
     1996       1  0.957841    996        1       1
 
-As you can see, the PyDDM model used to simulate the model is pretty simple.
-The real magic is in the loss function.  For fitting these data, we can use the
+As you can see, the PyDDM model used for the simulations is pretty simple.  The
+real magic is in the loss function.  For fitting these data, we can use the
 following loss function, which implements Rescorla-Wagner for a two-armed
 bandit.  To implement a different model, this is what you need to edit.
 
@@ -194,13 +194,14 @@ PyDDM, and can be accomplished using the following model::
                    noise=0.1,
                    bound="bound",
                    starting_position=lambda x0,x0_width,x : scipy.stats.uniform(x0-x0_width/2, x0_width).pdf(x),
-                   nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width),
+                   nondecision=lambda T,tnd,tnd_width : scipy.stats.uniform(tnd-tnd_width/2, tnd_width).pdf(T),
                    parameters={"drift": (-2, 2),
                                "bound": (.3, 3),
                                "x0": (-.7, .7),
                                "x0_width": (.01, .29),
                                "tnd": (.1, .5),
-                               "tnd_width": (.01, .1)})
+                               "tnd_width": (.01, .1)},
+                   T_dur=5.0)
 
 However, drift rate variability is difficult in PyDDM and is really not
 recommended.  If you absolutely must, you can use the following, but make sure

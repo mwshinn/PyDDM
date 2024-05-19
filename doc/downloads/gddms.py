@@ -4,26 +4,30 @@
 import pyddm
 m = pyddm.gddm(
     drift=lambda drift_rate_scale,coh : drift_rate_scale*coh,
-    parameters={"drift_rate_scale": (-2,2)},
+    parameters={"drift_rate_scale": (-6,6)},
     conditions=["coh"])
 # End condition model
 
+# Start condition_noparams model
+m_to_sim = pyddm.gddm(drift=lambda coh : 3.8*coh, conditions=["coh"])
+# End condition_noparams model
+
 # Start solve multiple conditions
-samp_coh3 = m.solve(conditions={"coh": .3}).sample(1000) # 1000 trials with coh=.3
-samp_coh6 = m.solve(conditions={"coh": .6}).sample(500) # 500 trials with coh=.6
-samp_coh0 = m.solve(conditions={"coh": 0}).sample(100) # 100 trials with coh=.6
+samp_coh3 = m_to_sim.solve(conditions={"coh": .5}).sample(2000) # 2000 trials with coh=.5
+samp_coh6 = m_to_sim.solve(conditions={"coh": 1.0}).sample(1000) # 1000 trials with coh=1.0
+samp_coh0 = m_to_sim.solve(conditions={"coh": 0}).sample(400) # 400 trials with coh=0
 sample = samp_coh3 + samp_coh6 + samp_coh0 # This preserves information about the conditions
 # End solve multiple conditions
 
+# Start fit condition model
+m.fit(sample, verbose=False)
+print(m.parameters())
+# End fit condition model
+
 # Start conditions model gui
 import pyddm.plot
-# To manually specify conditions
 pyddm.plot.model_gui(m, conditions={"coh": [0, .3, .6]})
 pyddm.plot.model_gui_jupyter(m, conditions={"coh": [0, .3, .6]})
-
-# To use a sample object (the one we just generated)
-pyddm.plot.model_gui(m, sample)
-pyddm.plot.model_gui_jupyter(m, sample)
 # End conditions model gui
 
 # Start drift bounds gddm

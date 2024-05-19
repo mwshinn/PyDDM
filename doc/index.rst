@@ -12,7 +12,11 @@ Key features include:
 - **Arbitrary Python functions define parameters** for drift rate, noise,
   bounds, non-decision time, and starting position
 - **Graphical interface** for exploring new models
-- Multiprocessor support
+- **Automatic parallelization** for faster fitting
+
+.. raw:: html
+
+    <div style="background-color: #ff0000; text-align: center; font-size: 15pt; padding: 6px; border: 5px double black;">June 2024: PyDDM is new and improved!  <a href="newfeatures.html">Check it out!<a></div>
 
 `Interactive online demo on Google Colab
 <https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb>`_.

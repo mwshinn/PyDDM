@@ -28,6 +28,7 @@ write::
             return coh2*drift_multiplier
         else:
             return coh3*drift_multiplier
+
     m = pyddm.gddm(drift=coherence_changes,
                    parameters={"drift_multiplier": (-3,3)},
                    conditions=["coh1", "coh2", "coh3", "t1", "t2"])
@@ -47,8 +48,10 @@ increases over time.  For this demonstration, we will use an exponential
 function.  We want this to scale both the drift rate and the noise.  In this
 example, the drift rate is scaled by signal strength.  We can do that with::
 
+    import numpy as np
     def urgency(gain, lmbda, t):
         return gain*np.exp(lmbda*t)
+
     m = pyddm.gddm(drift=lambda t,g,l,signal_strength,drift_scale: urgency(g, l, t)*signal_strength*drift_scale,
                    noise=lambda g,l,t : urgency(g, l, t),
                    parameters={"l": (.1, 10), "g": (.1, 1), "drift_scale": (.01, 5)},
@@ -84,7 +87,8 @@ a stable fixed point at each bound and an unstable fixed point at the origin::
     m = pyddm.gddm(drift=lambda x,driftscale,b : -driftscale*(x-b)*(x+b)*x,
                    bound="b",
                    parameters={"driftscale": (-5, 5),  "b": (.5, 3)})
-    pyddm.plot.model_gui(m, sample=samp)
+
+    pyddm.plot.model_gui(m)
 
 In this case, when the parameter "dirftscale" goes negative, the fixed points at
 the bounds will change from stable to unstable, and vice versa for the fixed
@@ -109,6 +113,7 @@ may be a different number of measurements for each trial.
 
 Suppose we construct a sample with three trials::
     
+    import pandas
     df = pandas.DataFrame({"choice_correct": [1, 0, 1], "arousal": [(.5, .7, .8, .9), (.2, .3, .4, .1, .1), (1.1, 1.3)], "RT": [.65, .94, .30]})
     samp = pyddm.Sample.from_pandas_dataframe(df, rt_column_name="RT", choice_column_name="choice_correct")
 
@@ -125,6 +130,7 @@ We can use this in a PyDDM model with the following::
         t_bin = int(t // .2) # 200 ms binning
         t_bin = min(len(arousal_vec)-1, t_bin) # Never go past the final arousal bin
         return arousal_vec[t_bin]
+
     m = pyddm.gddm(drift=lambda t,arousal_scale,arousal : find_drift(t, arousal)*arousal_scale,
                    parameters={"arousal_scale": (0, 2)},
                    conditions=["arousal"])

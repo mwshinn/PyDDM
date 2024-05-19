@@ -1,10 +1,10 @@
 # RL-DDM using PyDDM
 
+
+# BEGIN SIMULATION_CODE
 import pyddm
 import pandas
 import numpy as np
-
-# BEGIN SIMULATION_CODE
 m_sim = pyddm.gddm(drift=lambda deltaq, driftscale : driftscale * deltaq,
                    noise=1,
                    bound=1,
@@ -125,5 +125,5 @@ pyddm.get_model_loss(model=m, sample=samp, lossfunction=LossRLFast)
 qleft = m.last_qleft
 qright = m.last_qright
 
-pyddm.plot.model_gui(m, conditions={"deltaq": np.linspace(-1, 1, 11)})
+pyddm.plot.model_gui(m, conditions={"deltaq": [-1, -.8, -.6, -.4, -.2, 0, .2, .4, .6, .8, 1]})
 # END MODEL

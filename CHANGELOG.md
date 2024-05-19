@@ -39,7 +39,11 @@
 - The `minval`/`maxval` arguments of Fittable objects are now the default first and
   second argument in the object-oriented interface
 - Better compatibility of `model_gui_jupyter` in new environments
+- The "Solution.resample" function is now known as "Solution.sample".
 
+## Bug fixes
+
+- The function plot_model_pdf was fixed (thanks Baptiste!)
 
 # Version 0.7.0
 
