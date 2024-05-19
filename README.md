@@ -70,9 +70,7 @@ pyddm.plot.model_gui(model) # If not using a Jupyter notebook, or...
 pyddm.plot.model_gui_jupyter(model) # If using a Jupyter notebook
 ```
 
-![PyDDM Model GUI]()
-
-[![PyDDM Model GUI](https://https://github.com/mwshinn/PyDDM/blob/master/doc/images/jupyter-model-gui-animation.gif?raw=true)](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb)
+[![PyDDM Model GUI](https://github.com/mwshinn/PyDDM/blob/master/doc/images/jupyter-model-gui-animation.gif?raw=true)](https://colab.research.google.com/github/mwshinn/PyDDM/blob/master/doc/notebooks/interactive_demo.ipynb)
 
 ## Installation
 
