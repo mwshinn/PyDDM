@@ -4,7 +4,7 @@ Installation
 System requirements
 -------------------
 
-- Python 3.5 or higher
+- Python 3.6 or higher
 - `Scipy/numpy <https://www.scipy.org/>`_
 - `Paranoid scientist <https://github.com/mwshinn/paranoidscientist>`_ (``pip install paranoid-scientist``)
 - For plotting features, `matplotlib <https://matplotlib.org/>`_

@@ -91,7 +91,7 @@ If installing from source, [download the source code](https://github.com/mwshinn
 
 ## System requirements
 
-- Python 3.5 or above
+- Python 3.6 or above
 - Numpy version 1.9.2 or higher
 - Scipy version 0.16.0 or higher
 - Matplotlib

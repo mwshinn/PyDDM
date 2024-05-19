@@ -25,7 +25,7 @@ setup(
     maintainer = 'Max Shinn',
     maintainer_email = 'm.shinn@ucl.ac.uk',
     license = 'MIT',
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     url='https://github.com/mwshinn/PyDDM',
     packages = ['pyddm', 'pyddm.models', 'ddm'],
     ext_modules = [Extension('pyddm.csolve',
