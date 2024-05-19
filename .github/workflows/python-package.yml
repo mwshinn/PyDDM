@@ -13,12 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.5, 3.6, 3.7, 3.8, 3.9, '3.10', '3.11']
+        python-version: [3.6, 3.7, 3.8, 3.9, '3.10', '3.11', '3.12']
         dep-versions: [numpy scipy pandas matplotlib]
-        include:
-          - python-version: 3.5
-            dep-versions: numpy==1.9.2 scipy==0.16.0 pandas==0.18.1 matplotlib==1.5.3
-            
 
     steps:
     - uses: actions/checkout@v2
