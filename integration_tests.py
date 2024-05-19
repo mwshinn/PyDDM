@@ -3,6 +3,8 @@ from unittest import TestCase, main
 import numpy as np
 from math import fsum
 import pandas
+import packaging.version
+import platform
 
 import pyddm as ddm
 import paranoid
@@ -193,17 +195,17 @@ class TestFit(TestCase):
     def setUp(self):
         from integration_test_models import DriftCond
         self.DriftCond = DriftCond
-        self.cond_m = ddm.Model(drift=self.DriftCond(param=1), choice_names=("upper", "lower"))
+        self.cond_m = ddm.gddm(drift=lambda cond,param : param*cond, conditions=["cond"], parameters={"param": 1}, choice_names=("upper", "lower"))
         self.cond_s = self.cond_m.solve(conditions={"cond": .1}).resample(4000) + \
                       self.cond_m.solve(conditions={"cond": 1}).resample(4000) + \
                       self.cond_m.solve(conditions={"cond": 2}).resample(4000)
     def test_fit_drift(self):
         """A simple one-parameter fit"""
-        m = ddm.Model(name="DDM", drift=ddm.DriftConstant(drift=2), choice_names=("upper", "lower"))
+        m = ddm.gddm(name="DDM", drift=2, choice_names=("upper", "lower"))
         s = m.solve()
         sample = s.resample(10000)
-        mfit = ddm.Model(name="DDM", drift=ddm.DriftConstant(drift=ddm.Fittable(minval=0, maxval=10)), choice_names=("upper", "lower"))
-        ddm.fit_adjust_model(model=mfit, sample=sample)
+        mfit = ddm.gddm(name="DDM", drift="drift", choice_names=("upper", "lower"), parameters={"drift": (0,10)})
+        mfit.fit(sample)
         # Within 10%
         if SHOW_PLOTS:
             mfit.name = "Fitted solution"
@@ -215,7 +217,7 @@ class TestFit(TestCase):
         """A simple one-parameter fit with conditions"""
         m = self.cond_m
         s = self.cond_s
-        mfit = ddm.Model(drift=self.DriftCond(param=ddm.Fittable(minval=.1, maxval=3)), choice_names=("upper", "lower"))
+        mfit = ddm.gddm(drift=lambda param,cond: cond*param, choice_names=("upper", "lower"), conditions=["cond"], parameters={"param": (.1, 3)})
         ddm.fit_adjust_model(model=mfit, sample=s)
         # Within 10%
         if SHOW_PLOTS:
@@ -226,6 +228,8 @@ class TestFit(TestCase):
         _verify_param_match("drift", "param", m, mfit)
     def test_fit_with_condition_parallel(self):
         """A simple one-parameter fit with conditions, parallelized"""
+        if packaging.version.parse(platform.python_version()) < packaging.version.parse("3.7.0"):
+            return # Not supported, no need to fail
         ddm.set_N_cpus(2)
         self.test_fit_with_condition()
         ddm.set_N_cpus(1)
