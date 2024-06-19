@@ -151,7 +151,7 @@ The model is then::
         if current_fixation == 1:
             return d * (value - price * theta)
         else:
-            return d * (price - value * theta)
+            return -d * (price - value * theta)
     m = pyddm.gddm(drift=drift_func, noise=.1, bound="b", nondecision="tnd", mixture_coef=.02,
                    parameters={"d": (0, 2), "theta": (0, 1), "b": (.5, 2), "tnd": (0, .5)},
                    conditions=["value", "price", "fixation"])
