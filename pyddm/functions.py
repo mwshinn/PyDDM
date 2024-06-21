@@ -873,7 +873,7 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
 
     for name,p in parameters.items():
         assert name not in ["x", "t", "T", "dx"], f"Parameters cannot be named 'x', 't', 'T', or 'dx'.  Invalid name '{name}'."
-        assert isinstance(p, (int,float,np.float_,np.int_)) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float,int,np.int_,np.float_)) and isinstance(p[1], (float,int,np.int_,np.float_))), f"Parameters must be a single number or a tuple of numbers (representing a range for fitting).  Invalid parameter '{name}'."
+        assert isinstance(p, (int,float,np.floating,np.integer)) or (isinstance(p, tuple) and len(p) == 2 and isinstance(p[0], (float,int,np.integer,np.floating)) and isinstance(p[1], (float,int,np.integer,np.floating))), f"Parameters must be a single number or a tuple of numbers (representing a range for fitting).  Invalid parameter '{name}'."
         assert name.isidentifier() and not keyword.iskeyword(name), f"Parameter names must be valid names for variables in Python.  Invalid parameter name '{name}'."
 
     # Either the fittable or the constant value
@@ -888,7 +888,7 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
             val = eval(f"lambda {val}: {val}")
         if val in parameters.keys():
             return "val",None,_fittables[val]
-        elif isinstance(val, (int,float,np.float_,np.int_)):
+        elif isinstance(val, (int,float,np.floating,np.integer)):
             return "val",None,val
         elif hasattr(val, "__call__"):
             sig = inspect.getfullargspec(val)

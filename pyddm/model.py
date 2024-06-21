@@ -641,7 +641,7 @@ class Model(object):
         if isinstance(self.get_dependence('IC'),(ICPoint, ICPointRatio)):
             ic = self.IC(conditions=conditions)
             assert np.count_nonzero(ic)==1, "Cannot solve analytically for models with non-point initial conditions"
-            shift = np.flatnonzero(ic) / (len(ic) - 1) #rescale to proprotion of total bound height
+            shift = np.flatnonzero(ic)[0] / (len(ic) - 1) #rescale to proprotion of total bound height
         else:
             shift = None
         
@@ -660,9 +660,7 @@ class Model(object):
                                                        force_python=force_python)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
-        anal_pdf_choice_upper[anal_pdf_choice_upper==np.NaN] = 0. # FIXME Is this a bug? You can't use == to compare nan to nan...
         anal_pdf_choice_upper[0] = 0.
-        anal_pdf_choice_lower[anal_pdf_choice_lower==np.NaN] = 0.
         anal_pdf_choice_lower[0] = 0.
 
         # Fix numerical errors

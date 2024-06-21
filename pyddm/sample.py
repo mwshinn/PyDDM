@@ -209,7 +209,7 @@ class Sample(object):
             arr = np.asarray(x, dtype=object)
             # The following is somewhat of a hack to get rid of object arrays
             # when a condition is not a number (e.g. string or tuple)
-            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
+            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.floating, np.integer)):
                 return arr
             arr = np.asarray(arr.tolist())
             try:
@@ -271,7 +271,7 @@ class Sample(object):
             arr = np.asarray(x, dtype=object)
             # The following is somewhat of a hack to get rid of object arrays
             # when a condition is not a number (e.g. string or tuple)
-            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.float_, np.int_)):
+            if len(arr) > 0 and not isinstance(arr[0], (float, int, np.floating, np.integer)):
                 return arr
             arr = np.asarray(arr.tolist())
             try:

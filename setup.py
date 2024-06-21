@@ -32,7 +32,7 @@ setup(
                              sources=['pyddm/csolve.c'],
                              include_dirs=[np.get_include()],
                            )],
-    install_requires = ['numpy >= 1.9.2', 'scipy >= 0.16', 'matplotlib', 'paranoid-scientist >= 0.2.1'],
+    install_requires = ['numpy >= 1.9.2', 'scipy >= 0.16', 'matplotlib', 'paranoid-scientist >= 0.2.3', 'pandas'],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
