@@ -1,4 +1,14 @@
+# Version 0.8.1
+
+Released June 22, 2024
+
+## Bug fixes
+
+- Full support for numpy 2.0
+
 # Version 0.8.0
+
+Released May 19, 2024
 
 ## New features
 
