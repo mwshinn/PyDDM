@@ -531,8 +531,14 @@ class Solution(object):
         choice_upper_sample = samp[samp<shift]
         choice_lower_sample = samp[samp>=shift]-shift
         # Build Sample object
-        aa = np.asarray
-        conditions = {k : (aa([v]*len(choice_upper_sample)), aa([v]*len(choice_lower_sample)), aa([v]*int(undecided))) for k,v in self.conditions.items()}
+        def rep(x,y): # To support tuples
+            if isinstance(x, tuple):
+                arr = np.empty(y, dtype=object)
+                arr[:] = [x]*y
+                return arr
+            else:
+                return np.repeat(x, y)
+        conditions = {k : (rep(v, len(choice_upper_sample)), rep(v, len(choice_lower_sample)), rep(v, int(undecided))) for k,v in self.conditions.items()}
         return Sample(choice_upper_sample, choice_lower_sample, undecided, choice_names=self.choice_names, **conditions)
 
     @accepts(Self, Positive0, Maybe(Choice), Maybe(Boolean))
