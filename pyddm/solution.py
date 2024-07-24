@@ -465,7 +465,7 @@ class Solution(object):
         """The mean decision time in the correct trials (excluding undecided trials)."""
         if self.choice_names != ("correct", "error"):
             raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  See mean_rt function.")
-        return np.sum(self.choice_upper*self.t_domain) / self.prob_correct()
+        return np.sum(self.choice_upper*self.t_domain) / self.prob("correct")
 
     @accepts(Self)
     @returns(Numeric)
