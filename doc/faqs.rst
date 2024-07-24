@@ -231,13 +231,14 @@ Your model may be slow for a number of different reasons.
 While simulations in PyDDM are fast, fitting models in PyDDM may be slower than
 other packages.  This is because PyDDM uses differential evolution as a fitting
 algorithm.  This algorithm rarely fails to maximize likelihood; however, it
-requires more iterations than a gradient-based approach.  For simple models, it
-*may* be possible to use the "simplex" method for faster fitting, but if you do,
-**please check to make sure your models converge to a consistent global
-minimum**.  You can do this by running several models using both the "simplex"
-method and "differential_evolution" and confirming the results are the same, or
-by running parameter recovery experiments on your model.  Since all GDDMs are
-different, there can be no general guidance for how to ensure model convergence.
+requires more iterations than a gradient-based approach.  Using BADS, by passing
+``fitting_method="bads"`` to :meth:`.Model.fit`, may provide faster fits for
+models with many parameters.  **Please check to make sure your models converge
+to a consistent global minimum**.  You can do this by running several models
+using both "bads" and "differential_evolution" and confirming the results are
+the same, or by running parameter recovery experiments on your model.  Since all
+GDDMs are different, there can be no general guidance for how to ensure model
+convergence.
 
 How many trials do I need to fit a GDDM to data?
 ------------------------------------------------

@@ -51,17 +51,18 @@ validate other algorithms, stick with differential evolution.
 Other methods can be used by passing the "fitting_method" argument to
 :meth:`~.Model.fit_adjust_model`.  This can take one of several values:
 
-- "simplex": Use the Nelder-Mead simplex method
-- "simple": Gradient descent
-- "basin": Use Scipy's `basin hopping algorithm
-  <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html>`_.
+- "bads": `BADS <https://arxiv.org/abs/1705.04405>`_ This may be faster for
+  complex models or models with many parameters, but produce less accurate fits
+  for small models.
+- "simplex": Use the Nelder-Mead simplex method.  Do not use unless you have a
+  good starting point.
+- "simple": Gradient descent.  Do not use unless you have a good starting point.
 - A function can be passed to use this function as a custom objective
   function.
 
-For example, to fit the model in the quickstart using the Nelder-Mead
-simplex method, you can do::
+For example, to fit the model in the quickstart using BADS, you can do::
 
-  model_rs.fit(sample=roitman_sample, fitting_method="simplex")
+  model_rs.fit(sample=roitman_sample, fitting_method="bads")
 
 
 .. _howto-evolution:

@@ -213,24 +213,24 @@ class Model(object):
         "Fitted()" instance, as these will be the parameters to fit.
 
         `fitting_method` specifies how the model should be fit.
-        "differential_evolution" is the default, which accurately locates
-        the global maximum without using a derivative.  "simple" uses a
-        derivative-based method to minimize, and just uses randomly
-        initialized parameters and gradient descent.  "simplex" is the
-        Nelder-Mead method, and is a gradient-free local search.  "basin"
-        uses "scipy.optimize.basinhopping" to find an optimal solution,
-        which is much slower but also gives better results than "simple".
-        It does not appear to give better or faster results than
-        "differential_evolution" in most cases.  Alternatively, a custom
-        objective function may be used by setting `fitting_method` to be a
-        function which accepts the "x_0" parameter (for starting position)
-        and "constraints" (for min and max values).  In general, it is
-        recommended you almost always use differential evolution, unless
-        you have a model which is highly-constrained (e.g. only one or two
-        parameters to estimate with low covariance) or you already know
-        the approximate parameter values.  In practice, besides these two
-        special cases, changing the method is unlikely to give faster or
-        more reliable estimation.
+        "differential_evolution" is the default, which accurately locates the
+        global maximum without using a derivative.  For most purposes,
+        differential evolution is the recommended method.  Another option is
+        "bads" for BADS (https://arxiv.org/abs/1705.04405), which may be faster
+        for some models.  Other methods are only recommended in special cases.
+        "simple" uses a derivative-based method to minimize, and just uses
+        randomly initialized parameters and gradient descent, and "simplex" is
+        the Nelder-Mead method, and is a gradient-free local search.  These are
+        only recommended if you have a very simple model, and also have a good
+        estimate of the global maximum. Alternatively, a custom objective
+        function may be used by setting `fitting_method` to be a function which
+        accepts the "x_0" parameter (for starting position) and "constraints"
+        (for min and max values).  In general, it is recommended you almost
+        always use differential evolution or BADS, unless you have a model which
+        is highly-constrained (e.g. only one or two parameters to estimate with
+        low covariance) or you already know the approximate parameter values.
+        If you change this value, make sure to check that you get reliable and
+        recoverable fits.
 
         `fitparams` is a dictionary of kwargs to be passed directly to the
         minimization routine for fine-grained low-level control over the
