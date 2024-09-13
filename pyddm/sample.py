@@ -668,9 +668,10 @@ class Sample(object):
     @requires("len(self.choice_upper)+len(self.choice_lower) > 0")
     @returns(Positive0)
     def mean_rt(self):
-        """The mean decision time in the correct trials."""
-        if self.choice_names != ("correct", "error"):
-            raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.")
+        """The mean decision time in all trials.
+
+        By contrast, the function mean_decision_time() considers only correct
+        trials."""
         return np.mean(np.concatenate([self.choice_upper, self.choice_lower]))
 
 class _Sample_Iter_Wraper(object):

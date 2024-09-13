@@ -988,4 +988,4 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
     # If it is a function
     elif typ == "func":
         raise ValueError("mixture_coef cannot be a function here, please use the full object oriented version of PyDDM for this functionality.")
-    return Model(drift=driftobj, noise=noiseobj, bound=boundobj, IC=icobj, overlay=OverlayChain(overlays=overlayobjs), dx=dx, dt=dt, T_dur=T_dur, choice_names=choice_names)
+    return Model(drift=driftobj, noise=noiseobj, bound=boundobj, IC=icobj, overlay=OverlayChain(overlays=overlayobjs), dx=dx, dt=dt, T_dur=T_dur, choice_names=choice_names, name=name)

@@ -462,7 +462,12 @@ class Solution(object):
     @requires('self.prob_correct() > 0')
     @returns(Positive0)
     def mean_decision_time(self):
-        """The mean decision time in the correct trials (excluding undecided trials)."""
+        """The mean decision time in the correct trials (excluding undecided trials).
+
+        This only works when choice_names is "correct" and "error".  The
+        function mean_rt() includes all trials (not just correct trials) and
+        thus works for all models.
+        """
         if self.choice_names != ("correct", "error"):
             raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  See mean_rt function.")
         return np.sum(self.choice_upper*self.t_domain) / self.prob("correct")
@@ -470,7 +475,9 @@ class Solution(object):
     @accepts(Self)
     @returns(Numeric)
     def mean_rt(self):
-        """The mean decision time (excluding undecided trials)."""
+        """The mean decision time of all trials (excluding undecided trials).
+
+        By contrast, the function mean_decision_time() only includes correct trials."""
         if self.prob("upper")+self.prob("lower") == 0:
             return np.nan
         return np.sum((self.choice_upper+self.choice_lower)*self.t_domain) / (self.prob("upper")+self.prob("lower"))
