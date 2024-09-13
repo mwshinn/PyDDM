@@ -659,7 +659,12 @@ class Sample(object):
     @requires("len(self.choice_upper) > 0")
     @returns(Positive0)
     def mean_decision_time(self):
-        """The mean decision time in the correct trials."""
+        """The mean decision time in the correct trials.
+
+        This only works when choice_names is "correct" and "error".  The
+        function mean_rt() includes all trials (not just correct trials) and
+        thus works for all models.
+        """
         if self.choice_names != ("correct", "error"):
             raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  See the mean_rt method.")
         return np.mean(self.choice_upper)
