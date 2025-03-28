@@ -85,8 +85,8 @@ class Sample(object):
         yield Sample(aa([.1, .2, .3]), aa([.2, .3, .4]), undecided=5)
         
     def __init__(self, choice_upper, choice_lower, undecided=0, choice_names=("correct", "error"), **kwargs):
-        assert choice_upper in NDArray(d=1, t=Number), "choice_upper not a numpy array, it is " + str(type(choice_upper))
-        assert choice_lower in NDArray(d=1, t=Number), "choice_lower not a numpy array, it is " + str(type(choice_lower))
+        assert choice_upper in NDArray(d=1, t=Number), "choice_upper RTs is not a valid numpy array, it may not be one dimensional or may contain nans, and it is a " + str(type(choice_upper))
+        assert choice_lower in NDArray(d=1, t=Number), "choice_lower RTs is not a valid numpy array, it may not be one-dimensional or may contain nans, and it is a " + str(type(choice_lower))
         assert undecided in Natural0(), "undecided not a natural number"
         # Note that in the original pyddm, choice names were always "correct"
         # or "error".  Now they can be anything, but some parts of the code may

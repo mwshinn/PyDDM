@@ -24,8 +24,9 @@ There are a few caveats with parallelization:
 1. It is only possible to run fits in parallel if they are on the same
    computer.  It is not possible to fit across multiple nodes in a
    cluster, for example.
-2. Due to a bug in pathos, all model components must be **defined in a separate
-   file** and then imported when using the object-oriented interface.
+2. If you are using the object-oriented interface and an old version of Python
+   or pathos, all model components must be defined in a separate
+   file and then imported.  Otherwise model fitting will crash.
 3. Only models with many conditions will be sped up by parallelization.  The
    cardinality of the cartesian product of the conditions is the maximum number
    of CPUs that will have an effect: for example, if you have four coherence
