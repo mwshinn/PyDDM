@@ -1,6 +1,19 @@
 Contact
 -------
 
+Before you ask for help
+~~~~~~~~~~~~~~~~~~~~~~~
+
+- **Make sure you have read the quickstart guide.** :doc:`Most common questions
+  are answered in the quickstart guide. <quickstart>`  Many other questions are
+  answered in the :doc:`FAQs <faqs>`.
+- **If you used ChatGPT instead of reading the quickstart guide, please do not
+  ask for help.** Instead, read the :doc:`quickstart guide <quickstart>`.  LLMs
+  write PyDDM code in a way that is difficult to understand and debug.  For
+  instance, ChatGPT often spits out 50 line code blocks for very simple models
+  that should only be 3-4 lines of code.
+
+
 How should I ask for help?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

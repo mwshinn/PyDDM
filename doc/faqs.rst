@@ -267,8 +267,8 @@ Fittable parameters) to the generated data. Then, you can find how close the
 parameter estimates are to the actual parameters when you have different sample
 sizes.
 
-Does PyDDM support HDDM's "stimulus coding"?
---------------------------------------------
+Does PyDDM support "stimulus coding"?
+-------------------------------------
 
 Yes, see :ref:`howto-stimulus-coding`.
 
