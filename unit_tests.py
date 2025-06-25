@@ -201,6 +201,8 @@ class TestDependences(TestCase):
         assert s == ddm.models.OverlayNone().apply(s)
         s = self.FakePointModel().solve()
         assert s == ddm.models.OverlayNone().apply(s)
+        s = self.FakeUndecidedModel().solve()
+        assert s == ddm.models.OverlayNone().apply(s)
     def test_OverlayUniformMixture(self):
         """Uniform mixture model overlay: a uniform distribution plus the model's solved distribution"""
         # Do nothing with 0 probability
@@ -570,6 +572,8 @@ class TestSample(TestCase):
         assert len(self.samps['two'].subset(conda=["a", "z"])) == 2
         # Query by function
         assert len(self.samps['two'].subset(conda=lambda x : True if x=="a" else False)) == 2
+        # Undecided
+        assert len(self.samps['undeccond'].subset(cond1=2)) == 3
     def test_from_numpy_array(self):
         """Create a sample from a numpy array"""
         simple_ndarray = np.asarray([[1, 1], [.5, 0], [.7, 0], [2, 1]])
@@ -577,6 +581,11 @@ class TestSample(TestCase):
         conds_ndarray = np.asarray([[1, 1, 1], [2, 1, 1], [3, 1, 2]])
         assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['conds']
         assert ddm.Sample.from_numpy_array(conds_ndarray, ["cond1"]) == self.samps['condsexp']
+        # Undecided trials
+        conds_ndarray = np.asarray([[np.nan, np.nan, 1], [2, 1, 3], [3, 1, 2]])
+        samp = ddm.Sample.from_numpy_array(conds_ndarray, column_names=["cond1"])
+        assert samp.undecided == 1, "One undecided trial"
+        assert list(samp.items("undecided"))[0][1]['cond1'] == 1
     def test_from_pandas(self):
         """Create a sample from a pandas dataframe"""
         simple_df = pandas.DataFrame({'corr': [1, 0, 0, 1], 'resptime': [1, .5, .7, 2]})
@@ -589,6 +598,12 @@ class TestSample(TestCase):
         assert ddm.Sample.from_pandas_dataframe(cond_df, choice_column_name='c', rt_column_name='rt', choice_names=("c", "d")) != self.samps['condsexp']
         condsstr_df = pandas.DataFrame({'c': [1, 1, 1], 'rt': [1, 2, 3], 'cond1': ["x", "yy", "z z z"]})
         assert ddm.Sample.from_pandas_dataframe(condsstr_df, 'rt', 'c', choice_names=("x", "Y with space")) == self.samps['condsstr']
+        # Undecided
+        df = pandas.DataFrame([[1, True, "x"], [2, False, "x"], [3, True, "z"], [np.nan, np.nan, "y"], [np.nan,np.nan, "z"]], columns=["RT", "choice", "cond"])
+        samp = ddm.Sample.from_pandas_dataframe(df, choice_column_name='choice', rt_column_name='RT')
+        assert samp.undecided == 2
+        assert len(samp.choice_upper) == 2
+        assert samp == ddm.Sample.from_pandas_dataframe(samp.to_pandas_dataframe(), choice_column_name='choice', rt_column_name='RT')
     def test_to_pandas(self):
         for sname,s in self.samps.items():
             if s.undecided == 0:

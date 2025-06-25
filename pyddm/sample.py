@@ -183,11 +183,11 @@ class Sample(object):
     @accepts(NDArray(d=2), List(String), Tuple(String, String))
     @returns(Self)
     @requires('data.shape[1] >= 2')
-    @requires('set(list(data[:,1])) - {0, 1} == set()')
-    @requires('all(data[:,0].astype("float") == data[:,0])')
+    @requires('set(list(data[~np.isnan(data).any(axis=1)][:,1])) - {0, 1} == set()')
+    @requires('all(data[~np.isnan(data).any(axis=1)][:,0].astype("float") == data[~np.isnan(data).any(axis=1)][:,0])')
     @requires('data.shape[1] - 2 == len(column_names)')
     @ensures('len(column_names) == len(return.condition_names())')
-    def from_numpy_array(data, column_names, choice_names=("correct", "error")):
+    def from_numpy_array(data, column_names=[], choice_names=("correct", "error")):
         """Generate a Sample object from a numpy array.
         
         `data` should be an n x m array (n rows, m columns) where m>=2. The
@@ -203,6 +203,11 @@ class Sample(object):
         correspond to the order of the columns.  This function does not yet
         work with undecided trials.
         """
+        assert len(column_names) == data.shape[1] - 2, "Invalid number of column names for conditions"
+        undecided = np.isnan(data[:,0]) & np.isnan(data[:,1])
+        undecided_data = data[undecided]
+        data = data[~undecided]
+        assert not np.any(np.isnan(data[:,0:2])), "First two columns must be either both nan (for undecided trials) not neither nan"
         c = data[:,1].astype(bool)
         nc = (1-data[:,1]).astype(bool)
         def pt(x): # Pythonic types
@@ -219,17 +224,16 @@ class Sample(object):
                 pass
             return arr
 
-        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), np.asarray([])) for i,k in enumerate(column_names)}
-        return Sample(pt(data[c,0]), pt(data[nc,0]), 0, **conditions)
+        conditions = {k: (pt(data[c,i+2]), pt(data[nc,i+2]), pt(undecided_data[:,i+2])) for i,k in enumerate(column_names)}
+        return Sample(pt(data[c,0]), pt(data[nc,0]), undecided_data.shape[0], **conditions)
     @staticmethod
     @accepts(Unchecked, String, Maybe(String), Unchecked, Maybe(String)) # TODO change unchecked to pandas
     @returns(Self)
     @requires('df.shape[1] >= 2')
     @requires('rt_column_name in df')
     @requires('choice_column_name in df or correct_column_name in df')
-    @requires('not np.any(df.isnull())')
-    @requires('len(np.setdiff1d(df[choice_column_name if choice_column_name is not None else correct_column_name], [0, 1])) == 0')
-    @requires('all(df[rt_column_name].astype("float") == df[rt_column_name])')
+    @requires('len(np.setdiff1d(df[~df.isna().any(axis=1)][choice_column_name if choice_column_name is not None else correct_column_name], [0, 1])) == 0')
+    @requires('all(df[~df.isna().any(axis=1)][rt_column_name].astype("float") == df[~df.isna().any(axis=1)][rt_column_name])')
     @ensures('len(df) == len(return)')
     def from_pandas_dataframe(df, rt_column_name, choice_column_name=None, choice_names=("correct", "error"), correct_column_name=None):
         """Generate a Sample object from a pandas dataframe.
@@ -254,16 +258,20 @@ class Sample(object):
         """
         if len(df) == 0:
             _logger.warning("Empty DataFrame")
-        if np.mean(df[rt_column_name]) > 50:
-            _logger.warning("RTs should be specified in seconds, not milliseconds")
-        for _,col in df.items():
-            if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
-                raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")
         if choice_column_name is None:
             assert correct_column_name is not None
             assert choice_names == ("correct", "error")
             choice_column_name = correct_column_name
             deprecation_warning("the choice_column_name argument")
+        undecided_rows = df[rt_column_name].isna() & df[choice_column_name].isna()
+        df_undecided = df[undecided_rows]
+        df = df[~undecided_rows]
+        assert not df[[choice_column_name,rt_column_name]].isna().any().any(), "Undecided trials must have nan for both RT and choice, and all other rows must not have nans for these columns"
+        if np.mean(df[rt_column_name]) > 50:
+            _logger.warning("RTs should be specified in seconds, not milliseconds")
+        for _,col in df.items():
+            if len(df) > 0 and isinstance(col.iloc[0], (list, np.ndarray)):
+                raise ValueError("Conditions should not be lists or ndarrays.  Please convert to a tuple instead.")
         assert np.all(np.isin(df[choice_column_name], [0, 1, True, False])), "Choice must be specified as True/False or 0/1"
         c = df[choice_column_name].astype(bool)
         nc = (1-df[choice_column_name]).astype(bool)
@@ -282,8 +290,8 @@ class Sample(object):
             return arr
 
         column_names = [e for e in df.columns if not e in [rt_column_name, choice_column_name]]
-        conditions = {k: (pt(df[c][k]), pt(df[nc][k]), np.asarray([])) for k in column_names}
-        return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), 0, choice_names=choice_names, **conditions)
+        conditions = {k: (pt(df[c][k]), pt(df[nc][k]), pt(df_undecided[k])) for k in column_names}
+        return Sample(pt(df[c][rt_column_name]), pt(df[nc][rt_column_name]), len(df_undecided), choice_names=choice_names, **conditions)
     def to_pandas_dataframe(self, rt_column_name='RT', choice_column_name='choice', drop_undecided=False, correct_column_name=None):
         """Convert the sample to a Pandas dataframe.
 
@@ -303,9 +311,10 @@ class Sample(object):
             choice_column_name = correct_column_name
         import pandas
         all_trials = []
-        if self.undecided != 0 and drop_undecided is False:
-            raise ValueError("The sample object has undecided trials.  These do not have an RT or a P(correct), so they cannot be converted to a data frame.  Please use the 'drop_undecided' flag when calling this function.")
         conditions = list(self.condition_names())
+        if self.undecided != 0 and drop_undecided is False:
+            for trial in self.items("undecided"):
+                all_trials.append([np.nan, np.nan] + [trial[1][c] for c in conditions])
         columns = [choice_column_name, rt_column_name] + conditions
         for trial in self.items("_top"):
             all_trials.append([1, trial[0]] + [trial[1][c] for c in conditions])
@@ -315,10 +324,11 @@ class Sample(object):
     def items(self, choice=None, correct=None):
         """Iterate through the reaction times.
 
-        `choice` is whether to iterate through RTs corresponding to the upper
-        or lower boundary, given as the name of the choice, e.g. "correct",
+        `choice` is whether to iterate through RTs corresponding to the upper or
+        lower boundary, given as the name of the choice, e.g. "correct",
         "error", or the choice names specified in the model's choice_names
-        parameter.
+        parameter.  This can also be "undecided" to iterate through undecided
+        trials.
 
         `correct` is a deprecated parameter for backward compatibility, please
         use `choice` instead.
@@ -329,6 +339,7 @@ class Sample(object):
 
         If you just want the list of RTs, you can directly iterate
         through "sample.corr" and "sample.err".
+
         """
         if correct is not None:
             assert choice is None, "Either choice or correct argument must be None"
@@ -337,7 +348,10 @@ class Sample(object):
             use_choice_upper = correct
         else:
             assert choice is not None, "Choice and correct arguments cannot both be None"
-            use_choice_upper = (self._choice_name_to_id(choice) == 1)
+            if choice == "undecided":
+                use_choice_upper = "undecided"
+            else:
+                use_choice_upper = (self._choice_name_to_id(choice) == 1)
         return _Sample_Iter_Wraper(self, use_choice_upper=use_choice_upper)
     @accepts(Self)
     @returns(Self)
@@ -456,7 +470,7 @@ class Sample(object):
         return np.linspace(0, T_dur, int(T_dur/dt)+1)
 
     @accepts(Self, Choice)
-    @returns(Set([1, 2]))
+    @returns(Set([1, 2, -1]))
     def _choice_name_to_id(self, choice):
         """Get an ID from the choice name.
 
@@ -694,12 +708,15 @@ class _Sample_Iter_Wraper(object):
         self.sample = sample_obj
         self.i = 0
         self.use_choice_upper = use_choice_upper
-        if self.use_choice_upper:
+        if self.use_choice_upper is True:
             self.rt = self.sample.choice_upper
             self.ind = 0
-        elif not self.use_choice_upper:
+        elif self.use_choice_upper is False:
             self.rt = self.sample.choice_lower
             self.ind = 1
+        elif self.use_choice_upper == "undecided":
+            self.rt = [np.nan]*self.sample.undecided
+            self.ind = 2
     def __iter__(self):
         return self
     def __next__(self):
