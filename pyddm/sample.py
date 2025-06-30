@@ -204,10 +204,10 @@ class Sample(object):
         work with undecided trials.
         """
         assert len(column_names) == data.shape[1] - 2, "Invalid number of column names for conditions"
-        undecided = np.isnan(data[:,0]) & np.isnan(data[:,1])
+        undecided = np.isnan(data[:,0].astype(float)) & np.isnan(data[:,1].astype(float))
         undecided_data = data[undecided]
         data = data[~undecided]
-        assert not np.any(np.isnan(data[:,0:2])), "First two columns must be either both nan (for undecided trials) not neither nan"
+        assert not np.any(np.isnan(data[:,0:2].astype(float))), "First two columns must be either both nan (for undecided trials) not neither nan"
         c = data[:,1].astype(bool)
         nc = (1-data[:,1]).astype(bool)
         def pt(x): # Pythonic types

@@ -705,7 +705,7 @@ def display_model(model, print_output=True):
     else:
         print(OUT)
 
-def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_coef=.02, name="", parameters={}, conditions=[], dx=param.dx, dt=param.dt, T_dur=param.T_dur, choice_names=param.choice_names):
+def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_coef=.02, mixture_distribution=None, name="", parameters={}, conditions=[], dx=param.dx, dt=param.dt, T_dur=param.T_dur, choice_names=param.choice_names):
     """Return a model without the use of PyDDM's object-oriented interface.
 
     PyDDM has two interfaces: this one (the gddm function), and the
@@ -783,10 +783,31 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
       return a vector of the same size as "T".  Otherwise, non-decision time
       will be assumed to be a single point.
 
-    - `mixturecoef`: The uniform distribution mixture model, used to allow
-      likelihood fitting.  Can not be given by a function, and must be either a
-      constant or a parameter.  The uniform mixture model can be disabled by
-      setting this to 0.
+    - `mixture_coef`: The probability of a "lapse" trial, i.e., the probability
+      of sampling from a distribution other than the DDM (by default a uniform
+      distribution). This is used to facilitate likelihood fitting.  This can be
+      either a constant, a parameter, or a function.  The mixture model can be
+      disabled by setting this to 0.  If a function, it can accept parameters,
+      conditions, or "upper", a boolean which allows different mixture
+      coefficients for the upper and lower boundaries, and return a number 0-1.
+      If "upper" is not an argument, the return value should be interpreted as
+      the overall probability of a lapse, i.e., sampling from the mixture
+      distribution instead of the DDM.  If "upper" is an argument, the return
+      value should be interpreted as the probability of a lapse to the given
+      side, and the sum of the return values for upper=True and upper=False
+      should never be greater than 1.  By default, the mixture model uses a
+      uniform distribution, but this can be changed with the
+      "mixture_distribution" parameter.
+
+    - `mixture_distribution`: Use a distribution other than the uniform
+      distribution as a mixture model.  This should still integrate to 1
+      (i.e. sum to 1/dt).  If it integrates to less than 1, these will be
+      considered undecided trials.  If it integrates to more than 1, it will
+      throw an error.  This should accept the argument "T", a vector of times
+      from 0 to T_dur, and return a vector of the same size as "T".  It may
+      optionally accept the argument "upper", where the distribution may be
+      specified separately for the upper and lower boundaries.  If "upper" is
+      specified, the two sides must each integrate to 1 on their own.
 
     Other parameters:
 
@@ -818,14 +839,14 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
         """Determine whether `val` can be turned into a PyDDM model, and if so, parse relevant information.
 
         `name` is the dependence name for error message outputs.
-        `special` is either "", "x", "t", "T", or "xt", describing what the dependence supports.
+        `special` is either "", "x", "t", "T", "xt", or "uT" describing what the dependence supports.
         """
         if val in conditions:
             val = eval(f"lambda {val}: {val}")
         if val in parameters.keys():
-            return "val",None,_fittables[val]
+            return "val",([],[],[]),_fittables[val]
         elif isinstance(val, (int,float,np.floating,np.integer)):
-            return "val",None,val
+            return "val",([],[],[]),val
         elif hasattr(val, "__call__"):
             sig = inspect.getfullargspec(val)
             assert len(sig.kwonlyargs) == 0, f"Keyword only args not supported for {name}"
@@ -841,10 +862,11 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     _required_parameters.append(arg)
                 elif arg in conditions:
                     _required_conditions.append(arg)
-                elif arg in ["x", "t", "T"]:
+                elif arg in ["x", "t", "T", "upper"]:
                     _descr = {"x": "the vector of particle positions",
                               "t": "the current time in the simulation",
-                              "T": "the vector of all time points in the simulation"}
+                              "T": "the vector of all time points in the simulation",
+                              "upper": "the side of the distribution (for mixture models)"}
                     assert arg in special, f"In PyDDM, the '{arg}' argument usually indicates {_descr[arg]}, but this argument cannot be used in the {name} function."
                     _required_xt.append(arg)
                 else:
@@ -981,11 +1003,63 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     return nondecision(**{v: getattr(self, v) for v in _required_parameters_nd}, **{v: conditions[v] for v in _required_conditions_nd})
             overlayobjs.append(OverlayNonDecisionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
 
-    typ, parsed, mixture_coef = _parse_dep(mixture_coef, "mixture_coef", "")
+    # Split mixture distribution into two parts: the mixture coefficient, and the mixture distribution
+    mixture_coef_name = mixture_coef
+    _mixc_typ, parsed, mixture_coef = _parse_dep(mixture_coef, "mixture_coef", ["upper"])
+    _required_parameters_mixc,_required_conditions_mixc,_required_u_mixc = parsed
+    if isinstance(mixture_coef, Fittable):
+        _required_parameters_mixc = list(set(_required_parameters_mixc+[mixture_coef_name]))
     # If mixture coefficient is a parameter or value
-    if typ == "val":
-        overlayobjs.append(OverlayUniformMixture(umixturecoef=mixture_coef))
-    # If it is a function
-    elif typ == "func":
-        raise ValueError("mixture_coef cannot be a function here, please use the full object oriented version of PyDDM for this functionality.")
+    if mixture_distribution is None:
+        mixture_distribution = lambda T : np.ones(len(T))/(np.max(T)+T[1]-T[0])
+    typ, parsed, mixture_dist = _parse_dep(mixture_distribution, "mixture_distribution", ["upper", "T"])
+    if typ == "func":
+        _required_parameters_mix,_required_conditions_mix,_required_uT_mix = parsed
+        if "T" in _required_uT_mix:
+            class OverlayMixtureEasy(Overlay):
+                name = "easy_mixture_model"
+                required_parameters = list(set(_required_parameters_mix+_required_parameters_mixc))
+                required_conditions = list(set(_required_conditions_mix+_required_conditions_mixc))
+                def apply(self, solution):
+                    assert isinstance(solution, Solution)
+                    choice_upper = solution.choice_upper
+                    choice_lower = solution.choice_lower
+                    m = solution.model
+                    cond = solution.conditions
+                    undec = solution.undec
+                    evolution = solution.evolution
+                    print(_mixc_typ, mixture_coef, mixture_coef_name)
+                    if _mixc_typ == "val":
+                        if isinstance(mixture_coef, Fittable):
+                            mcoef = lambda **kwargs : kwargs[mixture_coef_name]
+                        else:
+                            mcoef = lambda : mixture_coef
+                    elif _mixc_typ == "func":
+                        mcoef = mixture_coef
+                    T = m.dt * np.arange(0, len(choice_upper)) + m.dt/2
+                    if "upper" in _required_uT_mix:
+                        lapses_upper = mixture_distribution(**{v: getattr(self, v) for v in _required_parameters_mix}, **{v: cond[v] for v in _required_conditions_mix}, T=T, upper=True)
+                        lapses_lower = mixture_distribution(**{v: getattr(self, v) for v in _required_parameters_mix}, **{v: cond[v] for v in _required_conditions_mix}, T=T, upper=False)
+                    else:
+                        lapses_upper = mixture_distribution(**{v: getattr(self, v) for v in _required_parameters_mix}, **{v: cond[v] for v in _required_conditions_mix}, T=T)
+                        lapses_lower = lapses_upper
+                    if "upper" in _required_u_mixc:
+                        mix_coef_upper = mcoef(**{v: getattr(self, v) for v in _required_parameters_mixc}, **{v: cond[v] for v in _required_conditions_mixc}, upper=True)
+                        mix_coef_lower = mcoef(**{v: getattr(self, v) for v in _required_parameters_mixc}, **{v: cond[v] for v in _required_conditions_mixc}, upper=False)
+                    else:
+                        mix_coef_upper = .5*mcoef(**{v: getattr(self, v) for v in _required_parameters_mixc}, **{v: cond[v] for v in _required_conditions_mixc})
+                        mix_coef_lower = mix_coef_upper
+                    if np.sum(lapses_upper)*m.dt > 1.0 or np.sum(lapses_lower)*m.dt > 1.0:
+                        if np.sum(lapses_upper)*m.dt > 1.01 or np.sum(lapses_lower)*m.dt > 1.01:
+                            print("Renormalising mixture distribution to integrate to 1, this may be a bug in your mixture_distribution function")
+                        lapses_upper /= np.sum(lapses_upper)*m.dt
+                        lapses_lower /= np.sum(lapses_lower)*m.dt
+                    assert mix_coef_upper + mix_coef_lower <= 1.001, f"Mixture coefficients cannot be > 1, currently are {mix_coef_upper} and {mix_coef_lower}"
+                    choice_upper = choice_upper*(1-(mix_coef_upper+mix_coef_lower)) + lapses_upper*mix_coef_upper*m.dt
+                    choice_lower = choice_lower*(1-(mix_coef_upper+mix_coef_lower)) + lapses_lower*mix_coef_lower*m.dt
+                    return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+            overlayobjs.append(OverlayMixtureEasy(**{fname:fval for fname,fval in _fittables.items() if fname in list(set(_required_parameters_mix+_required_parameters_mixc))}))
+        else:
+            raise ValueError("Mixture distribution must be a function, or else None for the uniform distribution")
+
     return Model(drift=driftobj, noise=noiseobj, bound=boundobj, IC=icobj, overlay=OverlayChain(overlays=overlayobjs), dx=dx, dt=dt, T_dur=T_dur, choice_names=choice_names, name=name)
