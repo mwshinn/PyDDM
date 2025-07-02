@@ -1011,7 +1011,7 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
         _required_parameters_mixc = list(set(_required_parameters_mixc+[mixture_coef_name]))
     # If mixture coefficient is a parameter or value
     if mixture_distribution is None:
-        mixture_distribution = lambda T : np.ones(len(T))/(np.max(T)+T[1]-T[0])
+        mixture_distribution = lambda T : np.ones(len(T))/(len(T)*(T[1]-T[0]))
     typ, parsed, mixture_dist = _parse_dep(mixture_distribution, "mixture_distribution", ["upper", "T"])
     if typ == "func":
         _required_parameters_mix,_required_conditions_mix,_required_uT_mix = parsed
@@ -1026,7 +1026,6 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     choice_lower = solution.choice_lower
                     m = solution.model
                     cond = solution.conditions
-                    undec = solution.undec
                     evolution = solution.evolution
                     if _mixc_typ == "val":
                         if isinstance(mixture_coef, Fittable):
@@ -1056,6 +1055,7 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     assert mix_coef_upper + mix_coef_lower <= 1.001, f"Mixture coefficients cannot be > 1, currently are {mix_coef_upper} and {mix_coef_lower}"
                     choice_upper = choice_upper*(1-(mix_coef_upper+mix_coef_lower)) + lapses_upper*mix_coef_upper*m.dt
                     choice_lower = choice_lower*(1-(mix_coef_upper+mix_coef_lower)) + lapses_lower*mix_coef_lower*m.dt
+                    undec = None if solution.undec is None else solution.undec*(1-(mix_coef_upper+mix_coef_lower))
                     return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
             overlayobjs.append(OverlayMixtureEasy(**{fname:fval for fname,fval in _fittables.items() if fname in list(set(_required_parameters_mix+_required_parameters_mixc))}))
         else:

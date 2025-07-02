@@ -31,10 +31,13 @@ class TestDependences(TestCase):
         """Create fake models which act like models but are actually much simpler."""
         # Fake model which solves to be a uniform distribution
         class FakeUniformModel(ddm.Model):
+            def __init__(self, *args, p_undecided=.2, **kwargs):
+                self.p_undecided = p_undecided
+                return super().__init__(*args, **kwargs)
             def solve(self, conditions={}, *args, **kwargs):
-                choice_upper = self.t_domain()*0+.4/len(self.t_domain())
-                choice_lower = self.t_domain()*0+.4/len(self.t_domain())
-                undec = self.x_domain(conditions=conditions)*0+.2/len(self.x_domain(conditions=conditions))
+                choice_upper = self.t_domain()*0+(1-self.p_undecided)/2/len(self.t_domain())
+                choice_lower = self.t_domain()*0+(1-self.p_undecided)/2/len(self.t_domain())
+                undec = self.x_domain(conditions=conditions)*0+self.p_undecided/len(self.x_domain(conditions=conditions))
                 return ddm.Solution(choice_upper, choice_lower, self, conditions, undec)
         FakeUniformModel.solve_analytical = FakeUniformModel.solve
         FakeUniformModel.solve_numerical = FakeUniformModel.solve
@@ -213,14 +216,9 @@ class TestDependences(TestCase):
         s = ddm.Model(drift=ddm.models.DriftConstant(drift=2), noise=ddm.models.NoiseConstant(noise=3)).solve()
         smix = ddm.models.OverlayUniformMixture(umixturecoef=1).apply(s)
         assert np.isclose(np.sum(smix.choice_upper) + np.sum(smix.choice_lower), 1, atol=1e-4)
-        # Should not change uniform distribution
-        s = self.FakeUniformModel(dt=.001).solve()
+        # Should not change uniform distribution if no undecideds
+        s = self.FakeUniformModel(p_undecided=0, dt=.001).solve()
         assert s == ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
-        # Don't change total probability
-        s = ddm.Model(drift=ddm.models.DriftConstant(drift=1)).solve()
-        smix = ddm.models.OverlayUniformMixture(umixturecoef=.2).apply(s)
-        assert np.isclose(np.sum(s.choice_upper) + np.sum(s.choice_lower),
-                          np.sum(smix.choice_upper) + np.sum(smix.choice_lower))
 
     def test_OverlayPoissonMixture(self):
         """Poisson mixture model overlay: an exponential distribution plus the model's solved distribution"""

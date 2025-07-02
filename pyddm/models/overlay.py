@@ -207,14 +207,10 @@ class OverlayUniformMixture(Overlay):
         choice_lower = solution.choice_lower
         m = solution.model
         cond = solution.conditions
-        undec = solution.undec
+        undec = None if solution.undec is None else solution.undec*(1-self.umixturecoef)
         evolution = solution.evolution
-        # To make this work with undecided probability, we need to
-        # normalize by the sum of the decided density.  That way, this
-        # function will never touch the undecided pieces.
-        norm = np.sum(choice_upper)+np.sum(choice_lower)
-        choice_upper = choice_upper*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
-        choice_lower = choice_lower*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())*norm
+        choice_upper = choice_upper*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())
+        choice_lower = choice_lower*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())
         return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
 
 @paranoidclass
