@@ -1028,7 +1028,6 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     cond = solution.conditions
                     undec = solution.undec
                     evolution = solution.evolution
-                    print(_mixc_typ, mixture_coef, mixture_coef_name)
                     if _mixc_typ == "val":
                         if isinstance(mixture_coef, Fittable):
                             mcoef = lambda **kwargs : kwargs[mixture_coef_name]

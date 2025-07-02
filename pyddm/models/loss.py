@@ -156,7 +156,7 @@ class LossLikelihood(LossFunction):
             # because this creates bias.
             choice_upper = [int(round(e/dt)) for e in s.choice_upper]
             choice_lower = [int(round(e/dt)) for e in s.choice_lower]
-            undec = self.sample.undecided
+            undec = s.undecided
             self.hist_indexes[frozenset(comb.items())] = (choice_upper, choice_lower, undec)
     @accepts(Self, Model)
     @returns(Number)
@@ -186,9 +186,8 @@ class LossLikelihood(LossFunction):
                         _logger.warning("Infinite likelihood encountered. Simulated histogram is less than zero in likelihood calculation.  Try decreasing dt.")
                     _logger.debug(model.parameters())
                     return np.inf
-            # This is not a valid way to incorporate undecided trials into a likelihood
-            #if sols[k].prob_undecided() > 0:
-            #    loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
+            if sols[k].prob_undecided() > 0:
+                loglikelihood += np.log(sols[k].prob_undecided())*self.hist_indexes[k][2]
         return -loglikelihood
 
 
