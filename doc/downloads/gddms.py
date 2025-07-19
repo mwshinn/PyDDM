@@ -44,7 +44,7 @@ pyddm.plot.model_gui_jupyter(m)
 import pyddm
 m = pyddm.gddm(
     drift=lambda drift_rate,leak,x : drift_rate - x*leak,
-    parameters={"drift_rate": (-2,2), "bound_height": (.5, 2)})
+    parameters={"drift_rate": (-2,2), "leak": (0, 2)})
 # pyddm.plot.model_gui(m) # ...or...
 pyddm.plot.model_gui_jupyter(m)
 # End leaky gddm
