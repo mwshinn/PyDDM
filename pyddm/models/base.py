@@ -135,8 +135,11 @@ class Dependence(object): # TODO Base this on ABC
         while "__wrapped__" in f.__dict__:
             f = f.__wrapped__
         # Get the names of all variables used in the function.  If it uses t,
-        # then return True.
+        # then return True.  We try two different methods which work in
+        # different versions of python.
         vars_in_func = [inst.argrepr for inst in dis.get_instructions(f)]
+        more_vars = [e for inst in dis.get_instructions(f) for e in (inst.argval if isinstance(inst.argval, tuple) else [])]
+        vars_in_func  = vars_in_func + more_vars
         if name in vars_in_func:
             self._cache_uses[cachekey] = True
             return True
