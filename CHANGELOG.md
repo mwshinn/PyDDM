@@ -1,3 +1,37 @@
+# Version 0.9.0
+
+Released September 28, 2025
+
+## New features
+
+- Support for undecided trials
+
+  In many experiments, if subjects do not respond within a fixed amount of time,
+  the trial times out.  These "undecided trials" (also called "lapse trials",
+  "no-gos", or "timeouts") can now be incorporated into the model's likelihood
+  instead of being excluded.  This also provides more accurate model estimation
+  when the duration of the simulation is short.
+  
+- Mixture models in the gddm interface
+
+  Any arbitrary mixture model for contaminant RTs can be simulated and fit using
+  the familiar "gddm" interface.
+  
+## Other
+
+- Improved error messages
+- Compatibility with the BADS optimizer for fitting models (differential
+  evolution is still the default)
+- Compatibility with Python 2.13 and 2.14
+
+## Breaking changes
+
+- Due to improved support for undecided trials, models which are simulated for a
+  short duration and use the uniform distribution mixture model may give
+  slightly different likelihood.  This is unlikely to impact scientific results,
+  but the numerical values for the likelihood will be very slightly different.
+
+
 # Version 0.8.1
 
 Released June 22, 2024
