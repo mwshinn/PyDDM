@@ -614,7 +614,9 @@ class Model(object):
         self.check_conditions_satisfied(conditions)
         if self.has_analytical_solution() and return_evolution is False:
             return self.solve_analytical(conditions=conditions)
-        elif isinstance(self.get_dependence("bound"), BoundConstant) and return_evolution is False and (force_python or not HAS_CSOLVE):
+        elif self.can_solve_cn(conditions=conditions) and return_evolution is False:
+            if HAS_CSOLVE and not force_python:
+                return self.solve_numerical_cn_c(conditions=conditions)
             return self.solve_numerical_cn(conditions=conditions)
         else:
             return self.solve_numerical_implicit(conditions=conditions, return_evolution=return_evolution, force_python=force_python)
@@ -751,6 +753,62 @@ class Model(object):
         undec[undec<0] = 0
         return self.get_dependence('overlay').apply(Solution(choice_upper, choice_lower, self, conditions=conditions, pdf_undec=undec))
 
+    def solve_numerical_cn_c(self, conditions={}):
+        """Solve the DDM model using Crank-Nicolson with C extensions.
+
+        This function should give near identical results to
+        solve_numerical_cn.  However, it uses compiled C code instead of
+        Python code to do so, which should make it faster.
+        """
+
+        get_drift = self.get_dependence("drift").get_drift
+        drift_uses_t = self.get_dependence("drift")._uses_t()
+        drift_uses_x = self.get_dependence("drift")._uses_x()
+        if not drift_uses_t and not drift_uses_x:
+            drifttype = 0
+            drift = np.asarray([get_drift(conditions=conditions, x=0, t=0)])
+        elif drift_uses_t and not drift_uses_x:
+            drifttype = 1
+            drift = np.asarray([get_drift(t=t, conditions=conditions, x=0) for t in self.t_domain()])
+        elif not drift_uses_t and drift_uses_x:
+            drifttype = 2
+            drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), t=0, conditions=conditions))
+        elif drift_uses_t and drift_uses_x:
+            drifttype = 3
+            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
+            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            drift = np.concatenate([get_drift(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
+        get_noise = self.get_dependence("noise").get_noise
+        noise_uses_t = self.get_dependence("noise")._uses_t()
+        noise_uses_x = self.get_dependence("noise")._uses_x()
+        if not noise_uses_t and not noise_uses_x:
+            noisetype = 0
+            noise = np.asarray([get_noise(conditions=conditions, x=0, t=0)])
+        elif noise_uses_t and not noise_uses_x:
+            noisetype = 1
+            noise = np.asarray([get_noise(t=t, conditions=conditions, x=0) for t in self.t_domain()])
+        elif not noise_uses_t and noise_uses_x:
+            noisetype = 2
+            noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions, t=0))
+        elif noise_uses_t and noise_uses_x:
+            noisetype = 3
+            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
+            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            noise = np.concatenate([get_noise(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
+        bound_uses_t = self.get_dependence("bound")._uses_t()
+        if not bound_uses_t:
+            boundtype = 0
+            bound = np.asarray([self.get_dependence("Bound").get_bound(conditions=conditions, t=0)])
+        elif bound_uses_t:
+            boundtype = 1
+            bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
+        res = csolve.cn_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()))
+        choice_upper = res[0]
+        choice_upper[choice_upper<0] = 0
+        choice_lower = res[1]
+        choice_lower[choice_lower<0] = 0
+        return self.get_dependence('overlay').apply(Solution(choice_upper, choice_lower, self, conditions=conditions, pdf_undec=None))
+
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
     @returns(Solution)
     @requires("method == 'explicit' --> self.can_solve_explicit(conditions=conditions)")
@@ -787,6 +845,8 @@ class Model(object):
         self.check_conditions_satisfied(conditions)
         if method == "cn":
             if return_evolution == False:
+                if HAS_CSOLVE and not force_python:
+                    return self.solve_numerical_cn_c(conditions=conditions)
                 return self.solve_numerical_cn(conditions=conditions)
             else:
                 _logger.warning("return_evolution is not supported with the Crank-Nicolson solver, using implicit (backward Euler) instead.")
@@ -1353,4 +1413,3 @@ class Fitted(Fittable):
         return ((float(self),), {"minval": self.minval, "maxval": self.maxval, "default": self.default_value})
     def default(self):
         return float(self)
-

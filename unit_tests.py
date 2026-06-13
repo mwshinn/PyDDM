@@ -892,6 +892,45 @@ class TestCSolver(TestCase):
             s2 = m.solve_numerical_c()
             assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
             assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=2e-2, rtol=1e-2)), "Testing model id " + str(i)
+    def test_cn_numerical(self):
+        assert ddm.model.HAS_CSOLVE, "C extension build failed"
+        models = [
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.1, x=0, t=.35)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.2, x=-.4, t=0)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.2, x=.3, t=.2)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      noise=ddm.NoiseLinear(noise=.7, x=0, t=.2)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      noise=ddm.NoiseLinear(noise=1.0, x=.15, t=0)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      noise=ddm.NoiseLinear(noise=.8, x=.1, t=.1)),
+            ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.2, x=.25, t=.2),
+                      noise=ddm.NoiseLinear(noise=.8, x=.08, t=.08)),
+            ]
+        for i,m in enumerate(models):
+            s1 = m.solve_numerical_cn()
+            s2 = m.solve_numerical_cn_c()
+            assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=1e-10, rtol=1e-10)), "Testing model id " + str(i)
+            assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=1e-10, rtol=1e-10)), "Testing model id " + str(i)
+    def test_solve_uses_cn_for_constant_bounds(self):
+        assert ddm.model.HAS_CSOLVE, "C extension build failed"
+        m = ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.2, x=.25, t=.2),
+                      noise=ddm.NoiseLinear(noise=.8, x=.08, t=.08))
+        s1 = m.solve()
+        s2 = m.solve_numerical_cn_c()
+        assert np.all(np.isclose(s1.pdf("_top"), s2.pdf("_top"), atol=1e-10, rtol=1e-10))
+        assert np.all(np.isclose(s1.pdf("_bottom"), s2.pdf("_bottom"), atol=1e-10, rtol=1e-10))
+        m = ddm.Model(dx=.01, dt=.01, T_dur=1.0,
+                      drift=ddm.DriftLinear(drift=.2, x=.25, t=.2),
+                      noise=ddm.NoiseLinear(noise=.8, x=.08, t=.08),
+                      bound=ddm.BoundCollapsingLinear(B=1.2, t=.35))
+        assert not m.can_solve_cn()
     def test_analytic(self):
         assert ddm.analytic.HAS_CSOLVE, "C extension build failed"
         models = [

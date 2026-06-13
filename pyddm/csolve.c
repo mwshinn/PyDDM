@@ -33,6 +33,7 @@ void easy_dgtsv(int n, double *dl, double *d, double *du, double *b) {
 
 double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsigned int nsteps, double tstep);
 int _implicit_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
+int _cn_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode);
 
 static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   double a1, b1, a2, b2, tstep;
@@ -100,11 +101,58 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
 }
 
 
+static PyObject* cn_time(PyObject* self, PyObject* args) {
+  double dt, dx, T_dur;
+  double *drift, *noise, *bound, *ic;
+  PyArrayObject *_drift, *_noise, *_bound, *_ic;
+  PyObject *__drift, *__noise, *__bound, *__ic;
+  int nsteps, len_x0;
+  int drifttype, noisetype, boundtype;
+  if (!PyArg_ParseTuple(args, "OiOiOiOdddi", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps))
+    return NULL;
+
+  _drift = (PyArrayObject*)PyArray_FROMANY(__drift, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  _noise = (PyArrayObject*)PyArray_FROMANY(__noise, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  _bound = (PyArrayObject*)PyArray_FROMANY(__bound, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  _ic = (PyArrayObject*)PyArray_FROMANY(__ic, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+
+  len_x0 = PyArray_SIZE(_ic);
+  if (!_drift || !_noise || !_bound || !_ic)
+    return NULL;
+  drift = (double*)PyArray_DATA(_drift);
+  noise = (double*)PyArray_DATA(_noise);
+  bound = (double*)PyArray_DATA(_bound);
+  ic = (double*)PyArray_DATA(_ic);
+
+  double *pdfchoice1 = (double*)malloc(nsteps*sizeof(double));
+  double *pdfchoice2 = (double*)malloc(nsteps*sizeof(double));
+  double *pdfcurr = (double*)malloc(len_x0*sizeof(double));
+  _cn_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype);
+  npy_intp dims[1] = { nsteps };
+  npy_intp dimscurr[1] = { len_x0 };
+  PyObject *choice1array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice1);
+  PyObject *choice2array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice2);
+  PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
+  PyArray_ENABLEFLAGS((PyArrayObject*)choice1array, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)choice2array, NPY_ARRAY_OWNDATA);
+  PyArray_ENABLEFLAGS((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
+
+  Py_DECREF(_drift);
+  Py_DECREF(_noise);
+  Py_DECREF(_bound);
+  Py_DECREF(_ic);
+
+  PyObject *ret = Py_BuildValue("(NNN)", choice1array, choice2array, currarray);
+  return ret;
+}
+
+
 /*  define functions in module */
 static PyMethodDef DDMMethods[] =
 {
      {"analytic_ddm_linbound", analytic_ddm_linbound, METH_VARARGS, "DDM with linear bound"},
      {"implicit_time", implicit_time, METH_VARARGS, "DDM with implicit method"},
+     {"cn_time", cn_time, METH_VARARGS, "DDM with Crank-Nicolson method"},
      {NULL, NULL, 0, NULL}
 };
 
@@ -374,5 +422,296 @@ int _implicit_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *p
   free(D_copy);
   free(DU_copy);
   free(DL_copy);
+  return 0;
+}
+
+
+int _cn_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr, double* drift, double* noise, double *bound, double *ic, int Xsteps, double dt, double dx, unsigned int drift_mode, unsigned int noise_mode, unsigned int bound_mode) {
+  int dmultt=-1, dmultx=-1, nmultt=-1, nmultx=-1, bmultt=-1;
+  int i,j,k;
+  double dxinv = 1/dx;
+  double bound_shift, weight_outer = 1, weight_inner = 0;
+  double weight_outer_prev = 1, weight_inner_prev = 0;
+  int x_index_outer = 0, x_index_inner = 0;
+  int x_index_outer_prev = 0, x_index_inner_prev = 0;
+  int x_index_outer_shift, x_index_inner_shift;
+  int n_outer = Xsteps, n_inner = Xsteps, n_outer_prev = Xsteps, n_inner_prev = Xsteps;
+  int n_solve, start_solve, start_prev, start_current;
+  double local_dt;
+  double flux_outer_B_choice_upper, flux_inner_B_choice_upper;
+  double flux_outer_B_choice_lower, flux_inner_B_choice_lower;
+  double sumpdfcurr;
+
+  double *DU = (double*)malloc((Xsteps-1)*sizeof(double));
+  double *D = (double*)malloc(Xsteps*sizeof(double));
+  double *DL = (double*)malloc((Xsteps-1)*sizeof(double));
+  double *DU_prev = (double*)malloc((Xsteps-1)*sizeof(double));
+  double *D_prev = (double*)malloc(Xsteps*sizeof(double));
+  double *DL_prev = (double*)malloc((Xsteps-1)*sizeof(double));
+  double *pdf_outer = (double*)malloc(Xsteps*sizeof(double));
+  double *pdf_inner = (double*)malloc(Xsteps*sizeof(double));
+  double *pdf_outer_prev = (double*)malloc(Xsteps*sizeof(double));
+  double *pdf_inner_prev = (double*)malloc(Xsteps*sizeof(double));
+  double *rhs_full = (double*)malloc(Xsteps*sizeof(double));
+  double *rhs = (double*)malloc(Xsteps*sizeof(double));
+  double *pdfchoice1_tmp = (double*)malloc((Tsteps+1)*sizeof(double));
+  double *pdfchoice2_tmp = (double*)malloc((Tsteps+1)*sizeof(double));
+
+  memset(pdfchoice1, 0, Tsteps*sizeof(double));
+  memset(pdfchoice2, 0, Tsteps*sizeof(double));
+  memset(pdfchoice1_tmp, 0, (Tsteps+1)*sizeof(double));
+  memset(pdfchoice2_tmp, 0, (Tsteps+1)*sizeof(double));
+  memset(pdfcurr, 0, Xsteps*sizeof(double));
+  for (i=0; i<Xsteps; i++) {
+    pdfcurr[i] = ic[i];
+    pdf_outer[i] = ic[i];
+    pdf_inner[i] = ic[i];
+  }
+
+  switch (drift_mode) {
+  case 0:
+    dmultt = 0;
+    dmultx = 0;
+    break;
+  case 1:
+    dmultt = 1;
+    dmultx = 0;
+    break;
+  case 2:
+    dmultt = 0;
+    dmultx = 1;
+    break;
+  case 3:
+    dmultt = Xsteps;
+    dmultx = 1;
+    break;
+  }
+  switch (noise_mode) {
+  case 0:
+    nmultt = 0;
+    nmultx = 0;
+    break;
+  case 1:
+    nmultt = 1;
+    nmultx = 0;
+    break;
+  case 2:
+    nmultt = 0;
+    nmultx = 1;
+    break;
+  case 3:
+    nmultt = Xsteps;
+    nmultx = 1;
+    break;
+  }
+  switch (bound_mode) {
+  case 0:
+    bmultt = 0;
+    break;
+  case 1:
+    bmultt = 1;
+    break;
+  }
+
+  for (i=0; i<Tsteps; i++) {
+    for (j=0; j<n_outer; j++)
+      pdf_outer_prev[j] = pdf_outer[j];
+    for (j=0; j<n_inner; j++)
+      pdf_inner_prev[j] = pdf_inner[j];
+    n_outer_prev = n_outer;
+    n_inner_prev = n_inner;
+
+    sumpdfcurr = 0;
+    for (j=0; j<Xsteps; j++)
+      sumpdfcurr += pdfcurr[j];
+    if (sumpdfcurr <= .0001)
+      break;
+
+    bound_shift = bound[0] - bound[i*bmultt];
+    x_index_outer_prev = x_index_outer;
+    x_index_inner_prev = x_index_inner;
+    x_index_outer = (int)floor(bound_shift*dxinv);
+    x_index_inner = (int)ceil(bound_shift*dxinv);
+    x_index_outer_shift = x_index_outer - x_index_outer_prev;
+    x_index_inner_shift = x_index_inner - x_index_inner_prev;
+    weight_inner_prev = weight_inner;
+    weight_outer_prev = weight_outer;
+    weight_inner = (bound_shift - x_index_outer*dx)*dxinv;
+    weight_outer = 1 - weight_inner;
+    n_outer = Xsteps - 2*x_index_outer;
+    n_inner = Xsteps - 2*x_index_inner;
+    local_dt = dt;
+
+    if (n_outer <= 0)
+      break;
+
+    /* Current outer matrix: I + .5*M(t). */
+    start_current = x_index_outer;
+    for (j=0; j<n_outer; j++) {
+      k = start_current+j;
+      D[j] = 1 + .5*noise[i*nmultt+k*nmultx]*noise[i*nmultt+k*nmultx] * local_dt * dxinv * dxinv;
+    }
+    for (j=0; j<n_outer-1; j++) {
+      k = start_current+j;
+      DU[j] = .25*drift[i*dmultt+(k+1)*dmultx]*local_dt * dxinv - .0625*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx])*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+      DL[j] = -.25*drift[i*dmultt+k*dmultx]*local_dt * dxinv - .0625*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx])*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+    }
+    if (n_outer > 1) {
+      D[0] += DL[0];
+      DL[0] = 0;
+      D[n_outer-1] += DU[n_outer-2];
+      DU[n_outer-2] = 0;
+    }
+
+    /* Previous outer matrix: I - .5*M(prev_t). */
+    start_prev = x_index_outer_prev;
+    int iprev = i == 0 ? 0 : i-1;
+    for (j=0; j<n_outer_prev; j++) {
+      k = start_prev+j;
+      D_prev[j] = 1 - .5*noise[iprev*nmultt+k*nmultx]*noise[iprev*nmultt+k*nmultx] * local_dt * dxinv * dxinv;
+    }
+    for (j=0; j<n_outer_prev-1; j++) {
+      k = start_prev+j;
+      DU_prev[j] = -.25*drift[iprev*dmultt+(k+1)*dmultx]*local_dt * dxinv + .0625*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx])*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+      DL_prev[j] = .25*drift[iprev*dmultt+k*dmultx]*local_dt * dxinv + .0625*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx])*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+    }
+    if (n_outer_prev > 1) {
+      D_prev[0] += DL_prev[0];
+      DL_prev[0] = 0;
+      D_prev[n_outer_prev-1] += DU_prev[n_outer_prev-2];
+      DU_prev[n_outer_prev-2] = 0;
+    }
+    for (j=0; j<n_outer_prev; j++) {
+      rhs_full[j] = D_prev[j]*pdf_outer_prev[j];
+      if (j > 0)
+        rhs_full[j] += DL_prev[j-1]*pdf_outer_prev[j-1];
+      if (j < n_outer_prev-1)
+        rhs_full[j] += DU_prev[j]*pdf_outer_prev[j+1];
+    }
+    for (j=0; j<n_outer; j++)
+      rhs[j] = rhs_full[x_index_outer_shift+j];
+    easy_dgtsv(n_outer, DL, D, DU, rhs);
+    for (j=0; j<n_outer; j++)
+      pdf_outer[j] = rhs[j];
+
+    if (x_index_inner == x_index_outer) {
+      for (j=0; j<n_outer; j++)
+        pdf_inner[j] = pdf_outer[j];
+      n_inner = n_outer;
+    } else if (n_inner > 0) {
+      /* Current inner matrix: I + .5*M(t). */
+      n_solve = n_inner;
+      start_solve = x_index_inner;
+      for (j=0; j<n_solve; j++) {
+        k = start_solve+j;
+        D[j] = 1 + .5*noise[i*nmultt+k*nmultx]*noise[i*nmultt+k*nmultx] * local_dt * dxinv * dxinv;
+      }
+      for (j=0; j<n_solve-1; j++) {
+        k = start_solve+j;
+        DU[j] = .25*drift[i*dmultt+(k+1)*dmultx]*local_dt * dxinv - .0625*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx])*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+        DL[j] = -.25*drift[i*dmultt+k*dmultx]*local_dt * dxinv - .0625*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx])*(noise[i*nmultt+k*nmultx]+noise[i*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+      }
+      if (n_solve > 1) {
+        D[0] += DL[0];
+        DL[0] = 0;
+        D[n_solve-1] += DU[n_solve-2];
+        DU[n_solve-2] = 0;
+      }
+
+      /* Previous inner matrix: I - .5*M(prev_t). */
+      start_prev = x_index_inner_prev;
+      for (j=0; j<n_inner_prev; j++) {
+        k = start_prev+j;
+        D_prev[j] = 1 - .5*noise[iprev*nmultt+k*nmultx]*noise[iprev*nmultt+k*nmultx] * local_dt * dxinv * dxinv;
+      }
+      for (j=0; j<n_inner_prev-1; j++) {
+        k = start_prev+j;
+        DU_prev[j] = -.25*drift[iprev*dmultt+(k+1)*dmultx]*local_dt * dxinv + .0625*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx])*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+        DL_prev[j] = .25*drift[iprev*dmultt+k*dmultx]*local_dt * dxinv + .0625*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx])*(noise[iprev*nmultt+k*nmultx]+noise[iprev*nmultt+(k+1)*nmultx]) * local_dt * dxinv * dxinv;
+      }
+      if (n_inner_prev > 1) {
+        D_prev[0] += DL_prev[0];
+        DL_prev[0] = 0;
+        D_prev[n_inner_prev-1] += DU_prev[n_inner_prev-2];
+        DU_prev[n_inner_prev-2] = 0;
+      }
+      for (j=0; j<n_inner_prev; j++) {
+        rhs_full[j] = D_prev[j]*pdf_inner_prev[j];
+        if (j > 0)
+          rhs_full[j] += DL_prev[j-1]*pdf_inner_prev[j-1];
+        if (j < n_inner_prev-1)
+          rhs_full[j] += DU_prev[j]*pdf_inner_prev[j+1];
+      }
+      for (j=0; j<n_solve; j++)
+        rhs[j] = rhs_full[x_index_inner_shift+j];
+      easy_dgtsv(n_solve, DL, D, DU, rhs);
+      for (j=0; j<n_solve; j++)
+        pdf_inner[j] = rhs[j];
+    }
+
+    for (k=0; k<x_index_outer_shift; k++)
+      pdfchoice2_tmp[i+1] += pdf_outer_prev[k]*weight_outer_prev;
+    for (k=n_outer_prev-x_index_outer_shift; k<n_outer_prev; k++)
+      pdfchoice1_tmp[i+1] += pdf_outer_prev[k]*weight_outer_prev;
+    for (k=0; k<x_index_inner_shift; k++)
+      pdfchoice2_tmp[i+1] += pdf_inner_prev[k]*weight_inner_prev;
+    for (k=n_inner_prev-x_index_inner_shift; k<n_inner_prev; k++)
+      pdfchoice1_tmp[i+1] += pdf_inner_prev[k]*weight_inner_prev;
+
+    for (j=0; j<Xsteps; j++)
+      pdfcurr[j] = 0;
+    for (j=0; j<n_outer; j++)
+      pdfcurr[x_index_outer+j] += weight_outer*pdf_outer[j];
+    if (n_inner > 0)
+      for (j=0; j<n_inner; j++)
+        pdfcurr[x_index_inner+j] += weight_inner*pdf_inner[j];
+
+    int outer_upper = Xsteps-1-x_index_outer;
+    int outer_lower = x_index_outer;
+    int inner_upper = Xsteps-1-x_index_inner;
+    int inner_lower = x_index_inner;
+    flux_outer_B_choice_upper = 0.5*dt*dxinv * drift[i*dmultt+outer_upper*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+outer_upper*nmultx]*noise[i*nmultt+outer_upper*nmultx];
+    flux_outer_B_choice_lower = -0.5*dt*dxinv * drift[i*dmultt+outer_lower*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+outer_lower*nmultx]*noise[i*nmultt+outer_lower*nmultx];
+    flux_inner_B_choice_upper = 0.5*dt*dxinv * drift[i*dmultt+inner_upper*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+inner_upper*nmultx]*noise[i*nmultt+inner_upper*nmultx];
+    flux_inner_B_choice_lower = -0.5*dt*dxinv * drift[i*dmultt+inner_lower*dmultx] + 0.5*dt*dxinv*dxinv * noise[i*nmultt+inner_lower*nmultx]*noise[i*nmultt+inner_lower*nmultx];
+
+    pdfchoice1_tmp[i+1] += 0.5*weight_outer * pdf_outer[n_outer-1] * flux_outer_B_choice_upper;
+    pdfchoice2_tmp[i+1] += 0.5*weight_outer * pdf_outer[0] * flux_outer_B_choice_lower;
+    pdfchoice1_tmp[i]   += 0.5*weight_outer * pdf_outer[n_outer-1] * flux_outer_B_choice_upper;
+    pdfchoice2_tmp[i]   += 0.5*weight_outer * pdf_outer[0] * flux_outer_B_choice_lower;
+    if (n_inner > 0) {
+      pdfchoice1_tmp[i+1] += 0.5*weight_inner * pdf_inner[n_inner-1] * flux_inner_B_choice_upper;
+      pdfchoice2_tmp[i+1] += 0.5*weight_inner * pdf_inner[0] * flux_inner_B_choice_lower;
+      pdfchoice1_tmp[i]   += 0.5*weight_inner * pdf_inner[n_inner-1] * flux_inner_B_choice_upper;
+      pdfchoice2_tmp[i]   += 0.5*weight_inner * pdf_inner[0] * flux_inner_B_choice_lower;
+    }
+
+    if (bound[i*bmultt] < dx) {
+      pdfchoice1_tmp[i+1] *= (1 + (1 - bound[i*bmultt]*dxinv));
+      pdfchoice2_tmp[i+1] *= (1 + (1 - bound[i*bmultt]*dxinv));
+    }
+  }
+
+  pdfchoice1[0] = 0;
+  pdfchoice2[0] = 0;
+  for (i=1; i<Tsteps; i++) {
+    pdfchoice1[i] = .5*(pdfchoice1_tmp[i] + pdfchoice1_tmp[i-1]);
+    pdfchoice2[i] = .5*(pdfchoice2_tmp[i] + pdfchoice2_tmp[i-1]);
+  }
+
+  free(pdfchoice1_tmp);
+  free(pdfchoice2_tmp);
+  free(rhs);
+  free(rhs_full);
+  free(pdf_inner_prev);
+  free(pdf_outer_prev);
+  free(pdf_inner);
+  free(pdf_outer);
+  free(D);
+  free(DU);
+  free(DL);
+  free(D_prev);
+  free(DU_prev);
+  free(DL_prev);
   return 0;
 }
