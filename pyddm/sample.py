@@ -183,8 +183,8 @@ class Sample(object):
     @accepts(NDArray(d=2), List(String), Tuple(String, String))
     @returns(Self)
     @requires('data.shape[1] >= 2')
-    @requires('set(list(data[~np.isnan(data).any(axis=1)][:,1])) - {0, 1} == set()')
-    @requires('all(data[~np.isnan(data).any(axis=1)][:,0].astype("float") == data[~np.isnan(data).any(axis=1)][:,0])')
+    @requires('set(list(data[~np.isnan(data[:,0:2].astype("float")).any(axis=1)][:,1].astype("float"))) - {0, 1} == set()')
+    @requires('all(data[~np.isnan(data[:,0:2].astype("float")).any(axis=1)][:,0].astype("float") == data[~np.isnan(data[:,0:2].astype("float")).any(axis=1)][:,0])')
     @requires('data.shape[1] - 2 == len(column_names)')
     @ensures('len(column_names) == len(return.condition_names())')
     def from_numpy_array(data, column_names=[], choice_names=("correct", "error")):

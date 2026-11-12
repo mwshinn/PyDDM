@@ -575,6 +575,7 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
         samp = Sample.from_numpy_array(np.asarray(cond_combs, dtype=object), all_conds, choice_names=model.choice_names)
     model_choice_upper = 0*model.t_domain()
     model_choice_lower = 0*model.t_domain()
+    pdf_correction = None
     model_undec = -1 # Set to dummy value -1 so we can detect this in our loop
     # If we have an overlay, this function should not calculate the
     # (incorrect) undecided probability
@@ -584,8 +585,14 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
     for conds in samp.condition_combinations(required_conditions=model.required_conditions):
         subset = samp.subset(**conds)
         sol = all_conds[frozenset(conds.items())]
-        model_choice_upper += len(subset)/len(samp)*sol.pdf(model.choice_names[0])
-        model_choice_lower += len(subset)/len(samp)*sol.pdf(model.choice_names[1])
+        weight = len(subset)/len(samp)
+        model_choice_upper += weight*sol.choice_upper
+        model_choice_lower += weight*sol.choice_lower
+        if sol._pdf_correction is not None:
+            if pdf_correction is None:
+                pdf_correction = (np.zeros_like(model_choice_upper), np.zeros_like(model_choice_lower))
+            pdf_correction[0][:] += weight*sol._pdf_correction[0]
+            pdf_correction[1][:] += weight*sol._pdf_correction[1]
         # We can't get the size of the undecided pdf until we have a
         # specific set of conditions.  Once we do, if the simulation
         # method doesn't support an undecided probability, set it to
@@ -599,7 +606,9 @@ def solve_partial_conditions(model, sample=None, conditions=None, method=None):
             model_undec += len(subset)/len(samp)*sol.pdf_undec()
         else:
             model_undec = None
-    sol = Solution(model_choice_upper*model.dt, model_choice_lower*model.dt, model, conditions={}, pdf_undec=model_undec)
+    sol = Solution(model_choice_upper, model_choice_lower, model, conditions={}, pdf_undec=model_undec)
+    if pdf_correction is not None:
+        sol._pdf_correction = tuple(c*sol._choice_rescale for c in pdf_correction)
     sol.partial_conditions = conditions
     return sol
 
@@ -888,11 +897,17 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
             required_conditions = _required_conditions_drift
             def get_drift(self, x, t, conditions, **kwargs):
                 extras = {}
+                scalar_x = "x" in _required_xt_drift and np.ndim(x) == 0
                 if "t" in _required_xt_drift:
                     extras["t"] = t
                 if "x" in _required_xt_drift:
-                    extras["x"] = x
-                return drift(**{v: getattr(self, v) for v in _required_parameters_drift}, **{v: conditions[v] for v in _required_conditions_drift}, **extras)
+                    extras["x"] = np.atleast_1d(x) if scalar_x else x
+                value = drift(**{v: getattr(self, v) for v in _required_parameters_drift}, **{v: conditions[v] for v in _required_conditions_drift}, **extras)
+                if scalar_x and not np.isscalar(value):
+                    value = np.asarray(value)
+                    if value.size != 1: raise ValueError("drift must return one value for one x position")
+                    return value.reshape(-1)[0]
+                return value
             def _uses_t(self):
                 return "t" in _required_xt_drift
             def _uses_x(self):
@@ -912,11 +927,17 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
             required_conditions = _required_conditions_noise
             def get_noise(self, x, t, conditions, **kwargs):
                 extras = {}
+                scalar_x = "x" in _required_xt_noise and np.ndim(x) == 0
                 if "t" in _required_xt_noise:
                     extras["t"] = t
                 if "x" in _required_xt_noise:
-                    extras["x"] = x
-                return noise(**{v: getattr(self, v) for v in _required_parameters_noise}, **{v: conditions[v] for v in _required_conditions_noise}, **extras)
+                    extras["x"] = np.atleast_1d(x) if scalar_x else x
+                value = noise(**{v: getattr(self, v) for v in _required_parameters_noise}, **{v: conditions[v] for v in _required_conditions_noise}, **extras)
+                if scalar_x and not np.isscalar(value):
+                    value = np.asarray(value)
+                    if value.size != 1: raise ValueError("noise must return one value for one x position")
+                    return value.reshape(-1)[0]
+                return value
             def _uses_t(self):
                 return "t" in _required_xt_noise
             def _uses_x(self):
@@ -992,7 +1013,10 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                         weights /= np.sum(weights) # Ensure it integrates to 1
                     newchoice_upper = np.convolve(weights, choice_upper, mode="full")[len(choice_upper):(2*len(choice_upper))]
                     newchoice_lower = np.convolve(weights, choice_lower, mode="full")[len(choice_upper):(2*len(choice_upper))]
-                    return Solution(newchoice_upper, newchoice_lower, solution.model, solution.conditions, solution.undec)
+                    result = Solution(newchoice_upper, newchoice_lower, solution.model, solution.conditions, solution.undec)
+                    def transform(values, choice):
+                        return np.convolve(weights, values, mode="full")[len(values):2*len(values)]
+                    return result._transform_pdf_correction(solution, transform)
             overlayobjs.append(OverlayNonDecisionDistributionEasy(**{fname:fval for fname,fval in _fittables.items() if fname in _required_parameters_nd}))
         else: # Single point
             class OverlayNonDecisionEasy(OverlayNonDecision):
@@ -1011,7 +1035,9 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
         _required_parameters_mixc = list(set(_required_parameters_mixc+[mixture_coef_name]))
     # If mixture coefficient is a parameter or value
     if mixture_distribution is None:
-        mixture_distribution = lambda T : np.ones(len(T))/(len(T)*(T[1]-T[0]))
+        # T contains bin centres; a one-point grid still has a width of
+        # 2*T[0], even though there is no second centre to subtract.
+        mixture_distribution = lambda T : np.ones(len(T))/(len(T)*(T[1]-T[0] if len(T) > 1 else 2*T[0]))
     typ, parsed, mixture_dist = _parse_dep(mixture_distribution, "mixture_distribution", ["upper", "T"])
     if typ == "func":
         _required_parameters_mix,_required_conditions_mix,_required_uT_mix = parsed
@@ -1020,6 +1046,10 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                 name = "easy_mixture_model"
                 required_parameters = list(set(_required_parameters_mix+_required_parameters_mixc))
                 required_conditions = list(set(_required_conditions_mix+_required_conditions_mixc))
+                def apply_trajectory(self, trajectory, model, rk4, seed, conditions={}):
+                    if _mixc_typ == 'val' and not isinstance(mixture_coef, Fittable) and mixture_coef == 0:
+                        return trajectory
+                    return super().apply_trajectory(trajectory, model, rk4, seed, conditions)
                 def apply(self, solution):
                     assert isinstance(solution, Solution)
                     choice_upper = solution.choice_upper
@@ -1056,7 +1086,9 @@ def gddm(drift=0, noise=1, bound=1, nondecision=0, starting_position=0, mixture_
                     choice_upper = choice_upper*(1-(mix_coef_upper+mix_coef_lower)) + lapses_upper*mix_coef_upper*m.dt
                     choice_lower = choice_lower*(1-(mix_coef_upper+mix_coef_lower)) + lapses_lower*mix_coef_lower*m.dt
                     undec = None if solution.undec is None else solution.undec*(1-(mix_coef_upper+mix_coef_lower))
-                    return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+                    result = Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+                    return result._transform_pdf_correction(
+                        solution, lambda values, choice: values*(1-(mix_coef_upper+mix_coef_lower)))
             overlayobjs.append(OverlayMixtureEasy(**{fname:fval for fname,fval in _fittables.items() if fname in list(set(_required_parameters_mix+_required_parameters_mixc))}))
         else:
             raise ValueError("Mixture distribution must be a function, or else None for the uniform distribution")

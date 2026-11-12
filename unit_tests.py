@@ -660,10 +660,13 @@ class TestSolution(TestCase):
         for s in self.all_sols:
             dt = s.dt
             # Distribution sums to 1
-            assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, s.prob_undecided()]), 1)
+            assert np.isclose(fsum([fsum(s.choice_upper), fsum(s.choice_lower), s.prob_undecided()]), 1)
             # Correct and error probabilities are sensible
-            assert np.isclose(fsum(s.pdf("_top")*dt), s.prob("_top"))
-            assert np.isclose(fsum(s.pdf("_bottom")*dt), s.prob("_bottom"))
+            assert np.isclose(fsum(s.choice_upper), s.prob("_top"))
+            assert np.isclose(fsum(s.choice_lower), s.prob("_bottom"))
+            for choice, mass, index in [("_top", s.choice_upper, 0), ("_bottom", s.choice_lower, 1)]:
+                correction = 0 if s._pdf_correction is None else s._pdf_correction[index]
+                np.testing.assert_allclose(s.pdf(choice)*dt, mass+correction, atol=1e-14)
             if s.choice_names == ("correct", "error"):
                 assert s.mean_decision_time() > 0
             if s.prob_undecided() == 0:

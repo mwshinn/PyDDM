@@ -28,7 +28,12 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     Anderson, Theodore W. "A modification of the sequential probability ratio test
     to reduce the sample size." The Annals of Mathematical Statistics (1960): 165-197.
     '''
-    # Avoid dividing by zero
+    teval = np.asarray(teval, dtype=float).copy()
+    if teval.ndim != 1 or not np.isfinite(teval).all() or np.any(teval < 0):
+        raise ValueError("teval must be a one-dimensional array of finite nonnegative times")
+    if len(teval) == 0:
+        return np.empty(0)
+    # Avoid dividing by zero without modifying the caller's array.
     teval[teval==0] = 1e-30
     
     # Change of variables
@@ -59,7 +64,7 @@ def analytic_ddm_linbound(a1, b1, a2, b2, teval):
     dist = dist*(dist>0) # make sure non-negative
     return dist
 
-def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=False):
+def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=False, _uniform_model_grid=False):
     '''
     Calculate the reaction time distribution of a Drift Diffusion model
     Parameters
@@ -80,6 +85,10 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=Fal
     dist_err : Reaction time distribution at teval for error trials
     '''
     
+    teval = np.asarray(teval, dtype=float)
+    if not _uniform_model_grid and (teval.ndim != 1 or not np.isfinite(teval).all() or np.any(teval < 0)):
+        raise ValueError("teval must be a one-dimensional array of finite nonnegative times")
+
     #find bounds based on initial condition
     if shift is None:
         b_lower = b
@@ -88,29 +97,44 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=Fal
         b_lower = 2. * b * shift
         b_upper = 2. * b - b_lower
     
+    # Determine validity in physical units, before scaling the slope by noise.
+    # Comparing an unscaled bound with a scaled slope shifts the collapse
+    # time whenever noise differs from 1.
+    valid = b+b_slope*teval>0
+    teval_valid = teval[valid]
+
     # Scale b, drift, and (implicitly) noise so new noise is 1
     b_lower /= noise
     b_upper /= noise
     drift   /= noise
     b_slope /= noise
 
-    # Get valid time points (before two bounds collapsed)
-    teval_valid = teval[b+b_slope*teval>0]
     if len(teval_valid) == 0:
         return np.zeros(len(teval)), np.zeros(len(teval))
 
-    if force_python or not HAS_CSOLVE or len(teval_valid) == 1:
+    # The extension takes only a step size and therefore assumes a uniform
+    # grid starting at zero.  The Python formula accepts arbitrary timepoints.
+    uniform_from_zero = False
+    if not force_python and HAS_CSOLVE and len(teval_valid) > 1 and teval_valid[0] == 0:
+        dt = teval_valid[1]-teval_valid[0]
+        if _uniform_model_grid:
+            uniform_from_zero = dt > 0
+        else:
+            tolerance = max(abs(dt)*1e-12, 4*np.finfo(float).eps*abs(teval_valid[-1]))
+            uniform_from_zero = (dt > 0 and
+                                 np.max(np.abs(np.diff(teval_valid)-dt)) <= tolerance+1e-10*abs(dt))
+    if force_python or not HAS_CSOLVE or not uniform_from_zero:
         dist_choice_upper = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
         dist_choice_lower = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
     else:
-        dt = teval_valid[1]-teval_valid[0]
         dist_choice_upper = csolve.analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, len(teval_valid), dt)
         dist_choice_lower = csolve.analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, len(teval_valid), dt)
 
     # For invalid time points, set the probability to be a very small number
     if len(teval_valid) < len(teval):
-        eps = np.ones(len(teval)-len(teval_valid)) * 1e-100
-        dist_choice_upper = np.concatenate((dist_choice_upper,eps))
-        dist_choice_lower = np.concatenate((dist_choice_lower,eps))
+        upper = np.full(len(teval), 1e-100)
+        lower = np.full(len(teval), 1e-100)
+        upper[valid], lower[valid] = dist_choice_upper, dist_choice_lower
+        dist_choice_upper, dist_choice_lower = upper, lower
 
     return dist_choice_upper, dist_choice_lower

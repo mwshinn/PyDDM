@@ -31,6 +31,11 @@ class Solution(object):
     the full parametrization of every run is recorded.  Note that this
     may increase memory requirements when many simulations are run.
     """
+    # Solutions saved before pointwise PDF corrections were introduced do
+    # not have these instance attributes when they are unpickled.
+    _pdf_correction = None
+    _choice_rescale = 1.
+
     @staticmethod
     def _test(v):
         # TODO should these be Positive0 instead of Number?
@@ -83,6 +88,9 @@ class Solution(object):
         self.model = model # If the model changes, this var will change too.  So create local versions of important variables below.
         self.choice_upper = pdf_choice_upper
         self.choice_lower = pdf_choice_lower
+        # Optional differences between nodal PDF values times dt and the
+        # conserved choice masses.  CN uses a half-weighted terminal node.
+        self._pdf_correction = None
         self.undec = pdf_undec
         self.evolution = pdf_evolution
         self.choice_names = model.choice_names
@@ -96,10 +104,27 @@ class Solution(object):
         from .models.overlay import OverlayNone
         self.is_overlay_none = isinstance(model.get_dependence("overlay"), OverlayNone)
         # Correct floating point errors to always get prob <= 1
-        if np.sum(self.choice_upper + self.choice_lower) > 1:
+        # Use the same summation order as _test and prob_undecided.  Adding
+        # arrays before summing can round to 1 even when the two separate
+        # choice totals add to the next float above 1.
+        self._choice_rescale = 1.
+        if np.sum(self.choice_upper) + np.sum(self.choice_lower) > 1:
             self.choice_upper /= 1.00000000001
             self.choice_lower /= 1.00000000001
+            self._choice_rescale = 1/1.00000000001
         self.conditions = conditions
+
+    def _transform_pdf_correction(self, source, transform):
+        """Propagate a linear overlay's density correction to this solution.
+
+        ``transform`` receives a correction array and choice index (0 or 1)
+        and must apply only the linear part of the overlay, excluding any
+        independently added mixture distribution.
+        """
+        if source._pdf_correction is not None:
+            self._pdf_correction = tuple(self._choice_rescale*transform(value, choice)
+                                         for choice, value in enumerate(source._pdf_correction))
+        return self
 
     def __eq__(self, other):
         if not np.allclose(self.choice_upper, other.choice_upper) or \
@@ -165,11 +190,16 @@ class Solution(object):
         "correct", "error", or the choice names specified in the model's
         choice_names parameter.
 
-        Note that the return value will not sum to one, but both choices plus
-        the undecided distribution will collectively sum to one.
+        Values are pointwise densities.  For Crank-Nicolson the conserved
+        choice masses can use quadrature weights, so ``pdf * dt`` is not
+        necessarily equal to ``choice_upper`` or ``choice_lower`` at every
+        timepoint.  Use ``prob`` and ``cdf`` for integrated probabilities.
 
         """
-        v = self.choice_upper if self._choice_name_to_id(choice) == 1 else self.choice_lower
+        choice_index = self._choice_name_to_id(choice)-1
+        v = (self.choice_upper, self.choice_lower)[choice_index]
+        if self._pdf_correction is not None:
+            v = v + self._pdf_correction[choice_index]
         return v/self.dt
 
     @accepts(Self)
@@ -182,7 +212,7 @@ class Solution(object):
         if self.choice_names != ("correct", "error"):
             raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  Use \"pdf\" instead.")
         deprecation_warning(instead="Solution.pdf('correct')")
-        return self.choice_upper/self.dt
+        return self.pdf('_top')
 
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))
@@ -194,7 +224,7 @@ class Solution(object):
         if self.choice_names != ("correct", "error"):
             raise NotImplementedError("Choice names need to be set to \"correct\" and \"error\" to use this function.  Use \"pdf\" instead.")
         deprecation_warning(instead="Solution.pdf('error')")
-        return self.choice_lower/self.dt
+        return self.pdf('_bottom')
 
     @accepts(Self)
     @returns(NDArray(d=1, t=Positive0))
@@ -514,17 +544,25 @@ class Solution(object):
         # Exclude the last point in the t domain because we will add
         # uniform noise to the sample and this would put us over the
         # model's T_dur.
-        shorter_t_domain = self.t_domain[:-1]
-        shorter_pdf_choice_upper = self.pdf("_top")[:-1]
-        shorter_pdf_choice_upper[-1] += self.pdf("_top")[-1]
-        shorter_pdf_choice_lower = self.pdf("_bottom")[:-1]
-        shorter_pdf_choice_lower[-1] += self.pdf("_bottom")[-1]
+        single_timepoint = len(self.t_domain) == 1
+        if single_timepoint:
+            # A duration shorter than dt contains only t=0.  Its choice
+            # mass, if any, is an immediate boundary crossing.
+            shorter_t_domain = self.t_domain
+            shorter_choice_upper = self.choice_upper
+            shorter_choice_lower = self.choice_lower
+        else:
+            shorter_t_domain = self.t_domain[:-1]
+            shorter_choice_upper = self.choice_upper[:-1].copy()
+            shorter_choice_upper[-1] += self.choice_upper[-1]
+            shorter_choice_lower = self.choice_lower[:-1].copy()
+            shorter_choice_lower[-1] += self.choice_lower[-1]
         # Concatenate the correct and error distributions as well as
         # their probabilities, and add an undecided component on the
         # end.  Shift the error t domain by the maximum plus one.
         shift = np.max(shorter_t_domain)+1
         combined_domain = list(shorter_t_domain) + list(shorter_t_domain+shift) + [-1]
-        combined_probs = list(shorter_pdf_choice_upper*self.dt) + list(shorter_pdf_choice_lower*self.dt) + [self.prob_undecided()]
+        combined_probs = list(shorter_choice_upper) + list(shorter_choice_lower) + [self.prob_undecided()]
         if np.abs(np.sum(combined_probs)-1) >= .0001:
             _logger.warning("Distribution sums to %f rather than 1" % np.sum(combined_probs))
             _logger.debug(self.model_parameters)
@@ -533,7 +571,8 @@ class Solution(object):
         samp = samp[samp != -1] # Remove undecided trials
         # Each point x on the pdf represents the space from x to x+dt.
         # So sample and then add uniform noise to each element.
-        samp += rng.uniform(0, self.dt, len(samp))
+        if not single_timepoint:
+            samp += rng.uniform(0, self.dt, len(samp))
         # Find correct and error trials
         choice_upper_sample = samp[samp<shift]
         choice_lower_sample = samp[samp>=shift]-shift

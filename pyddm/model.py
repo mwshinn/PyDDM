@@ -432,7 +432,23 @@ class Model(object):
         Returns a length N ndarray (where N is the size of x_domain())
         which should sum to 1.
         """
-        return self.get_dependence('IC').get_IC(self.x_domain(conditions=conditions), dx=self.dx, conditions=conditions)
+        x = self.x_domain(conditions=conditions)
+        # A ratio is relative to the bounds at t=0, not the largest bounds
+        # used to allocate storage for an expanding-bound model.
+        initial_x = (self.x_domain(conditions=conditions, t=0)
+                     if isinstance(self._IC, ICPointRatio) and self._bounddep._uses_t() else x)
+        initial = np.asarray(self._IC.get_IC(initial_x, dx=self.dx, conditions=conditions), dtype=float)
+        if initial.ndim != 1 or len(initial) != len(initial_x):
+            raise ValueError("Initial condition must be a one-dimensional array matching the spatial grid")
+        mass = initial.sum()
+        if not np.isfinite(mass) or np.any(initial < 0) or abs(mass-1) > 1.01e-10:
+            raise ValueError("Initial condition must contain finite, nonnegative probabilities summing to one")
+        if len(initial_x) != len(x):
+            result = np.zeros(len(x))
+            offset = (len(x)-len(initial_x))//2
+            result[offset:offset+len(initial_x)] = initial
+            return result
+        return initial
 
     @accepts(Self, conditions=Conditions, cutoff=Boolean, seed=Natural0, rk4=Boolean)
     @returns(NDArray(t=Number, d=1))
@@ -446,12 +462,17 @@ class Model(object):
         simulation when the decision variable crosses the boundary
         unless `cutoff` is set to False.  By default, Runge-Kutta is
         used to simulate the trial, however if `rk4` is set to False,
-        the less efficient Euler's method is used instead. This
+        Euler's method is used instead. This
         returns a trajectory of the simulated trial over time as a
         numpy array.
 
         Note that this will return the same trajectory on each run
         unless the random seed `seed` is varied.
+
+        With `rk4=True`, the drift uses Runge-Kutta stages.  Noise that
+        depends on position is evaluated at the start of each step, so the
+        simulation follows the same Itô convention as the numerical solver.
+        This does not imply fourth-order convergence for stochastic paths.
 
         Also note that you shouldn't normally need to use this
         function.  To simulate an entire probability distributions,
@@ -461,6 +482,10 @@ class Model(object):
         distribution as a whole.
 
         """
+        return self._simulate_trial(conditions=conditions, cutoff=cutoff, rk4=rk4, seed=seed)[0]
+
+    def _simulate_trial(self, conditions, cutoff, rk4, seed):
+        """Return the public trajectory and whether it ended in a decision."""
         self.check_conditions_satisfied(conditions)
         
         h = self.dt
@@ -471,14 +496,20 @@ class Model(object):
         ic = self.IC(conditions=conditions)
         x0 = rng.choice(self.x_domain(conditions=conditions), p=ic)
         pos = [x0]
+        initial_bound = self._bounddep.get_bound(t=0, conditions=conditions)
+        absorbed_initially = cutoff and (x0 >= initial_bound or x0 <= -initial_bound)
+        absorbed = absorbed_initially
 
         # Convenience functions
         _driftdep = self.get_dependence("drift")
         _noisedep = self.get_dependence("noise")
+        state_dependent_noise = rk4 and _noisedep._uses_x()
         fm = lambda x,t : _driftdep.get_drift(t=t, x=x, conditions=conditions)
         fs = lambda x,t : _noisedep.get_noise(t=t, x=x, conditions=conditions)
         
         for i in range(1, len(T)):
+            if absorbed_initially:
+                break
             # Stochastic Runge-Kutta order 4.  See "Introduction to
             # Stochastic Differential Equations" by Thomas C. Gard
             rn = rng.randn()
@@ -487,25 +518,30 @@ class Model(object):
             s1  = fs(t=T[i-1], x=pos[i-1])
             if rk4: # Use Runge-Kutta order 4
                 drift2 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2)) # Should be dw/sqrt(2)?
-                s2  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift1*h/2 + s1*dw/2))
+                s2x = pos[i-1] if state_dependent_noise else (pos[i-1] + drift1*h/2 + s1*dw/2)
+                s2  = fs(t=(T[i-1]+h/2), x=s2x)
                 drift3 = fm(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
-                s3  = fs(t=(T[i-1]+h/2), x=(pos[i-1] + drift2*h/2 + s2*dw/2))
+                s3x = pos[i-1] if state_dependent_noise else (pos[i-1] + drift2*h/2 + s2*dw/2)
+                s3  = fs(t=(T[i-1]+h/2), x=s3x)
                 drift4 = fm(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
-                s4  = fs(t=(T[i-1]+h), x=(pos[i-1] + drift3*h + s3*dw)) # Should this be 1/2*s3*dw?
+                s4x = pos[i-1] if state_dependent_noise else (pos[i-1] + drift3*h + s3*dw)
+                s4  = fs(t=(T[i-1]+h), x=s4x)
                 dx = h*(drift1 + 2*drift2 + 2*drift3 + drift4)/6 + dw*(s1 + 2*s2 + 2*s3 + s4)/6
             else: # Use Euler's method
                 dx = h*drift1 + dw*s1
             pos.append(pos[i-1] + dx)
             B = self.get_dependence("bound").get_bound(t=T[i], conditions=conditions)
-            if cutoff and (pos[i] > B or pos[i] < -B):
+            if cutoff and (pos[i] >= B or pos[i] <= -B):
+                absorbed = True
                 break
 
         traj = self.get_dependence("overlay").apply_trajectory(trajectory=np.asarray(pos), model=self, seed=seed, rk4=rk4, conditions=conditions)
         if cutoff is False and len(traj) < len(T):
             traj = np.append(traj, [traj[-1]]*(len(T)-len(traj)))
-        if len(traj) > len(T):
+        beyond_duration = len(traj) > len(T)
+        if beyond_duration:
             traj = traj[0:len(T)]
-        return traj
+        return traj, bool(absorbed and not beyond_duration)
 
 
     @accepts(Self, Conditions, Natural1, Boolean, Natural0)
@@ -539,16 +575,34 @@ class Model(object):
         for s in range(0, size):
             if s % 200 == 0:
                 _logger.info("Simulating trial %i" % s)
-            timecourse = self.simulate_trial(conditions=conditions, seed=(hash((s, seed)) % 2**32), cutoff=True, rk4=rk4)
+            trial_seed = hash((s, seed)) % 2**32
+            if getattr(self.simulate_trial, '__func__', None) is Model.simulate_trial:
+                timecourse, absorbed = self._simulate_trial(conditions=conditions, seed=trial_seed, cutoff=True, rk4=rk4)
+            else:
+                # Preserve custom simulate_trial overrides, which do not
+                # provide the internal absorption flag.
+                timecourse = self.simulate_trial(conditions=conditions, seed=trial_seed, cutoff=True, rk4=rk4)
+                absorbed = None
             T_finish = T[len(timecourse) - 1]
             B = self.get_dependence("bound").get_bound(t=T_finish, conditions=conditions)
             # Correct for the fact that the particle could have
             # crossed at any point between T_finish-dt and T_finish.
-            dt_correction = self.dt/2
+            dt_correction = self.dt/2 if T_finish > 0 else 0
             # Determine whether the sim is a correct or error trial.
-            if timecourse[-1] > B:
+            if absorbed is False:
+                undec_count += 1
+            elif absorbed and timecourse[-1] > 0:
                 choice_upper_times.append(T_finish - dt_correction)
-            elif timecourse[-1] < -B:
+            elif absorbed and timecourse[-1] < 0:
+                choice_lower_times.append(T_finish - dt_correction)
+            elif timecourse[-1] == 0 and (absorbed or B <= 0):
+                # A point exactly at two coincident bounds is split evenly.
+                side_rng = np.random.default_rng(np.random.SeedSequence([seed, s, 1703]))
+                choice = side_rng.integers(2)
+                (choice_upper_times if choice else choice_lower_times).append(T_finish - dt_correction)
+            elif timecourse[-1] >= B:
+                choice_upper_times.append(T_finish - dt_correction)
+            elif timecourse[-1] <= -B:
                 choice_lower_times.append(T_finish - dt_correction)
             elif len(timecourse) == len(T):
                 undec_count += 1
@@ -556,8 +610,9 @@ class Model(object):
                 raise SystemError("Internal error: Invalid particle simulation")
             
         aa = lambda x : np.asarray(x)
-        conds = {k:(aa(len(choice_upper_times)*[v]), aa(len(choice_lower_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items() if k and v}
-        return Sample(aa(choice_upper_times), aa(choice_lower_times), undec_count, **conds)
+        conds = {k:(aa(len(choice_upper_times)*[v]), aa(len(choice_lower_times)*[v]), aa(undec_count*[v])) for k,v in conditions.items()}
+        return Sample(aa(choice_upper_times), aa(choice_lower_times), undec_count,
+                      choice_names=self.choice_names, **conds)
 
     @accepts(Self)
     @returns(Boolean)
@@ -675,18 +730,21 @@ class Model(object):
             return self._overlay.apply(Solution(upper, lower, self, conditions=conditions))
         
         # The analytic_ddm function does the heavy lifting.
+        # Only the standard Model.t_domain guarantees a uniform grid.  Custom
+        # Model subclasses may supply other timepoints and must be checked.
+        uniform_model_grid = getattr(self.t_domain, '__func__', None) is Model.t_domain
         if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
             anal_pdf_choice_upper, anal_pdf_choice_lower = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions),
                                                        self.t_domain(), shift, -self.get_dependence("bound").t,
-                                                       force_python=force_python) # TODO why must this be negative? -MS
+                                                       force_python=force_python, _uniform_model_grid=uniform_model_grid) # TODO why must this be negative? -MS
         else: # Constant bound DDM
             anal_pdf_choice_upper, anal_pdf_choice_lower = analytic_ddm(self.get_dependence("drift").get_drift(t=0, x=0, conditions=conditions),
                                                         self.get_dependence("noise").get_noise(t=0, x=0, conditions=conditions),
                                                        self.get_dependence("bound").get_bound(t=0, x=0, conditions=conditions), 
                                                        self.t_domain(), shift,
-                                                       force_python=force_python)
+                                                       force_python=force_python, _uniform_model_grid=uniform_model_grid)
 
         ## Remove some abnormalities such as NaN due to trivial reasons.
         anal_pdf_choice_upper[0] = 0.
@@ -760,7 +818,7 @@ class Model(object):
         elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
-        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance)
+        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.IC(conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance)
         return self._finish_numerical(res[0]*self.dt, res[1]*self.dt, conditions, undec=res[2])
 
     def solve_numerical_cn_c(self, conditions={}):
@@ -812,8 +870,15 @@ class Model(object):
         elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
-        res = csolve.cn_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance)
-        return self._finish_numerical(res[0], res[1], conditions)
+        res = csolve.cn_time(drift, drifttype, noise, noisetype, bound, boundtype, self.IC(conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance, 1)
+        end_flux = None
+        if 0 < res[3] <= 2:
+            t = self.t_domain()[res[3]]
+            x = self.x_domain(conditions=conditions)
+            b = self._bounddep.get_bound(t=t, conditions=conditions)
+            _, lower, upper = self._fp_matrix(x, t, b, conditions)
+            end_flux = (self.dt*upper[1]*res[2][upper[0]], self.dt*lower[1]*res[2][lower[0]])
+        return self._finish_numerical(res[0], res[1], conditions, cn_last_step=res[3], cn_end_flux=end_flux)
 
     def _fp_indices(self, x, bound):
         """Indices strictly inside the physical absorbing boundaries."""
@@ -905,7 +970,8 @@ class Model(object):
                       + theta*new[2][1]*following[new[2][0]])
         return following, lower, upper
 
-    def _finish_numerical(self, upper, lower, conditions, undec=None, evolution=None):
+    def _finish_numerical(self, upper, lower, conditions, undec=None, evolution=None,
+                          cn_last_step=None, cn_end_flux=None):
         arrays = [upper, lower] + ([] if undec is None else [undec])
         negative = sum(np.sum(a[a < 0]) for a in arrays)
         if negative < -.01 and param.renorm_warnings:
@@ -913,13 +979,31 @@ class Model(object):
         for a in arrays:
             a[a < 0] = 0
         total = sum(np.sum(a) for a in arrays)
+        scale = 1.
         if total > 1:
             if total > 1.01 and param.renorm_warnings:
                 _logger.warning("Renormalizing probability density from %f to 1. Decrease dt and/or dx.", total)
             for a in arrays:
                 a /= total
-        return self._overlay.apply(Solution(upper, lower, self, conditions=conditions,
-                                            pdf_undec=undec, pdf_evolution=evolution))
+            scale = 1/total
+        solution = Solution(upper, lower, self, conditions=conditions,
+                            pdf_undec=undec, pdf_evolution=evolution)
+        if cn_last_step is not None and cn_last_step > 2:
+            # CN conserves probability by storing half the final flux in its
+            # last integrated node.  Keep that mass for cdf/prob/sample, but
+            # expose the full nodal flux when a pointwise PDF is requested.
+            corrections = (np.zeros_like(upper), np.zeros_like(lower))
+            corrections[0][cn_last_step] = solution.choice_upper[cn_last_step]
+            corrections[1][cn_last_step] = solution.choice_lower[cn_last_step]
+            solution._pdf_correction = corrections
+        elif cn_last_step and cn_end_flux is not None:
+            # During the two startup intervals the node stores half the
+            # interval mass, rather than half the final instantaneous flux.
+            corrections = (np.zeros_like(upper), np.zeros_like(lower))
+            corrections[0][cn_last_step] = max(0., cn_end_flux[0])*scale*solution._choice_rescale - solution.choice_upper[cn_last_step]
+            corrections[1][cn_last_step] = max(0., cn_end_flux[1])*scale*solution._choice_rescale - solution.choice_lower[cn_last_step]
+            solution._pdf_correction = corrections
+        return self._overlay._apply_with_pdf_correction(solution)
 
     def _solve_numerical_python(self, method, conditions, return_evolution=False):
         times = self.t_domain()
@@ -1016,8 +1100,13 @@ class Model(object):
             # Also applies if the tail cutoff ended integration early.
             lower[last_cn_step] *= .5
             upper[last_cn_step] *= .5
+        end_flux = None
+        if method == 'cn' and 0 < last_cn_step <= 2:
+            end_flux = (self.dt*old[2][1]*pdf[old[2][0]], self.dt*old[1][1]*pdf[old[1][0]])
         return self._finish_numerical(upper, lower, conditions,
-                                      undec=None if method == 'cn' else pdf, evolution=evolution)
+                                      undec=None if method == 'cn' else pdf, evolution=evolution,
+                                      cn_last_step=last_cn_step if method == 'cn' else None,
+                                      cn_end_flux=end_flux)
 
 
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
@@ -1111,10 +1200,8 @@ class Model(object):
         preserves both probability and the interior density's time
         alignment, without counting absorption after the final time.
 
-        Solution.pdf divides these masses by dt, so its final value has
-        the same half weight. For a comparison with analytical nodal
-        densities, apply the corresponding endpoint quadrature weights
-        to the analytical values. The final undecided spatial
+        Solution.pdf reports the unweighted nodal density, while cdf,
+        prob, and sample use the conserved masses. The final undecided spatial
         distribution is not returned, since CN states can oscillate.
 
         It returns a Solution object describing the joint PDF.

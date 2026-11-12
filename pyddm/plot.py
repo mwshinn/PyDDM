@@ -41,7 +41,7 @@ from .functions import solve_partial_conditions
 
 
 
-def plot_solution_pdf(sol, ax=None, choice=None, correct=True):
+def plot_solution_pdf(sol, ax=None, choice=None, correct=None):
     """Plot the PDF of the solution.
 
     - `ax` is optionally the matplotlib axis on which to plot.
@@ -51,6 +51,8 @@ def plot_solution_pdf(sol, ax=None, choice=None, correct=True):
     This does not return anything, but it plots the PDF.  It does not
     show it, and thus requires a call to plt.show() to see.
     """
+    if choice is None and correct is None:
+        correct = True  # Preserve the historical default of the upper choice.
     if correct is not None:
         assert choice is None, "Either choice or correct argument must be None"
         assert sol.choice_names == ("correct", "error")

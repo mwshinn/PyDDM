@@ -7,7 +7,6 @@
 __all__ = ["Overlay", "OverlayNone", "OverlayChain", "OverlayUniformMixture", "OverlayPoissonMixture", "OverlayExponentialMixture", "OverlayNonDecision", "OverlayNonDecisionGamma", "OverlayNonDecisionUniform", "OverlaySimplePause", "OverlayBlurredPause"]
 
 import numpy as np
-from scipy.special import gamma as sp_gamma
 import scipy.stats
 
 from paranoid import accepts, returns, requires, ensures, Self, paranoidclass, paranoidconfig, Range, Positive, Number, List, Positive0, NDArray, Unchecked
@@ -15,11 +14,23 @@ from .paranoid_types import Conditions
 
 from .base import Dependence
 from ..solution import Solution
+from ..logger import logger as _logger
 
 # TODO in unit test, ensure all overlays with reasonable parameters
 # applied to a Solution add up to 1
 
 # TODO unit tests for apply_trajectory
+
+def _shift_correction(values, offset):
+    """Apply an overlay's discrete time shift to a PDF correction."""
+    shifted = np.zeros_like(values)
+    if offset > 0:
+        shifted[offset:] = values[:-offset]
+    elif offset < 0:
+        shifted[:offset] = values[-offset:]
+    else:
+        shifted[:] = values
+    return shifted
 
 class Overlay(Dependence):
     """Subclasses can modify distributions after they have been generated.
@@ -44,6 +55,12 @@ class Overlay(Dependence):
         `solution.choice_lower`.  See the documentation for Solution for more
         information about this object.
 
+        When an overlay transforms choice arrays, it should also transform
+        any pointwise-PDF correction carried by the source Solution.  A
+        linear overlay can call ``result._transform_pdf_correction(solution,
+        transform)``, where ``transform(values, choice)`` applies its linear
+        time/choice transformation without an independent mixture term.
+
         Note that while this does not take `conditions` as an
         argument, conditions may still be accessed via
         `solution.conditions`.
@@ -55,6 +72,17 @@ class Overlay(Dependence):
         condition-dependent manner.
         """
         raise NotImplementedError("Overlay model %s invalid: must define the apply(self, solution) function" % self.__class__.__name__)
+
+    def _apply_with_pdf_correction(self, solution):
+        result = self.apply(solution)
+        if solution._pdf_correction is not None and result._pdf_correction is None:
+            if (np.array_equal(result.choice_upper, solution.choice_upper) and
+                    np.array_equal(result.choice_lower, solution.choice_lower)):
+                result._pdf_correction = solution._pdf_correction
+            else:
+                _logger.warning("Overlay %s did not propagate the CN pointwise-PDF correction; "
+                                "its PDF may be inaccurate at affected timepoints.", self.name)
+        return result
     def apply_trajectory(self, trajectory, model, rk4, seed, conditions={}):
         """Apply the overlay to a simulated decision variable trajectory.
 
@@ -163,7 +191,7 @@ class OverlayChain(Overlay):
         assert isinstance(solution, Solution)
         newsol = solution
         for o in self.overlays:
-            newsol = o.apply(newsol)
+            newsol = o._apply_with_pdf_correction(newsol)
         return newsol
     @accepts(Self, NDArray(d=1, t=Number))
     @returns(NDArray(d=1, t=Number))
@@ -211,7 +239,8 @@ class OverlayUniformMixture(Overlay):
         evolution = solution.evolution
         choice_upper = choice_upper*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())
         choice_lower = choice_lower*(1-self.umixturecoef) + .5*self.umixturecoef/len(m.t_domain())
-        return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+        result = Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, lambda values, choice: values*(1-self.umixturecoef))
 
 @paranoidclass
 class OverlayExponentialMixture(Overlay):
@@ -267,7 +296,8 @@ class OverlayExponentialMixture(Overlay):
         choice_lower = choice_lower*(1-self.pmixturecoef) + .5*self.pmixturecoef*Y*norm
         #print(choice_upper)
         #print(choice_lower)
-        return Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+        result = Solution(choice_upper, choice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, lambda values, choice: values*(1-self.pmixturecoef))
 
 # Backward compatibility
 class OverlayPoissonMixture(OverlayExponentialMixture):
@@ -317,8 +347,9 @@ class OverlayNonDecision(Overlay):
         else:
             newchoice_upper = choice_upper
             newchoice_lower = choice_lower
-        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
+        result = Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, lambda values, choice: _shift_correction(values, shifts))
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked, Conditions)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, conditions, **kwargs):
         shift = int(self.get_nondecision_time(conditions=conditions)/model.dt)
@@ -394,14 +425,21 @@ class OverlayNonDecisionUniform(Overlay):
             else:
                 newchoice_upper += choice_upper/len(offsets)
                 newchoice_lower += choice_lower/len(offsets)
-        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
+        def transform(values, choice):
+            return sum((_shift_correction(values, offset) for offset in offsets), np.zeros_like(values))/len(offsets)
+        result = Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, transform)
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked, Conditions)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, conditions, **kwargs):
-        ndtime = np.random.rand()*2*self.halfwidth + (self.get_nondecision_time(conditions=conditions)-self.halfwidth)
-        shift = int(ndtime/model.dt)
+        seed = kwargs.get('seed')
+        rng = np.random.default_rng(None if seed is None else np.random.SeedSequence([seed, 1701]))
+        centre = int(self.get_nondecision_time(conditions=conditions)/model.dt)
+        width = int(self.halfwidth/model.dt)
+        # Match the discrete shifts used by apply(), including both endpoints.
+        shift = rng.integers(centre-width, centre+width+1)
         if shift > 0:
-            np.append([trajectory[0]]*shift, trajectory)
+            trajectory = np.append([trajectory[0]]*shift, trajectory)
         elif shift < 0:
             if len(trajectory) > abs(shift):
                 trajectory = trajectory[abs(shift):]
@@ -447,7 +485,7 @@ class OverlayNonDecisionGamma(Overlay):
     @returns(Solution)
     @ensures("np.sum(return.choice_upper) <= np.sum(solution.choice_upper) + 1e-10")
     @ensures("np.sum(return.choice_lower) <= np.sum(solution.choice_lower) + 1e-10")
-    @ensures("np.all(return.choice_upper[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.dt)] == 0)")
+    @ensures("self.get_nondecision_time(conditions=solution.conditions) <= 0 or np.all(return.choice_upper[0:int(self.get_nondecision_time(conditions=solution.conditions)//return.dt)] == 0)")
     def apply(self, solution):
         # Make sure params are within range
         assert self.shape >= 1, "Invalid shape parameter"
@@ -464,15 +502,20 @@ class OverlayNonDecisionGamma(Overlay):
         # Divide by 1+1e-14 to avoid numerical errors after the convolution, which are on the order of 10^-16
         newchoice_upper = np.convolve(choice_upper, weights, mode="full")[len(choice_upper):(2*len(choice_upper))]/(1+1e-14)
         newchoice_lower = np.convolve(choice_lower, weights, mode="full")[len(choice_upper):(2*len(choice_upper))]/(1+1e-14)
-        return Solution(newchoice_upper, newchoice_lower, solution.model,
-                        solution.conditions, solution.undec, solution.evolution)
-    @accepts(Self, NDArray(d=1, t=Number), Conditions, Unchecked)
+        result = Solution(newchoice_upper, newchoice_lower, solution.model,
+                          solution.conditions, solution.undec, solution.evolution)
+        def transform(values, choice):
+            return np.convolve(values, weights, mode="full")[len(values):2*len(values)]/(1+1e-14)
+        return result._transform_pdf_correction(solution, transform)
+    @accepts(Self, NDArray(d=1, t=Number), Unchecked, Conditions)
     @returns(NDArray(d=1, t=Number))
     def apply_trajectory(self, trajectory, model, conditions, **kwargs):
-        ndtime = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=conditions)).rvs()
+        seed = kwargs.get('seed')
+        rng = np.random.default_rng(None if seed is None else np.random.SeedSequence([seed, 1702]))
+        ndtime = scipy.stats.gamma(a=self.shape, scale=self.scale, loc=self.get_nondecision_time(conditions=conditions)).rvs(random_state=rng)
         shift = int(ndtime/model.dt)
         if shift > 0:
-            np.append([trajectory[0]]*shift, trajectory)
+            trajectory = np.append([trajectory[0]]*shift, trajectory)
         elif shift < 0:
             if len(trajectory) > abs(shift):
                 trajectory = trajectory[abs(shift):]
@@ -516,7 +559,13 @@ class OverlaySimplePause(Overlay):
         newchoice_lower[0:start] = choice_lower[0:start]
         newchoice_upper[stop:] = choice_upper[start:-(stop-start)]
         newchoice_lower[stop:] = choice_lower[start:-(stop-start)]
-        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        def transform(values, choice):
+            result = np.zeros_like(values)
+            result[:start] = values[:start]
+            result[stop:] = values[start:-(stop-start)]
+            return result
+        result = Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, transform)
 
 @paranoidclass
 class OverlayBlurredPause(Overlay):
@@ -544,15 +593,26 @@ class OverlayBlurredPause(Overlay):
         cond = solution.conditions
         undec = solution.undec
         evolution = solution.evolution
+        times = m.t_domain()
+        if self.pausestart > times[-1]:
+            return solution
         # Make gamma distribution
         gamma_mean = self.pausestop - self.pausestart
         gamma_var = pow(self.pauseblurwidth, 2)
         shape = gamma_mean**2/gamma_var
         scale = gamma_var/gamma_mean
-        gamma_pdf = lambda t : 1/(sp_gamma(shape)*(scale**shape)) * t**(shape-1) * np.exp(-t/scale)
-        gamma_vals = np.asarray([gamma_pdf(t) for t in m.t_domain() - self.pausestart if t >= 0])
+        relative_times = times[times >= self.pausestart] - self.pausestart
+        gamma_vals = scipy.stats.gamma.pdf(relative_times, a=shape, scale=scale)
         sumgamma = np.sum(gamma_vals)
-        gamma_start = next(i for i,t in enumerate(m.t_domain() - self.pausestart) if t >= 0)
+        if not np.isfinite(sumgamma):
+            # A gamma density with shape < 1 diverges at zero, although
+            # its probability within the first time bin remains finite.
+            left = np.maximum(0, relative_times-m.dt/2)
+            right = relative_times+m.dt/2
+            gamma_vals = (scipy.stats.gamma.cdf(right, a=shape, scale=scale)
+                          - scipy.stats.gamma.cdf(left, a=shape, scale=scale))
+            sumgamma = np.sum(gamma_vals)
+        gamma_start = np.searchsorted(times, self.pausestart)
 
         # Generate first part of pdf (before the pause)
         newchoice_upper = np.zeros(m.t_domain().shape, dtype=choice_upper.dtype)
@@ -563,10 +623,17 @@ class OverlayBlurredPause(Overlay):
             if 0 <= t < self.pausestart:
                 newchoice_upper[i] = choice_upper[i]
                 newchoice_lower[i] = choice_lower[i]
-            elif self.pausestart <= t:
+            elif self.pausestart <= t and sumgamma > 0:
                 newchoice_upper[i:] += choice_upper[gamma_start:len(choice_upper)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
                 newchoice_lower[i:] += choice_lower[gamma_start:len(choice_upper)-(i-gamma_start)]*gamma_vals[int(i-gamma_start)]/sumgamma
-            else:
-                raise ValueError("Invalid domain")
-        return Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        def transform(values, choice):
+            result = np.zeros_like(values)
+            for i, t in enumerate(times):
+                if 0 <= t < self.pausestart:
+                    result[i] = values[i]
+                elif self.pausestart <= t and sumgamma > 0:
+                    result[i:] += values[gamma_start:len(values)-(i-gamma_start)]*gamma_vals[i-gamma_start]/sumgamma
+            return result
+        result = Solution(newchoice_upper, newchoice_lower, m, cond, undec, evolution)
+        return result._transform_pdf_correction(solution, transform)
 

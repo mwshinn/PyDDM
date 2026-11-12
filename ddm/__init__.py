@@ -20,6 +20,7 @@ globals().update(pyddm.__dict__)
 # happen with a plain "import".  It must be some bug or quirk with the import
 # system.
 sys.modules['ddm'] = sys.modules['pyddm']
+sys.modules['ddm.model'] = sys.modules['pyddm.model']
 sys.modules['ddm.models'] = sys.modules['pyddm.models']
 sys.modules['ddm.models.drift'] = sys.modules['pyddm.models.drift']
 sys.modules['ddm.models.noise'] = sys.modules['pyddm.models.noise']

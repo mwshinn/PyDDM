@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <limits.h>
 #include <math.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
@@ -40,11 +41,62 @@ static PyObject* analytic_ddm_linbound(PyObject* self, PyObject* args) {
   int nsteps;
   if (!PyArg_ParseTuple(args, "ddddid", &a1, &b1, &a2, &b2, &nsteps, &tstep))
     return NULL;
+  if (nsteps < 0 || !isfinite(tstep) || tstep <= 0) {
+    PyErr_SetString(PyExc_ValueError, "nsteps must be nonnegative and tstep must be positive and finite");
+    return NULL;
+  }
+  if (nsteps == 0) {
+    npy_intp dims[1] = {0};
+    return PyArray_SimpleNew(1, dims, NPY_DOUBLE);
+  }
   double *res = _analytic_ddm_linbound(a1, b1, a2, b2, nsteps, tstep);
+  if (!res) return PyErr_NoMemory();
   npy_intp dims[1] = { nsteps };
   PyObject *retarray = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, res);
+  if (!retarray) { free(res); return NULL; }
   PyArray_ENABLEFLAGS((PyArrayObject*)retarray, NPY_ARRAY_OWNDATA);
   return retarray;
+}
+
+/* Check the array lengths and grid assumptions before the solver accesses
+   raw pointers.  Custom Python dependences and direct extension calls can
+   otherwise turn an invalid input into an out-of-bounds access or crash. */
+static int fp_inputs(PyObject *drift_obj, PyObject *noise_obj, PyObject *bound_obj,
+                     PyObject *ic_obj, int drift_mode, int noise_mode, int bound_mode,
+                     int nsteps, double dt, double dx, double tolerance,
+                     PyArrayObject **drift, PyArrayObject **noise,
+                     PyArrayObject **bound, PyArrayObject **ic) {
+  *drift = *noise = *bound = *ic = NULL;
+  if (nsteps < 1 || !isfinite(dt) || dt <= 0 || !isfinite(dx) || dx <= 0 ||
+      !isfinite(tolerance) || tolerance < 0 || drift_mode < 0 || drift_mode > 3 ||
+      noise_mode < 0 || noise_mode > 3 || bound_mode < 0 || bound_mode > 1) {
+    PyErr_SetString(PyExc_ValueError, "Invalid solver grid, stopping tolerance, or coefficient mode");
+    return -1;
+  }
+  *drift = (PyArrayObject*)PyArray_FROMANY(drift_obj, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  if (!*drift) goto fail;
+  *noise = (PyArrayObject*)PyArray_FROMANY(noise_obj, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  if (!*noise) goto fail;
+  *bound = (PyArrayObject*)PyArray_FROMANY(bound_obj, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  if (!*bound) goto fail;
+  *ic = (PyArrayObject*)PyArray_FROMANY(ic_obj, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
+  if (!*ic) goto fail;
+  npy_intp n = PyArray_SIZE(*ic);
+  if (n < 1 || n > INT_MAX || n % 2 == 0) {
+    PyErr_SetString(PyExc_ValueError, "Initial condition must have a positive odd number of grid points");
+    goto fail;
+  }
+  npy_intp drift_size = ((drift_mode & 1) ? (npy_intp)nsteps : 1) * ((drift_mode & 2) ? n : 1);
+  npy_intp noise_size = ((noise_mode & 1) ? (npy_intp)nsteps : 1) * ((noise_mode & 2) ? n : 1);
+  if (PyArray_SIZE(*drift) < drift_size || PyArray_SIZE(*noise) < noise_size ||
+      PyArray_SIZE(*bound) < (bound_mode ? nsteps : 1)) {
+    PyErr_SetString(PyExc_ValueError, "Coefficient array is too short for its mode and solver grid");
+    goto fail;
+  }
+  return 0;
+fail:
+  Py_XDECREF(*drift); Py_XDECREF(*noise); Py_XDECREF(*bound); Py_XDECREF(*ic);
+  return -1;
 }
 
 
@@ -59,15 +111,10 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   if (!PyArg_ParseTuple(args, "OiOiOiOdddi|d", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps, &mass_tolerance))
     return NULL;
 
-  /* TODO here is the memory leak: if you don't call the FROMANY function, there is no leak */
-  _drift = (PyArrayObject*)PyArray_FROMANY(__drift, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _noise = (PyArrayObject*)PyArray_FROMANY(__noise, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _bound = (PyArrayObject*)PyArray_FROMANY(__bound, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _ic = (PyArrayObject*)PyArray_FROMANY(__ic, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-
-  len_x0 = PyArray_SIZE(_ic);
-  if (!_drift || !_noise || !_bound || !_ic)
+  if (fp_inputs(__drift, __noise, __bound, __ic, drifttype, noisetype, boundtype,
+                nsteps, dt, dx, mass_tolerance, &_drift, &_noise, &_bound, &_ic) < 0)
     return NULL;
+  len_x0 = PyArray_SIZE(_ic);
   drift = (double*)PyArray_DATA(_drift);
   noise = (double*)PyArray_DATA(_noise);
   bound = (double*)PyArray_DATA(_bound);
@@ -77,12 +124,23 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
   double *pdfchoice1 = (double*)malloc(nsteps*sizeof(double));
   double *pdfchoice2 = (double*)malloc(nsteps*sizeof(double));
   double *pdfcurr = (double*)malloc(len_x0*sizeof(double));
-  _implicit_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype, mass_tolerance);
+  if (!pdfchoice1 || !pdfchoice2 || !pdfcurr ||
+      _implicit_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype, mass_tolerance) < 0) {
+    free(pdfchoice1); free(pdfchoice2); free(pdfcurr);
+    Py_DECREF(_drift); Py_DECREF(_noise); Py_DECREF(_bound); Py_DECREF(_ic);
+    return PyErr_NoMemory();
+  }
   npy_intp dims[1] = { nsteps };
   npy_intp dimscurr[1] = { len_x0 };
   PyObject *choice1array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice1);
   PyObject *choice2array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice2);
   PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
+  if (!choice1array || !choice2array || !currarray) {
+    Py_XDECREF(choice1array); Py_XDECREF(choice2array); Py_XDECREF(currarray);
+    free(pdfchoice1); free(pdfchoice2); free(pdfcurr);
+    Py_DECREF(_drift); Py_DECREF(_noise); Py_DECREF(_bound); Py_DECREF(_ic);
+    return NULL;
+  }
   /* Need ENABLEFLAGS here, not UpdateFlags, because UpdateFlags checks to make
      sure you aren't using flags it doesn't like and silently drops those flags.
      (OWNDATA is one such flag.)  ENABLEFLAGS doesn't perform this validation. */
@@ -105,22 +163,19 @@ static PyObject* implicit_time(PyObject* self, PyObject* args) {
 static PyObject* cn_time(PyObject* self, PyObject* args) {
   double dt, dx, T_dur;
   double mass_tolerance = 1e-14;
+  int return_last_step = 0;
   double *drift, *noise, *bound, *ic;
   PyArrayObject *_drift, *_noise, *_bound, *_ic;
   PyObject *__drift, *__noise, *__bound, *__ic;
   int nsteps, len_x0;
   int drifttype, noisetype, boundtype;
-  if (!PyArg_ParseTuple(args, "OiOiOiOdddi|d", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps, &mass_tolerance))
+  if (!PyArg_ParseTuple(args, "OiOiOiOdddi|di", &__drift, &drifttype, &__noise, &noisetype, &__bound, &boundtype, &__ic, &T_dur, &dt, &dx, &nsteps, &mass_tolerance, &return_last_step))
     return NULL;
 
-  _drift = (PyArrayObject*)PyArray_FROMANY(__drift, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _noise = (PyArrayObject*)PyArray_FROMANY(__noise, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _bound = (PyArrayObject*)PyArray_FROMANY(__bound, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-  _ic = (PyArrayObject*)PyArray_FROMANY(__ic, NPY_DOUBLE, 1, 1, NPY_ARRAY_C_CONTIGUOUS);
-
+  if (fp_inputs(__drift, __noise, __bound, __ic, drifttype, noisetype, boundtype,
+                nsteps, dt, dx, mass_tolerance, &_drift, &_noise, &_bound, &_ic) < 0)
+    return NULL;
   len_x0 = PyArray_SIZE(_ic);
-  if (!_drift || !_noise || !_bound || !_ic)
-    return NULL;
   drift = (double*)PyArray_DATA(_drift);
   noise = (double*)PyArray_DATA(_noise);
   bound = (double*)PyArray_DATA(_bound);
@@ -129,12 +184,24 @@ static PyObject* cn_time(PyObject* self, PyObject* args) {
   double *pdfchoice1 = (double*)malloc(nsteps*sizeof(double));
   double *pdfchoice2 = (double*)malloc(nsteps*sizeof(double));
   double *pdfcurr = (double*)malloc(len_x0*sizeof(double));
-  _cn_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype, mass_tolerance);
+  int last_step = -1;
+  if (!pdfchoice1 || !pdfchoice2 || !pdfcurr ||
+      (last_step = _cn_time(nsteps, pdfchoice1, pdfchoice2, pdfcurr, drift, noise, bound, ic, len_x0, dt, dx, drifttype, noisetype, boundtype, mass_tolerance)) < 0) {
+    free(pdfchoice1); free(pdfchoice2); free(pdfcurr);
+    Py_DECREF(_drift); Py_DECREF(_noise); Py_DECREF(_bound); Py_DECREF(_ic);
+    return PyErr_NoMemory();
+  }
   npy_intp dims[1] = { nsteps };
   npy_intp dimscurr[1] = { len_x0 };
   PyObject *choice1array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice1);
   PyObject *choice2array = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, pdfchoice2);
   PyObject *currarray = PyArray_SimpleNewFromData(1, dimscurr, NPY_DOUBLE, pdfcurr);
+  if (!choice1array || !choice2array || !currarray) {
+    Py_XDECREF(choice1array); Py_XDECREF(choice2array); Py_XDECREF(currarray);
+    free(pdfchoice1); free(pdfchoice2); free(pdfcurr);
+    Py_DECREF(_drift); Py_DECREF(_noise); Py_DECREF(_bound); Py_DECREF(_ic);
+    return NULL;
+  }
   PyArray_ENABLEFLAGS((PyArrayObject*)choice1array, NPY_ARRAY_OWNDATA);
   PyArray_ENABLEFLAGS((PyArrayObject*)choice2array, NPY_ARRAY_OWNDATA);
   PyArray_ENABLEFLAGS((PyArrayObject*)currarray, NPY_ARRAY_OWNDATA);
@@ -144,7 +211,8 @@ static PyObject* cn_time(PyObject* self, PyObject* args) {
   Py_DECREF(_bound);
   Py_DECREF(_ic);
 
-  PyObject *ret = Py_BuildValue("(NNN)", choice1array, choice2array, currarray);
+  PyObject *ret = return_last_step ? Py_BuildValue("(NNNi)", choice1array, choice2array, currarray, last_step)
+                                  : Py_BuildValue("(NNN)", choice1array, choice2array, currarray);
   return ret;
 }
 
@@ -209,12 +277,14 @@ double* _analytic_ddm_linbound(double a1, double b1, double a2, double b2, unsig
 
   /* Prepare suminc */
   suminc = (double*)malloc(sizeof(double)*nsteps);
+  if (!suminc) return NULL;
   memset(suminc, 0, nsteps*sizeof(double));
 
   /* The two image exponents are quadratic in n. Their successive ratios
      therefore have a constant ratio themselves. Preserve the same sum and
      stopping test, but evaluate exp only during this initialization. */
   tmp = (double*)malloc(5*(size_t)image_steps*sizeof(double));
+  if (!tmp) { free(suminc); return NULL; }
   double *first = tmp+image_steps, *second = tmp+2*image_steps;
   double *ratio_first = tmp+3*image_steps, *ratio_second = tmp+4*image_steps;
   for (i=1; i<image_steps; i++) {
@@ -433,6 +503,12 @@ static int fp_time(int Tsteps, double *pdfchoice1, double *pdfchoice2,
   double *up = (double*)malloc(Xsteps*sizeof(double));
   double *down = (double*)malloc(Xsteps*sizeof(double));
   double *rhs = (double*)malloc(Xsteps*sizeof(double));
+  if (!old.diag || !old.up || !old.down || !next.diag || !next.up || !next.down ||
+      !middle.diag || !middle.up || !middle.down || !diag || !up || !down || !rhs) {
+    fp_free(old); fp_free(next); fp_free(middle);
+    free(diag); free(up); free(down); free(rhs);
+    return -1;
+  }
   double out_lower, out_upper, swept_lower, swept_upper;
   int last_cn_step = 0;
   int varying = (drift_mode & 1) || (noise_mode & 1) || bound_mode;
@@ -528,7 +604,7 @@ static int fp_time(int Tsteps, double *pdfchoice1, double *pdfchoice2,
   free(up);
   free(down);
   free(rhs);
-  return 0;
+  return cn ? last_cn_step : 0;
 }
 
 int _implicit_time(int Tsteps, double *pdfchoice1, double *pdfchoice2, double *pdfcurr,
