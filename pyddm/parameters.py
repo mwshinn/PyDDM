@@ -13,5 +13,10 @@ T_dur = 2. # [s] Duration of simulation
 dt = .005 #0.005 # [s] Time-step.
 choice_names = ("correct", "error") # Default upper and lower boundary
 
+# Stop numerical solves once the remaining absolute probability mass is
+# negligible.  Set to zero to integrate the complete tail.  Saved evolution
+# always uses the complete tail.  The former cutoff was 1e-4.
+numerical_mass_tolerance = 1e-14
+
 # Display warnings
 renorm_warnings = True

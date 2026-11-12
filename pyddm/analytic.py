@@ -96,8 +96,10 @@ def analytic_ddm(drift, noise, b, teval, shift=None, b_slope=0, force_python=Fal
 
     # Get valid time points (before two bounds collapsed)
     teval_valid = teval[b+b_slope*teval>0]
+    if len(teval_valid) == 0:
+        return np.zeros(len(teval)), np.zeros(len(teval))
 
-    if force_python or not HAS_CSOLVE:
+    if force_python or not HAS_CSOLVE or len(teval_valid) == 1:
         dist_choice_upper = analytic_ddm_linbound(b_upper, -drift+b_slope, -b_lower, -drift-b_slope, teval_valid)
         dist_choice_lower = analytic_ddm_linbound(b_lower,  drift+b_slope, -b_upper,  drift-b_slope, teval_valid)
     else:

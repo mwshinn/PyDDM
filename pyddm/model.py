@@ -405,17 +405,24 @@ class Model(object):
         """A list which spans from the lower boundary to the upper boundary by increments of dx."""
         # Find the maximum size of the bound across the t-domain in
         # case we have increasing bounds
-        if t is None:
-            B = max([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
+        if t is None and self._bounddep._uses_t():
+            B = max([self._bounddep.get_bound(t=t, conditions=conditions) for t in self.t_domain()])
         else:
-            B = self.get_dependence("bound").get_bound(t=t, conditions=conditions)
-        B = np.ceil(B/self.dx)*self.dx # Align the bound to dx borders
-        return np.arange(-B, B+0.1*self.dx, self.dx) # +.1*dx is to ensure that the largest number in the array is B
+            B = self._bounddep.get_bound(t=0 if t is None else t, conditions=conditions)
+        # This is the storage grid, not a rounding of the physical boundary.
+        # Integer multiples keep the centre exactly zero and avoid an extra
+        # grid point when B/dx is an integer up to floating point roundoff.
+        radius = max(0, int(np.ceil(B/self.dx - 1e-10)))
+        return np.arange(-radius, radius+1)*self.dx
     def t_domain(self):
         """A list of all of the timepoints over which the joint PDF will be defined (increments of dt from 0 to T_dur)."""
         return np.arange(0., self.T_dur+0.1*self.dt, self.dt)
     def flux(self, x, t, conditions):
-        """The flux across the boundary at position `x` at time `t`."""
+        """Uniform-grid outgoing coefficient at the adjacent interior point.
+
+        Numerical solvers use the spatial operator's outgoing rates directly
+        to also account for fractional boundaries and single-point domains.
+        """
         drift_flux = self.get_dependence('drift').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
         noise_flux = self.get_dependence('noise').get_flux(x, t, dx=self.dx, dt=self.dt, conditions=conditions)
         return drift_flux + noise_flux
@@ -575,10 +582,21 @@ class Model(object):
     @accepts(Self, conditions=Conditions)
     @returns(Boolean)
     def can_solve_explicit(self, conditions={}):
-        """Check explicit method stability criterion"""
+        """Check positivity and stability of the explicit spatial update.
+
+        Check every occupied grid position, including the shorter distances
+        to off-grid boundaries.  The drift restrictions matter as well as
+        the usual diffusion restriction sigma**2 * dt / dx**2 <= 1.
+        """
         self.check_conditions_satisfied(conditions)
-        noise_max = max((self._noisedep.get_noise(x=0, t=t, dx=self.dx, dt=self.dt, conditions=conditions) for t in self.t_domain()))
-        return noise_max**2 * self.dt/(self.dx**2) < 1
+        x = self.x_domain(conditions=conditions)
+        times = self.t_domain()
+        varying = any(dep._uses_t() for dep in (self._driftdep, self._noisedep, self._bounddep))
+        for t in times[:-1] if varying else times[:1]:
+            bound = self._bounddep.get_bound(t=t, conditions=conditions)
+            if not self._fp_explicit_stable(self._fp_matrix(x, t, bound, conditions)):
+                return False
+        return True
 
     @accepts(Self, conditions=Conditions)
     @returns(Boolean)
@@ -639,13 +657,22 @@ class Model(object):
         assert self.has_analytical_solution(), "Cannot solve for this model analytically"
         self.check_conditions_satisfied(conditions)
         
-        #calculate shift in initial conditions if present
+        # Use the physical starting position, rather than a fraction of the
+        # storage grid (whose endpoints may lie outside the physical bound).
+        initial_bound = self._bounddep.get_bound(t=0, conditions=conditions)
+        start = 0.
         if isinstance(self.get_dependence('IC'),(ICPoint, ICPointRatio)):
             ic = self.IC(conditions=conditions)
             assert np.count_nonzero(ic)==1, "Cannot solve analytically for models with non-point initial conditions"
-            shift = np.flatnonzero(ic)[0] / (len(ic) - 1) #rescale to proprotion of total bound height
+            start = (np.flatnonzero(ic)[0] - (len(ic)-1)//2)*self.dx
+            shift = .5 + start/(2*initial_bound) if initial_bound > 0 else None
         else:
             shift = None
+        if initial_bound <= 0 or abs(start) >= initial_bound:
+            upper, lower = np.zeros(len(self.t_domain())), np.zeros(len(self.t_domain()))
+            upper[0] = 1. if start > 0 else 0. if start < 0 else .5
+            lower[0] = 1-upper[0]
+            return self._overlay.apply(Solution(upper, lower, self, conditions=conditions))
         
         # The analytic_ddm function does the heavy lifting.
         if isinstance(self.get_dependence('bound'), BoundCollapsingLinear): # Linearly Collapsing Bound
@@ -692,6 +719,7 @@ class Model(object):
         currently undocumented feature).
         """
 
+        self.check_conditions_satisfied(conditions)
         get_drift = self.get_dependence("drift").get_drift
         drift_uses_t = self.get_dependence("drift")._uses_t()
         drift_uses_x = self.get_dependence("drift")._uses_x()
@@ -706,17 +734,8 @@ class Model(object):
             drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), t=0, conditions=conditions))
         elif drift_uses_t and drift_uses_x:
             drifttype = 3
-            # TODO: Right now this calculates and passes the maximum x domain,
-            # even if it is not necessary to do so.  Performance could be
-            # improved by only calculating the parts of x domain that are
-            # needed and then finding a way to index that within C.
-            # Alternatively, it could only calculate the ones it needs, and
-            # then fill the extra space with nonsense values just to form a
-            # rectangular matrix, since they will never be read within the C
-            # code.  maxt is a workaround so we don't have to find the maximum
-            # in the t domain on each iteration.
-            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
-            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            # Evaluate on the maximum storage grid once, before iterating t.
+            xdomain = self.x_domain(conditions=conditions)
             drift = np.concatenate([get_drift(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         get_noise = self.get_dependence("noise").get_noise
         noise_uses_t = self.get_dependence("noise")._uses_t()
@@ -732,9 +751,7 @@ class Model(object):
             noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions, t=0))
         elif noise_uses_t and noise_uses_x:
             noisetype = 3
-            # See comment in drifttype = 3
-            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
-            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            xdomain = self.x_domain(conditions=conditions)
             noise = np.concatenate([get_noise(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         bound_uses_t = self.get_dependence("bound")._uses_t()
         if not bound_uses_t:
@@ -743,15 +760,8 @@ class Model(object):
         elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
-        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()))
-        # TODO: Handle the pdf going below zero, returning pdfcurr, and fix numerical errors
-        choice_upper = (res[0]*self.dt)
-        choice_upper[choice_upper<0] = 0
-        choice_lower = (res[1]*self.dt)
-        choice_lower[choice_lower<0] = 0
-        undec = res[2]
-        undec[undec<0] = 0
-        return self.get_dependence('overlay').apply(Solution(choice_upper, choice_lower, self, conditions=conditions, pdf_undec=undec))
+        res = csolve.implicit_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance)
+        return self._finish_numerical(res[0]*self.dt, res[1]*self.dt, conditions, undec=res[2])
 
     def solve_numerical_cn_c(self, conditions={}):
         """Solve the DDM model using Crank-Nicolson with C extensions.
@@ -761,6 +771,8 @@ class Model(object):
         Python code to do so, which should make it faster.
         """
 
+        self.check_conditions_satisfied(conditions)
+        assert self.can_solve_cn(conditions=conditions), "Crank-Nicolson requires time-independent bounds"
         get_drift = self.get_dependence("drift").get_drift
         drift_uses_t = self.get_dependence("drift")._uses_t()
         drift_uses_x = self.get_dependence("drift")._uses_x()
@@ -775,8 +787,7 @@ class Model(object):
             drift = np.asarray(get_drift(x=self.x_domain(conditions=conditions), t=0, conditions=conditions))
         elif drift_uses_t and drift_uses_x:
             drifttype = 3
-            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
-            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            xdomain = self.x_domain(conditions=conditions)
             drift = np.concatenate([get_drift(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         get_noise = self.get_dependence("noise").get_noise
         noise_uses_t = self.get_dependence("noise")._uses_t()
@@ -792,8 +803,7 @@ class Model(object):
             noise = np.asarray(get_noise(x=self.x_domain(conditions=conditions), conditions=conditions, t=0))
         elif noise_uses_t and noise_uses_x:
             noisetype = 3
-            maxt = self.t_domain()[np.argmax([self.get_dependence("bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])]
-            xdomain = self.x_domain(t=maxt, conditions=conditions)
+            xdomain = self.x_domain(conditions=conditions)
             noise = np.concatenate([get_noise(t=t, x=xdomain, conditions=conditions) for t in self.t_domain()])
         bound_uses_t = self.get_dependence("bound")._uses_t()
         if not bound_uses_t:
@@ -802,12 +812,213 @@ class Model(object):
         elif bound_uses_t:
             boundtype = 1
             bound = np.asarray([self.get_dependence("Bound").get_bound(t=t, conditions=conditions) for t in self.t_domain()])
-        res = csolve.cn_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()))
-        choice_upper = res[0]
-        choice_upper[choice_upper<0] = 0
-        choice_lower = res[1]
-        choice_lower[choice_lower<0] = 0
-        return self.get_dependence('overlay').apply(Solution(choice_upper, choice_lower, self, conditions=conditions, pdf_undec=None))
+        res = csolve.cn_time(drift, drifttype, noise, noisetype, bound, boundtype, self.get_dependence("IC").get_IC(self.x_domain(conditions=conditions), self.dx, conditions=conditions), self.T_dur, self.dt, self.dx, len(self.t_domain()), param.numerical_mass_tolerance)
+        return self._finish_numerical(res[0], res[1], conditions)
+
+    def _fp_indices(self, x, bound):
+        """Indices strictly inside the physical absorbing boundaries."""
+        centre = (len(x)-1)//2
+        if bound <= 0:
+            return centre, centre
+        radius = min(centre, max(0, int(np.ceil(bound/self.dx - 1e-10))-1))
+        return centre-radius, centre+radius+1
+
+    def _fp_matrix(self, x, t, bound, conditions):
+        """Return -L and its two outgoing rates, for q' = L q.
+
+        q contains probability masses, not density values.  Only points
+        strictly inside (-bound, bound) evolve.  At a fractional boundary
+        the rates are the transpose of the nonuniform central-difference
+        backward operator.  They preserve the local first and second
+        moments, including when there is just one interior point.
+        """
+        first, stop = self._fp_indices(x, bound)
+        matrix = TriDiagMatrix(diag=np.zeros(len(x)),
+                               up=np.zeros(len(x)-1), down=np.zeros(len(x)-1))
+        if first == stop:
+            return matrix, (first, 0.), (first, 0.)
+        inside = x[first:stop]
+        args = dict(x=inside, t=t, dx=self.dx, dt=self.dt,
+                    conditions=conditions, implicit=False)
+        local = (self._driftdep.get_matrix(**args)
+                 + self._noisedep.get_matrix(**args)) * (1/self.dt)
+        # A boundary between grid points changes the two rates leaving
+        # the adjacent point, not just the rate directed at the boundary.
+        edges = [0] if len(inside) == 1 else [0, len(inside)-1]
+        for j in edges:
+            left = bound + inside[j] if j == 0 else self.dx
+            right = bound - inside[j] if j == len(inside)-1 else self.dx
+            args_edge = dict(x=inside[j], t=t, dx=self.dx, dt=self.dt, conditions=conditions)
+            drift = self._driftdep.get_drift(**args_edge)
+            variance = self._noisedep.get_noise(**args_edge)**2
+            rate_left = (variance-drift*right)/(left*(left+right))
+            rate_right = (variance+drift*left)/(right*(left+right))
+            local.diag[j] = rate_left + rate_right
+            if j > 0:
+                local.up[j-1] = -rate_left
+            else:
+                lower = (first, rate_left)
+            if j < len(inside)-1:
+                local.down[j] = -rate_right
+            else:
+                upper = (stop-1, rate_right)
+        matrix.diag[first:stop] = local.diag
+        matrix.up[first:stop-1] = local.up
+        matrix.down[first:stop-1] = local.down
+        return matrix, lower, upper
+
+    def _fp_absorb(self, pdf, x, bound):
+        """Remove mass on or outside a boundary, including a collapsed one."""
+        first, stop = self._fp_indices(x, bound)
+        if first == stop:
+            lower = np.sum(pdf[:first]) + .5*pdf[first]
+            upper = np.sum(pdf[first+1:]) + .5*pdf[first]
+            pdf.fill(0)
+        else:
+            lower, upper = np.sum(pdf[:first]), np.sum(pdf[stop:])
+            pdf[:first] = 0
+            pdf[stop:] = 0
+        return lower, upper
+
+    def _fp_explicit_stable(self, operator):
+        matrix, lower, upper = operator
+        return not (np.any(matrix.diag*self.dt > 1+1e-12)
+                    or np.any(matrix.up > 1e-12) or np.any(matrix.down > 1e-12)
+                    or lower[1] < -1e-12 or upper[1] < -1e-12)
+
+    def _fp_step(self, pdf, old, new, step, theta, implicit_matrix=None):
+        """Advance the state and absorbed mass with the same theta rule."""
+        rhs = pdf if theta == 1 else pdf - (1-theta)*step*old[0].dot(pdf)
+        following = rhs
+        if theta != 0:
+            first, stop = new[1][0], new[2][0]+1
+            if implicit_matrix is None:
+                matrix, scale = new[0], theta*step
+                implicit_matrix = TriDiagMatrix(diag=1+scale*matrix.diag[first:stop],
+                                                up=scale*matrix.up[first:stop-1],
+                                                down=scale*matrix.down[first:stop-1])
+            following = rhs.copy()
+            following[first:stop] = implicit_matrix.spsolve(rhs[first:stop])
+        lower = step*((1-theta)*old[1][1]*pdf[old[1][0]]
+                      + theta*new[1][1]*following[new[1][0]])
+        upper = step*((1-theta)*old[2][1]*pdf[old[2][0]]
+                      + theta*new[2][1]*following[new[2][0]])
+        return following, lower, upper
+
+    def _finish_numerical(self, upper, lower, conditions, undec=None, evolution=None):
+        arrays = [upper, lower] + ([] if undec is None else [undec])
+        negative = sum(np.sum(a[a < 0]) for a in arrays)
+        if negative < -.01 and param.renorm_warnings:
+            _logger.warning("Negative probability mass encountered. Decrease dt and/or dx.")
+        for a in arrays:
+            a[a < 0] = 0
+        total = sum(np.sum(a) for a in arrays)
+        if total > 1:
+            if total > 1.01 and param.renorm_warnings:
+                _logger.warning("Renormalizing probability density from %f to 1. Decrease dt and/or dx.", total)
+            for a in arrays:
+                a /= total
+        return self._overlay.apply(Solution(upper, lower, self, conditions=conditions,
+                                            pdf_undec=undec, pdf_evolution=evolution))
+
+    def _solve_numerical_python(self, method, conditions, return_evolution=False):
+        times = self.t_domain()
+        x = self.x_domain(conditions=conditions)
+        pdf = self.IC(conditions=conditions).copy()
+        upper, lower = np.zeros(len(times)), np.zeros(len(times))
+        bound = self._bounddep.get_bound(t=0, conditions=conditions)
+        lower[0], upper[0] = self._fp_absorb(pdf, x, bound)
+        evolution = np.zeros((len(x), len(times))) if return_evolution else None
+        if evolution is not None:
+            evolution[:, 0] = pdf
+        varying_bound = self._bounddep._uses_t()
+        varying = varying_bound or self._driftdep._uses_t() or self._noisedep._uses_t()
+        old = self._fp_matrix(x, 0, bound, conditions)
+        implicit_matrix = None
+        cn_rhs = None
+        if not varying and method != 'explicit':
+            first, stop = old[1][0], old[2][0]+1
+            theta = .5 if method == 'cn' else 1
+            # For constant coefficients, CN and its BE half steps share
+            # the same left-hand matrix.  Cache only within this solve.
+            implicit_matrix = TriDiagMatrix.eye(stop-first) + theta*self.dt*old[0].splice(first, stop)
+            if method == 'cn':
+                cn_rhs = TriDiagMatrix.eye(stop-first) - theta*self.dt*old[0].splice(first, stop)
+        if method == 'explicit' and not varying:
+            assert self._fp_explicit_stable(old), "Explicit solver is unstable for these dx, dt, drift, noise, and bounds"
+        last_cn_step = 0
+        for i in range(1, len(times)):
+            # Check the absolute mass so signed CN roundoff cannot cancel.
+            # A varying explicit model must still validate every time step.
+            if (i-1) % 10 == 0 and not (method == 'explicit' and varying):
+                remaining = np.sum(np.abs(pdf))
+                if remaining == 0 or (evolution is None and remaining < param.numerical_mass_tolerance):
+                    break
+            t, step = times[i], self.dt
+            if varying_bound:
+                bound = self._bounddep.get_bound(t=t, conditions=conditions)
+            if method == 'explicit' and varying:
+                # Validate the operator that will actually advance this step,
+                # instead of building every operator in a separate preflight.
+                assert self._fp_explicit_stable(old), "Explicit solver is unstable for these dx, dt, drift, noise, and bounds"
+            if method == 'implicit' and varying_bound:
+                lower[i], upper[i] = self._fp_absorb(pdf, x, bound)
+                if bound <= 0:
+                    break  # All mass has been absorbed, even if bounds reopen.
+            new = self._fp_matrix(x, t, bound, conditions) if varying else old
+            if method == 'cn':
+                if i <= 2:
+                    # Rannacher startup: four backward Euler half steps
+                    # damp the grid-scale modes of a point initial condition.
+                    # Interpolate the operator at the first half step.  Only
+                    # these two startup intervals use this interpolation.
+                    middle = ((old[0]+new[0])*.5,
+                              (old[1][0], .5*(old[1][1]+new[1][1])),
+                              (old[2][0], .5*(old[2][1]+new[2][1])))
+                    pdf, half_lower, half_upper = self._fp_step(pdf, old, middle, step*.5, 1, implicit_matrix)
+                    pdf, out_lower, out_upper = self._fp_step(pdf, middle, new, step*.5, 1, implicit_matrix)
+                    # Both half-step masses belong to this time interval.
+                    # Split its mass between the adjacent time nodes, so
+                    # the output remains centred on the existing time grid.
+                    lower[i] = .5*(half_lower + out_lower)
+                    upper[i] = .5*(half_upper + out_upper)
+                    lower[i-1] += lower[i]
+                    upper[i-1] += upper[i]
+                else:
+                    if i == 3:
+                        # Complete the last startup node with the old-state
+                        # contribution from the first trapezoidal interval.
+                        lower[i-1] += .5*step*old[1][1]*pdf[old[1][0]]
+                        upper[i-1] += .5*step*old[2][1]*pdf[old[2][0]]
+                    if cn_rhs is not None:
+                        pdf[first:stop] = implicit_matrix.spsolve(cn_rhs.dot(pdf[first:stop]))
+                    else:
+                        pdf, _, _ = self._fp_step(pdf, old, new, step, .5, implicit_matrix)
+                    # Interior nodes receive two equal trapezoidal half
+                    # weights. Correct the terminal node once after looping.
+                    lower[i] = step*new[1][1]*pdf[new[1][0]]
+                    upper[i] = step*new[2][1]*pdf[new[2][0]]
+                last_cn_step = i
+            elif method == 'implicit':
+                pdf, out_lower, out_upper = self._fp_step(pdf, new, new, step, 1, implicit_matrix)
+                lower[i] += out_lower
+                upper[i] += out_upper
+            else:
+                pdf, lower[i], upper[i] = self._fp_step(pdf, old, old, step, 0)
+                if varying_bound:
+                    out_lower, out_upper = self._fp_absorb(pdf, x, bound)
+                    lower[i] += out_lower
+                    upper[i] += out_upper
+            old = new
+            if evolution is not None:
+                evolution[:, i] = pdf
+        if last_cn_step > 2:
+            # Also applies if the tail cutoff ended integration early.
+            lower[last_cn_step] *= .5
+            upper[last_cn_step] *= .5
+        return self._finish_numerical(upper, lower, conditions,
+                                      undec=None if method == 'cn' else pdf, evolution=evolution)
+
 
     @accepts(Self, method=Set(["explicit", "implicit", "cn"]), conditions=Conditions, return_evolution=Boolean, force_python=Boolean)
     @returns(Solution)
@@ -821,15 +1032,18 @@ class Model(object):
         the core DDM solver of this library.
 
         Crank-Nicolson is the default and works for any model with
-        constant bounds.
+        constant bounds. Its returned choice arrays contain conserved
+        probability masses at the existing time nodes; see
+        solve_numerical_cn for the endpoint quadrature weights.
 
         Implicit is the fallback method.  It should work well in most
         cases and is generally stable.
 
-        Normally, the explicit method should not be used. Also note
-        the stability criteria for explicit method is:
-
-          | noise^2/2 * dt/dx^2 < 1/2
+        Normally, the explicit method should not be used.  Its step must
+        preserve nonnegative probability at every interior point.  On a
+        uniform grid this requires noise**2 * dt/dx**2 <= 1 and
+        abs(drift)*dx <= noise**2.  Fractional boundary cells can require
+        smaller steps; can_solve_explicit checks the actual operator.
 
         It returns a Solution object describing the joint PDF.  This
         method should not fail for any model type.
@@ -840,6 +1054,11 @@ class Model(object):
 
         `force_python` makes PyDDM use the solver written in Python instead of
         the optimized solver written in C.
+
+        Numerical solves may stop when the remaining absolute probability
+        mass is below `pyddm.parameters.numerical_mass_tolerance` (1e-14 by
+        default).  Set this to zero to integrate the complete tail.  Saved
+        evolution always integrates the complete tail.
 
         """
         self.check_conditions_satisfied(conditions)
@@ -854,172 +1073,7 @@ class Model(object):
         if method == "implicit" and HAS_CSOLVE and not force_python and not return_evolution:
             return self.solve_numerical_c(conditions=conditions)
 
-        # Initial condition of decision variable
-        pdf_curr = self.IC(conditions=conditions)
-        # Output correct and error pdfs.  If pdf_corr + pdf_err +
-        # undecided probability are summed, they equal 1.  So these
-        # are componets of the joint pdf.
-        pdf_choice_upper = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
-        pdf_choice_lower = np.zeros(len(self.t_domain())) # Not a proper pdf on its own (doesn't sum to 1)
-        x_list = self.x_domain(conditions=conditions)
-
-        # If evolution of pdf should be returned, preallocate np.array pdf_evolution for performance reasons
-        if return_evolution:
-            pdf_evolution = np.zeros((len(x_list), len(self.t_domain())))
-            pdf_evolution[:,0] = pdf_curr
-
-        # Find maximum bound for increasing bounds
-        _bound_func = self.get_dependence("bound").get_bound
-        bmax = max([_bound_func(t=t, conditions=conditions) for t in self.t_domain()])
-        # Looping through time and updating the pdf.
-        for i_t, t in enumerate(self.t_domain()[:-1]): # -1 because nothing will happen at t=0 so each step computes the value for the next timepoint
-            # Alias pdf_prev to pdf_curr for clarity
-            pdf_prev = pdf_curr
-
-            # For efficiency only do diffusion if there's at least
-            # some densities remaining in the channel.
-            if np.sum(pdf_curr[:]) < 0.0001:
-                break
-            
-            # Boundary at current time-step.
-            bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions)
-
-            # Now figure out which x positions are still within
-            # the (collapsing) bound.
-            assert bmax >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-            bound_shift = bmax - bound
-            # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
-            x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
-            x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
-
-            # We weight the upper and lower matrices according to
-            # how far away the bound is from each.  The weight of
-            # each matrix is approximated linearly. The inner
-            # bound is 0 when bound exactly at grids.
-            weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
-            weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
-            x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
-
-            # Diffusion Matrix for Implicit Method. Here defined as
-            # Outer Matrix, and inder matrix is either trivial or an
-            # extracted submatrix.
-            drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
-                                                                   dt=self.dt, dx=self.dx,
-                                                                   conditions=conditions,
-                                                                   implicit=(method!="explicit"))
-            noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds, t=t,
-                                                                   dt=self.dt, dx=self.dx, conditions=conditions,
-                                                                   implicit=(method!="explicit"))
-            if method == "implicit":
-                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)) + drift_matrix + noise_matrix
-            elif method == "explicit":
-                # Explicit method flips sign except for the identity matrix
-                diffusion_matrix_explicit = TriDiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
-
-            ### Compute Probability density functions (pdf)
-            # PDF for outer matrix
-            if method == "implicit":
-                pdf_outer = diffusion_matrix.spsolve(pdf_prev[x_index_outer:len(x_list)-x_index_outer])
-            elif method == "explicit":
-                pdf_outer = diffusion_matrix_explicit.dot(pdf_prev[x_index_outer:len(x_list)-x_index_outer]).squeeze()
-            # If the bounds are the same the bound perfectly
-            # aligns with the grid), we don't need so solve the
-            # diffusion matrix again since we don't need a linear
-            # approximation.
-            if x_index_inner == x_index_outer:
-                pdf_inner = pdf_outer
-            else:
-                # Need a separate matrix here to get the proper corrections
-                drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds[1:-1], t=t,
-                                                                    dt=self.dt, dx=self.dx,
-                                                                    conditions=conditions,
-                                                                    implicit=(method!="explicit"))
-                noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds[1:-1], t=t,
-                                                                    dt=self.dt, dx=self.dx, conditions=conditions,
-                                                                    implicit=(method!="explicit"))
-                if method == "implicit":
-                    diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds)-2) + drift_matrix + noise_matrix
-                elif method == "explicit":
-                    # Explicit method flips sign except for the identity matrix
-                    diffusion_matrix_explicit = TriDiagMatrix.eye(len(x_list_inbounds)) - drift_matrix - noise_matrix
-                if method == "implicit":
-                    pdf_inner = diffusion_matrix.spsolve(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
-                elif method == "explicit":
-                    pdf_inner = diffusion_matrix_explicit.dot(pdf_prev[x_index_inner:len(x_list)-x_index_inner])
-
-            # Pdfs out of bound is considered decisions made.
-            pdf_choice_lower[i_t+1] += weight_outer * np.sum(pdf_prev[:x_index_outer]) \
-                              + weight_inner * np.sum(pdf_prev[:x_index_inner])
-            pdf_choice_upper[i_t+1] += weight_outer * np.sum(pdf_prev[len(x_list)-x_index_outer:]) \
-                               + weight_inner * np.sum(pdf_prev[len(x_list)-x_index_inner:])
-            # Reconstruct current probability density function,
-            # adding outer and inner contribution to it.  Use
-            # .fill() method to avoid allocating memory with
-            # np.zeros().
-            pdf_curr.fill(0) # Reset
-            pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer # For explicit, should be pdf_outer.T?
-            pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
-
-            # Increase current, transient probability of crossing
-            # either bounds, as flux.  Corr is a correct answer, err
-            # is an incorrect answer
-            _inner_B_choice_upper = x_list[len(x_list)-1-x_index_inner]
-            _outer_B_choice_upper = x_list[len(x_list)-1-x_index_outer]
-            _inner_B_choice_lower = x_list[x_index_inner]
-            _outer_B_choice_lower = x_list[x_index_outer]
-            if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
-                pdf_inner = np.array([0])
-            pdf_choice_upper[i_t+1] += weight_outer * pdf_outer[-1] * self.flux(_outer_B_choice_upper, t, conditions=conditions) \
-                               +  weight_inner * pdf_inner[-1] * self.flux(_inner_B_choice_upper, t, conditions=conditions)
-            pdf_choice_lower[i_t+1]  += weight_outer * pdf_outer[0] * self.flux(_outer_B_choice_lower, t, conditions=conditions) \
-                                +  weight_inner * pdf_inner[0] * self.flux(_inner_B_choice_lower, t, conditions=conditions)
-
-            # Renormalize when the channel size has <1 grid, although
-            # all hell breaks loose in this regime.
-            if bound < self.dx:
-                pdf_choice_upper[i_t+1] *= (1+ (1-bound/self.dx))
-                pdf_choice_lower[i_t+1] *= (1+ (1-bound/self.dx))
-
-            # If evolution of pdf should be returned, append pdf_curr to pdf_evolution
-            if return_evolution:
-                pdf_evolution[:,i_t+1] = pdf_curr
-
-        # Detect and fix below zero errors
-        pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower), np.min(pdf_undec)))
-        if minval < 0:
-            sum_negative_strength = np.sum(pdf_choice_upper[pdf_choice_upper<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
-            sum_negative_strength_undec = np.sum(pdf_undec[pdf_undec<0])
-            if sum_negative_strength < -.01 and param.renorm_warnings:
-                _logger.warning(("Probability density included values less than zero (minimum=%f, "
-                    + "total=%f.  Please decrease dt and/or avoid extreme parameter values.")
-                    % (minval, sum_negative_strength))
-                _logger.debug(self.parameters())
-            if sum_negative_strength_undec < -.01 and param.renorm_warnings:
-                _logger.warning(("Remaining FP distribution included values less than zero "
-                    + "(minimum=%f, total=%f).  Please decrease dt and/or avoid extreme parameter "
-                    + "values.") % (minval, sum_negative_strength_undec))
-                _logger.debug(self.parameters())
-            pdf_choice_lower[pdf_choice_lower < 0] = 0
-            pdf_choice_lower[pdf_choice_lower < 0] = 0
-            pdf_undec[pdf_undec < 0] = 0
-        # Fix numerical errors
-        pdfsum = np.sum(pdf_choice_upper) + np.sum(pdf_choice_lower) + np.sum(pdf_undec)
-        if pdfsum > 1:
-            if pdfsum > 1.01 and param.renorm_warnings:
-                _logger.warning(("Renormalizing probability density from " + str(pdfsum) + "to 1. "
-                    + " Try decreasing dt or using the implicit (backward Euler) method instead.  "
-                    + "If that doesn't eliminate this warning, it may be due to extreme parameter "
-                    + "values and/or bugs in your model spefication."))
-                _logger.debug(self.parameters())
-            pdf_choice_upper /= pdfsum
-            pdf_choice_lower /= pdfsum
-            pdf_undec /= pdfsum
-
-        if return_evolution:
-            return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=pdf_undec, pdf_evolution=pdf_evolution))
-        
-        return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=pdf_undec))
+        return self._solve_numerical_python(method, conditions, return_evolution)
 
     @accepts(Self, Conditions)
     @returns(Solution)
@@ -1046,248 +1100,28 @@ class Model(object):
     def solve_numerical_cn(self, conditions={}):
         """Solve the DDM model numerically using Crank-Nicolson.
 
-        This uses the Crank Nicolson method to solve the DDM at each
-        timepoint.  Results are then compiled together.  This is the
-        core DDM solver of this library.
+        This uses Crank-Nicolson after two Rannacher startup intervals
+        (four backward Euler half steps). The returned choice arrays
+        contain the absorbed probability, placed at t_domain() using the
+        time integrator's quadrature weights. Each startup interval's
+        absorbed mass is shared equally between its endpoint nodes.
+        Subsequent intervals contribute dt/2 times the boundary flux at
+        each endpoint. Thus ordinary interior nodes contain dt times the
+        nodal density, while the final node has only a half weight. This
+        preserves both probability and the interior density's time
+        alignment, without counting absorption after the final time.
+
+        Solution.pdf divides these masses by dt, so its final value has
+        the same half weight. For a comparison with analytical nodal
+        densities, apply the corresponding endpoint quadrature weights
+        to the analytical values. The final undecided spatial
+        distribution is not returned, since CN states can oscillate.
 
         It returns a Solution object describing the joint PDF.
         """
-        ### Initialization: Lists
         self.check_conditions_satisfied(conditions)
-        pdf_curr = self.IC(conditions=conditions) # Initial condition
-        pdf_outer = self.IC(conditions=conditions)
-        pdf_inner = self.IC(conditions=conditions)
-        # pdf_prev = np.zeros((len(pdf_curr)))
-        # If pdf_corr + pdf_err + undecided probability are summed, they
-        # equal 1.  So these are componets of the joint pdf.
-        pdf_choice_upper = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
-        pdf_choice_lower = np.zeros(len(self.t_domain())+1) # Not a proper pdf on its own (doesn't sum to 1)
-        x_list = self.x_domain(conditions=conditions)
-
-        bound_shift = 0.
-        # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
-        x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
-        x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
-
-        # We weight the upper and lower matrices according to
-        # how far away the bound is from each.  The weight of
-        # each matrix is approximated linearly. The inner
-        # bound is 0 when bound exactly at grids.
-        weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
-        weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
-        x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
-
-
-        prev_t = 0
-        prev_i_t = 0
-        # Looping through time and updating the pdf.
-        for i_t, t in enumerate(self.t_domain()):
-            # Update Previous state.
-            pdf_outer_prev = pdf_outer.copy()
-            pdf_inner_prev = pdf_inner.copy()
-
-            # For efficiency only do diffusion if there's at least
-            # some densities remaining in the channel.
-            if np.sum(pdf_curr[:])>0.0001:
-                ## Define the boundaries at current time.
-                bound = self.get_dependence('bound').get_bound(t=t, conditions=conditions) # Boundary at current time-step.
-
-                # Now figure out which x positions are still within
-                # the (collapsing) bound.
-                assert self.get_dependence("bound").get_bound(t=0, conditions=conditions) >= bound, "Invalid change in bound" # Ensure the bound didn't expand
-                bound_shift = self.get_dependence("bound").get_bound(t=0, conditions=conditions) - bound
-                # Note that we linearly approximate the bound by the two surrounding grids sandwiching it.
-                x_index_inner_prev = x_index_inner
-                x_index_outer_prev = x_index_outer
-                x_index_inner = int(np.ceil(bound_shift/self.dx)) # Index for the inner bound (smaller matrix)
-                x_index_outer = int(np.floor(bound_shift/self.dx)) # Index for the outer bound (larger matrix)
-                x_index_inner_shift = x_index_inner - x_index_inner_prev
-                x_index_outer_shift = x_index_outer - x_index_outer_prev
-                x_index_io_shift = x_index_inner - x_index_outer
-                x_index_io_shift_prev = x_index_inner_prev - x_index_outer_prev
-                # We weight the upper and lower matrices according to
-                # how far away the bound is from each.  The weight of
-                # each matrix is approximated linearly. The inner
-                # bound is 0 when bound exactly at grids.
-                weight_inner_prev = weight_inner
-                weight_outer_prev = weight_outer
-                weight_inner = (bound_shift - x_index_outer*self.dx)/self.dx
-                weight_outer = 1. - weight_inner # The weight of the lower bound matrix, approximated linearly.
-                x_list_inbounds_prev = x_list_inbounds.copy() # List of x-positions still within bounds.
-                x_list_inbounds = x_list[x_index_outer:len(x_list)-x_index_outer] # List of x-positions still within bounds.
-
-                # Diffusion Matrix for Implicit Method. Here defined as
-                # Outer Matrix, and inner matrix is either trivial or an
-                # extracted submatrix.
-                # diffusion_matrix_prev = 2.* np.diag(np.ones(len(x_list_inbounds_prev))) - diffusion_matrix       #Diffusion Matrix for Implicit Method. Here defined as Outer Matrix, and inner matrix is either trivial or an extracted submatrix.
-                local_dt = t - prev_t if t!=0 else self.t_domain()[1]
-                drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds, t=t,
-                                                                       dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                       implicit=True)
-                drift_matrix *= .5
-                noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds,
-                                                                       t=t, dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                       implicit=True)
-                noise_matrix *= .5
-                diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds))
-                diffusion_matrix += drift_matrix
-                diffusion_matrix += noise_matrix
-
-                drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev, t=prev_t,
-                                                                            dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                            implicit=True)
-                drift_matrix_prev *= .5
-                noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev, t=prev_t,
-                                                                            dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                            implicit=True)
-                noise_matrix_prev *= .5
-                diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds_prev))
-                diffusion_matrix_prev -= drift_matrix_prev
-                diffusion_matrix_prev -= noise_matrix_prev
-
-                ### Compute Probability density functions (pdf)
-                # PDF for outer matrix
-                # Probability density function for outer matrix.
-                # Considers the whole space in the previous step
-                # for matrix multiplication, then restrains to current
-                # space when solving for matrix_diffusion.. Separating
-                # outer and inner pdf_prev
-                # 
-                # For constant bounds pdf_inner is unnecessary.
-                # For changing bounds pdf_inner is always needed,
-                # even if the current inner and outer bounds
-                # coincide. I currently make this generally but
-                # we can constrain it to changing-bound
-                # simulations only.
-                so_from = x_index_outer_shift
-                so_to = len(x_list_inbounds)+x_index_outer_shift
-                si_from = x_index_io_shift
-                si_to = len(x_list_inbounds)-x_index_io_shift
-                si2_from = x_index_io_shift_prev
-                si2_to = len(x_list_inbounds_prev)-x_index_io_shift_prev
-                si3_from = x_index_inner_shift
-                si3_to = len(x_list)-2*x_index_inner+x_index_inner_shift
-
-                pdf_outer = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_outer_prev)[so_from:so_to])
-                if x_index_inner == x_index_outer: # Should always be the case, since we removed CN changing bounds support
-                    pdf_inner = pdf_outer
-                else:
-                    # Need a separate matrix here to get the proper corrections
-                    drift_matrix = self.get_dependence('drift').get_matrix(x=x_list_inbounds[si_from:si_to], t=t,
-                                                                           dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                           implicit=True)
-                    drift_matrix *= .5
-                    noise_matrix = self.get_dependence('noise').get_matrix(x=x_list_inbounds[si_from:si_to],
-                                                                           t=t, dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                           implicit=True)
-                    noise_matrix *= .5
-                    diffusion_matrix = TriDiagMatrix.eye(len(x_list_inbounds[si_from:si_to]))
-                    diffusion_matrix += drift_matrix
-                    diffusion_matrix += noise_matrix
-
-                    drift_matrix_prev = self.get_dependence('drift').get_matrix(x=x_list_inbounds_prev[si2_from:si2_to], t=prev_t,
-                                                                                dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                                implicit=True)
-                    drift_matrix_prev *= .5
-                    noise_matrix_prev = self.get_dependence('noise').get_matrix(x=x_list_inbounds_prev[si2_from:si2_to], t=prev_t,
-                                                                                dt=local_dt, dx=self.dx, conditions=conditions,
-                                                                                implicit=True)
-                    noise_matrix_prev *= .5
-                    diffusion_matrix_prev = TriDiagMatrix.eye(len(x_list_inbounds_prev[si2_from:si2_to]))
-                    diffusion_matrix_prev -= drift_matrix_prev
-                    diffusion_matrix_prev -= noise_matrix_prev
-                    pdf_inner = diffusion_matrix.spsolve(diffusion_matrix_prev.dot(pdf_inner_prev)[si3_from:si3_to])
-
-
-                # Pdfs out of bound is considered decisions made.
-                pdf_choice_lower[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[:x_index_outer_shift]) \
-                                   + weight_inner_prev * np.sum(pdf_inner_prev[:x_index_inner_shift])
-                pdf_choice_upper[i_t+1] += weight_outer_prev * np.sum(pdf_outer_prev[len(pdf_outer_prev)-x_index_outer_shift:]) \
-                                   + weight_inner_prev * np.sum(pdf_inner_prev[len(pdf_inner_prev)-x_index_inner_shift:])
-                # Reconstruct current probability density function,
-                # adding outer and inner contribution to it.  Use
-                # .fill() method to avoid allocating memory with
-                # np.zeros().
-                pdf_curr.fill(0) # Reset
-                pdf_curr[x_index_outer:len(x_list)-x_index_outer] += weight_outer*pdf_outer
-                pdf_curr[x_index_inner:len(x_list)-x_index_inner] += weight_inner*pdf_inner
-
-            else:
-                break #break if the remaining densities are too small....
-
-            # Increase current, transient probability of crossing
-            # either bounds, as flux.  Corr is a correct answer, err
-            # is an incorrect answer
-            _inner_B_choice_upper = x_list[len(x_list)-1-x_index_inner]
-            _outer_B_choice_upper = x_list[len(x_list)-1-x_index_outer]
-            _inner_B_choice_lower = x_list[x_index_inner]
-            _outer_B_choice_lower = x_list[x_index_outer]
-            flux_outer_B_choice_upper = self.flux(_outer_B_choice_upper, t, conditions=conditions)
-            flux_inner_B_choice_upper = self.flux(_inner_B_choice_upper, t, conditions=conditions)
-            flux_outer_B_choice_lower = self.flux(_outer_B_choice_lower, t, conditions=conditions)
-            flux_inner_B_choice_lower = self.flux(_inner_B_choice_lower, t, conditions=conditions)
-            if len(pdf_inner) == 0: # Otherwise we get an error when bounds collapse to 0
-                pdf_inner = np.array([0])
-            pdf_choice_upper[i_t+1] += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_choice_upper \
-                               +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_choice_upper
-            pdf_choice_lower[i_t+1] += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_choice_lower \
-                               +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_choice_lower
-            pdf_choice_upper[i_t]   += 0.5*weight_outer * pdf_outer[-1] * flux_outer_B_choice_upper \
-                               +  0.5*weight_inner * pdf_inner[-1] * flux_inner_B_choice_upper
-            pdf_choice_lower[i_t]   += 0.5*weight_outer * pdf_outer[0]  * flux_outer_B_choice_lower \
-                               +  0.5*weight_inner * pdf_inner[0]  * flux_inner_B_choice_lower
-
-            # Renormalize when the channel size has <1 grid, although
-            # all hell breaks loose in this regime.
-            if bound < self.dx:
-                pdf_choice_upper[i_t+1] *= (1+ (1-bound/self.dx))
-                pdf_choice_lower[i_t+1] *= (1+ (1-bound/self.dx))
-            prev_t = t
-            prev_i_t = i_t
-
-        # Fix the time-offest error of dt/2
-        pdf_choice_upper = np.concatenate([[0], np.mean([pdf_choice_upper[1:], pdf_choice_upper[:-1]], axis=0)])
-        pdf_choice_lower = np.concatenate([[0], np.mean([pdf_choice_lower[1:], pdf_choice_lower[:-1]], axis=0)])
-        # Fix the truncation error at the end
-        pdf_choice_upper = pdf_choice_upper[:-1]
-        pdf_choice_lower = pdf_choice_lower[:-1]
-        # Detect and fix below zero errors.  Here, we don't worry
-        # about undecided probability as we did with the implicit
-        # method, because CN tends to oscillate around zero,
-        # especially when noise (sigma) is large.  The user would be
-        # directed to decrease dt.
-        pdf_undec = pdf_curr
-        minval = np.min((np.min(pdf_choice_upper), np.min(pdf_choice_lower)))
-        if minval < 0:
-            sum_negative_strength = np.sum(pdf_choice_upper[pdf_choice_upper<0]) + np.sum(pdf_choice_lower[pdf_choice_lower<0])
-            # For small errors, don't bother alerting the user
-            if sum_negative_strength < -.01 and param.renorm_warnings:
-                _logger.warning(("Probability density included values less than zero (minimum=%f, "
-                    + "total=%f).  Please decrease dt and/or avoid extreme parameter values.")
-                    % (minval, sum_negative_strength))
-                _logger.debug(self.parameters())
-            pdf_choice_upper[pdf_choice_upper < 0] = 0
-            pdf_choice_lower[pdf_choice_lower < 0] = 0
-        # Fix numerical errors
-        pdfsum = np.sum(pdf_choice_upper) + np.sum(pdf_choice_lower)
-        if pdfsum > 1 and False:
-            print('Renorm for', pdfsum)
-            # If it is only a small renormalization, don't bother alerting the user.
-            if pdfsum > 1.01 and param.renorm_warnings:
-                _logger.warning(("Renormalizing probability density from " + str(pdfsum) + " to 1."
-                    + "  Try decreasing dt.  If that doesn't eliminate this warning, it may be due"
-                    + " to extreme parameter values and/or bugs in your model spefication."))
-                _logger.debug(self.parameters())
-            pdf_choice_upper /= pdfsum
-            pdf_choice_lower /= pdfsum
-
-        # TODO Crank-Nicolson still has something weird going on with pdf_curr near 0, where it seems to oscillate
-        return self.get_dependence('overlay').apply(Solution(pdf_choice_upper, pdf_choice_lower, self, conditions=conditions, pdf_undec=None))
-    # def fit(self, sample, fitparams=None, fitting_method="differential_evolution",
-    #         lossfunction=LossLikelihood, verify=False, method=None, verbose=True):
-    #     functions.fit_adjust_model.__doc__
-    #     pyddm.fit_adjust_model(sample=sample, model=self, fitparams=fitparams, fitting_method=fitting_method,
-    #                            lossfunction=lossfunction, verify=verify, method=method, verbose=verbose)
+        assert self.can_solve_cn(conditions=conditions), "Crank-Nicolson requires time-independent bounds"
+        return self._solve_numerical_python("cn", conditions)
 
 
 @paranoidclass

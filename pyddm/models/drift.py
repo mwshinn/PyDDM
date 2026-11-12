@@ -33,7 +33,10 @@ class Drift(Dependence):
     def get_matrix(self, x, t, dx, dt, conditions, implicit=False, **kwargs):
         """The drift component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
-        `x` should be a length N ndarray of all positions in the grid.
+        `x` should contain the interior grid positions.  Absorbing boundary
+        values are zero and are not additional evolving states.  The
+        `implicit` argument is retained for compatibility; the spatial
+        operator is the same for every time integrator.
         `t` should be the time in seconds at which to calculate drift.
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate drift
@@ -51,11 +54,6 @@ class Drift(Dependence):
         else:
             UP = 0.5*dt/dx * drift[1:]
             DOWN = -0.5*dt/dx * drift[:-1]
-        if implicit:
-            D[-1] = UP[-1]
-            UP[-1] = 0
-            D[0] = DOWN[0]
-            DOWN[0] = 0
         return TriDiagMatrix(up=UP,
                              down=DOWN,
                              diag=D)
@@ -64,10 +62,14 @@ class Drift(Dependence):
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Number)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        """The drift component of flux across the boundary at position `x_bound` at time `t`.
+        """Drift outgoing-mass coefficient on a uniform grid.
 
         Flux here is essentially the amount of the mass of the PDF
         that is past the boundary point `x_bound`.
+
+        Evaluate this at the adjacent interior point on the corresponding
+        side of zero.  The solvers obtain outgoing rates from their spatial
+        operator directly, also handling off-grid and single-point domains.
 
         There is generally no need to redefine this method in
         subclasses.

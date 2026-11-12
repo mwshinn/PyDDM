@@ -248,7 +248,7 @@ class Solution(object):
         t_nd.
 
         If no overlays are in the model, then 
-        sum(pdf_corr()[0:t]*dt) + sum(pdf_err()[0:t]*dt) + sum(pdf_evolution()[:,t]*dx)
+        sum(pdf_corr()[0:t+1]*dt) + sum(pdf_err()[0:t+1]*dt) + sum(pdf_evolution()[:,t]*dx)
         should always equal 1 (plus or minus floating point errors).
 
         Note that this function will fail if the solution was not generated to

@@ -33,7 +33,10 @@ class Noise(Dependence):
     def get_matrix(self, x, t, dx, dt, conditions, implicit=False, **kwargs):
         """The diffusion component of the implicit method diffusion matrix across the domain `x` at time `t`.
 
-        `x` should be a length N ndarray of all positions in the grid.
+        `x` should contain the interior grid positions.  Absorbing boundary
+        values are zero and are not additional evolving states.  The
+        `implicit` argument is retained for compatibility; the spatial
+        operator is the same for every time integrator.
         `t` should be the time in seconds at which to calculate noise.
         `dt` and `dx` should be the simulations timestep and grid step
         `conditions` should be the conditions at which to calculate noise
@@ -50,30 +53,25 @@ class Noise(Dependence):
             DOWN = -0.5*noise**2 * dt/dx**2 * np.ones(len(x)-1)
         else:
             D = 1.0*noise**2 * dt/dx**2
-            UP = -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2
-            DOWN = -0.5*(0.5*(noise[1:]+noise[:-1]))**2 * dt/dx**2
-        if implicit:
-            D[0] += DOWN[0]
-            D[-1] += UP[-1]
-            DOWN[0] = 0
-            UP[-1] = 0
-        else:
-            print("WARNING - Explicit method")
+            # Discretize (sigma**2 * p)'' / 2, not sigma**2 * p'' / 2.
+            # Each column transports the noise-weighted mass at its source.
+            UP = -0.5*noise[1:]**2 * dt/dx**2
+            DOWN = -0.5*noise[:-1]**2 * dt/dx**2
         return TriDiagMatrix(diag=D,
                              up=UP,
                              down=DOWN)
     @accepts(Self, x_bound=Number, t=Positive0, dx=Positive, dt=Positive, conditions=Conditions)
     @returns(Positive0)
     def get_flux(self, x_bound, t, dx, dt, conditions, **kwargs):
-        """The diffusion component of flux across the boundary at position `x_bound` at time `t`.
+        """Diffusive outgoing-mass coefficient on a uniform grid.
 
         Flux here is essentially the amount of the mass of the PDF
         that is past the boundary point `x_bound` at time `t` (in
         seconds).
 
-        Note that under the central scheme we want to use x at
-        half-grid from the boundary. This is however cleaner and
-        justifiable using forward/backward scheme.
+        Evaluate this at the adjacent interior point, where the mass is
+        stored.  The solvers obtain outgoing rates from their spatial
+        operator directly, also accounting for off-grid boundaries.
 
         There is generally no need to redefine this method in
         subclasses.
