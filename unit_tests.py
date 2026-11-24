@@ -1,5 +1,6 @@
 import unittest
 from unittest import TestCase, main
+from unittest.mock import patch
 from string import ascii_letters
 import numpy as np
 from itertools import groupby
@@ -688,6 +689,16 @@ class TestSolution(TestCase):
             if s.undec is not None:
                 # Allow better tolerance since accuracy isn't perfect for undecided pdf
                 assert np.isclose(fsum([fsum(s.pdf("_top"))*dt, fsum(s.pdf("_bottom"))*dt, fsum(s.pdf_undec())*dx]), 1, atol=.001)
+    def test_mean_decision_time(self):
+        sol = self.quick_ana
+        with patch("pyddm.logger.logger.warning") as warning:
+            mean = sol.mean_decision_time()
+
+        warning.assert_not_called()
+        assert np.isclose(mean, np.average(sol.t_domain, weights=sol.pdf("correct")))
+        with self.assertRaises(NotImplementedError):
+            self.quick_cn_b.mean_decision_time()
+
     def test_evaluate(self):
         for s in self.all_sols:
             assert s.evaluate(.3, True) > 0
