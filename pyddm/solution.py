@@ -459,7 +459,7 @@ class Solution(object):
         return self.prob_error() + np.sum(self.undec[:len(self.undec)//2])
 
     @accepts(Self)
-    @requires('self.prob_correct() > 0')
+    @requires('self.choice_names == ("correct", "error") and self.prob("correct") > 0')
     @returns(Positive0)
     def mean_decision_time(self):
         """The mean decision time in the correct trials (excluding undecided trials).
